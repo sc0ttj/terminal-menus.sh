@@ -163,7 +163,7 @@ Controls:
 
 [Arrows]  Navigate
 [ENTER]   Open / Select
-[TAB]     Add to selection ({}/sel)
+[TAB]     Toggle add to selection ({}/sel)
 [.]       Toggle hidden files
 [l]       Toggle detailed list
 [/]       Search filter
