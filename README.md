@@ -265,13 +265,6 @@ The `modal` function tells the library to "faint" the background and treat the n
 modal "yesno 'Playback' 'Resume from last seen?'"
 ```
 
-#### How it works:
-1.  **State Preservation**: The library saves the current `TUI_MODE` and the state of the fullscreen UI.
-2.  **Background Fainting**: If `TUI_MODAL="true"` is set (handled by the wrapper), the background widget is redrawn with the `FAINT` (dimmed) attribute.
-3.  **Variable Passthrough**: The modal widget sets the global `TUI_RESULT`.
-4.  **Automatic Redraw**: Once the modal is closed, the parent widget triggers an `_init_tui` refresh to restore the background to full brightness and clear the modal's artifacts.
-
-#### Integration in CSV Lists:
 This is most powerful when used in the `Command` column of your `table` or `mainmenu` CSVs:
 
 ```csv
