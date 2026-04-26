@@ -15,11 +15,14 @@ OK_LABEL="Let's Go!"
 msgbox "Welcome" "This script showcases all widgets in the terminal-menus.sh library.\nEnjoy!"
 
 
+
 # 2. Info Box (Non-blocking)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 2 of 21 - infobox"
 infobox "Processing" "I'm an infobox.\n\nI shows messages, no buttons.\nUse me with sleep..."
 sleep 2
+
+
 
 # 3. TUI Modes
 # ------------------------------------------------------------------------------
@@ -40,6 +43,8 @@ while true; do
 done
 TUI_MODE="centered" # Reset to default for subsequent demos
 
+
+
 # 4. Yes/No with theme switching
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 4 of 21 - yesno (Theming)"
@@ -56,30 +61,42 @@ fi
 YES_LABEL="YES"
 NO_LABEL="No"
 
+
+
 # 5. Input Box
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 5 of 21 - inputbox"
 USER_NAME=$(inputbox "Identity" "Enter your username:" "foo")
+
+
 
 # 6. Password Box
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 6 of 21 - passwordbox"
 PASS=$(passwordbox "Security" "Enter a secret token:" "ppp")
 
+
+
 # 7. Simple Menu
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 7 of 21 - menu"
 CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
+
+
 
 # 8. Checklist
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 8 of 21 - checklist"
 CHKS=$(checklist "Checklist" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
 
+
+
 # 9. Radiolist
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 9 of 21 - radiolist"
 RADIO=$(radiolist "Radiolist" "Choose exactly one:" 2 "Low" "Medium" "High")
+
+
 
 # 10. Filtermenu (Searchable)
 # ------------------------------------------------------------------------------
@@ -107,6 +124,8 @@ United Kingdom
 United States"
 SEARCH=$(filtermenu "Search" "Type to filter countries:" 3 "$COUNTRIES")
 
+
+
 # 11. Gauge (Progress)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 11 of 21 - gauge"
@@ -117,10 +136,14 @@ BACKTITLE="terminal-menus.sh demo 11 of 21 - gauge"
     done
 ) | gauge "Deploying" "Uploading assets to a CDN or something..."
 
+
+
 # 12. Textbox (File Viewer)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 12 of 21 - textbox"
 textbox "Library Source" "./terminal-menus.sh"
+
+
 
 # 13. Tailbox (Live Monitor)
 # ------------------------------------------------------------------------------
@@ -129,6 +152,8 @@ echo "Log initialized..." > demo.log
 (sleep 1; echo "Update 1" >> demo.log; sleep 1; echo "Update 2" >> demo.log) &
 tailbox "Log Monitor" "demo.log"
 rm demo.log
+
+
 
 # 14. Tree (Deep Navigation)
 # ------------------------------------------------------------------------------
@@ -156,6 +181,8 @@ TREE_DATA=(
 
 # This will return only the ID (e.g., "requests") of the chosen node
 TREE_RES=$(tree "File Browser" "Select a file or directory:" 2 "${TREE_DATA[@]}")
+
+
 
 # 15. Configtree (Complex System Configuration)
 # ------------------------------------------------------------------------------
@@ -188,6 +215,8 @@ CONFIG_DATA=(
 # (Note: if 'security' is unchecked, its children won't be in the output)
 CONFIG_OUT=$(configtree "Advanced Config" "Configure System Components" 7 "${CONFIG_DATA[@]}")
 
+
+
 # 16. Form (Advanced DSL)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 16 of 21 - form"
@@ -218,10 +247,14 @@ msgbox "Data Received" "
   Deployment: $deployment
 "
 
+
+
 # 17. File Navigator
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 17 of 21 - file_navigator"
 FILE_PICK=$(file_navigator "Choose a file or selection" "." 2)
+
+
 
 # 18. Table-based System Launcher
 # ------------------------------------------------------------------------------
@@ -254,6 +287,8 @@ LAUNCH_CMD=$(table "Action Center" "table_demo.csv" 3)
 rm table_demo.csv
 [[ -n "$LAUNCH_CMD" ]] && msgbox "Executing" "Running: $LAUNCH_CMD"
 
+
+
 # 19. Filterable Table
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 19 of 21 - filtertable"
@@ -284,6 +319,8 @@ EOF
 RESULT_CMD=$(filtertable "Real-time Service Search" "filter_demo.csv" 3)
 rm filter_demo.csv
 [[ -n "$RESULT_CMD" ]] && msgbox "Selection Result" "The table returned: $RESULT_CMD"
+
+
 
 
 # 20. Kodi-style Main Menu (Split Pane)
@@ -363,6 +400,7 @@ rm movies.csv music.csv settings.csv
 rm "$CONF_FILE"
 
 
+
 # 21. An `fff` style file manager
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 21 of 21 - file_manager"
@@ -383,4 +421,10 @@ elif [[ $RESULT -eq 1 ]]; then
     echo "User quit the File Manager (Pressed 'q')."
 fi
 
+
+
+
+# ------------------------------------------------------------------------------
+
+# Always run this at the end, after using terminal-menus.sh
 cleanup
