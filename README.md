@@ -1,6 +1,6 @@
 # terminal-menus.sh
 
-A high-performance, dependency-free TUI (Terminal User Interface) library written entirely in **Pure Bash 3.2+**.
+A high-performance, dependency-free TUI (Terminal User Interface) library written entirely in **Pure Bash 3.2+**, with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
 
 Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern alternative to `whiptail` and `dialog` with support for TrueColor and modular layouts.
 
