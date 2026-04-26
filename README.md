@@ -205,7 +205,7 @@ TUI_MODE="toast" infobox "System" "Backup completed successfully." && sleep 3
 
 **A command palette anchored to the bottom-right:**
 ```bash
-TUI_MODE="palette" ANCHOR="br" palette "Actions" "Rebuild" "Deploy" "Quit"
+TUI_MODE="palette" ANCHOR="br" menu "Actions" "Rebuild" "Deploy" "Quit"
 ```
 
 **A full-screen dashboard:**
