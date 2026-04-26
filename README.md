@@ -168,7 +168,7 @@ Controls:
 [l]       Toggle detailed list
 [/]       Search filter
 [$/!]     Shell prompt (user/root)
-[{}/sel]  Current selection in shell
+[{}/sel]  Current selection in prompt
 [f/d]     New file or dir
 [r]       Rename item
 [x/c]     Toggle cut (x)/copy (c)
