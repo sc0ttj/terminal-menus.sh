@@ -156,7 +156,30 @@ mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
 
 ### 20. File Manager (`file_manager`)
-An `fff`-style full-featured file manager with previews.
+An `fff`-style full-featured file manager with search & filter, file previews, multiple select, command prompts, more.
+
+```
+Controls:
+
+[Arrows]  Navigate
+[ENTER]   Open / Select
+[TAB]     Add to selection ({}/sel)
+[.]       Toggle hidden files
+[l]       Toggle detailed list
+[/]       Search filter
+[$/!]     Shell prompt (user/root)
+[{}/sel]  Current selection in shell
+[f/d]     New file or dir
+[r]       Rename item
+[x/c]     Toggle cut (x)/copy (c)
+[v]       Paste
+[j/k/J/K] Down/Up/PageDown/PageUp
+[g/G]     Jump to top/bottom
+[q/ESC]   Exit / Cancel
+```
+
+Usage:
+
 ```bash
 file_manager "Home" "$HOME"
 ```
