@@ -200,7 +200,7 @@ TUI_MODE="centered" yesno "Title" "Do you want to proceed?"
 
 **A quick notification toast that disappears after 3 seconds:**
 ```bash
-TUI_MODE="toast" PALETTE_TIMEOUT=3 infobox "System" "Backup completed successfully."
+TUI_MODE="toast" infobox "System" "Backup completed successfully." && sleep 3
 ```
 
 **A command palette anchored to the bottom-right:**
