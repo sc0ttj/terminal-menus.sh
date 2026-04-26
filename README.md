@@ -10,11 +10,11 @@ See the demos :)
 
 The `file_manager` in fullscreen mode:
 
-![mainmenu](screenshots/file_manager.img)
+![mainmenu](screenshots/file_manager.png)
 
 The `mainmenu` in fullscreen mode:
 
-![file_manager](screenshots/mainmenu.img)
+![file_manager](screenshots/mainmenu.png)
 
 ## 🚀 Features
 
