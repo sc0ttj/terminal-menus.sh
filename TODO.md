@@ -40,6 +40,11 @@ Fix: when a command prompt opens, it should set the prompts working dir to the c
 * I hit "$" and type "touch bar" and hit ENTER
 * The file `~/foo/bar` should be created, not `~/bar`
 
+### Respect `.gitignore` files
+
+Press `i` to toggle visibility of "ignored" files.
+Should support `.gitignore`, and other popular "ignore" files.
+
 ------------------------------------------------------------------
 
 ## Improve `mainmenu`
