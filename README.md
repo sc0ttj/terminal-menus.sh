@@ -6,6 +6,16 @@ Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern a
 
 See the demos :) 
 
+## Screenshots
+
+The `file_manager` in fullscreen mode:
+
+![mainmenu](screenshots/file_manager.img)
+
+The `mainmenu` in fullscreen mode:
+
+![file_manager](screenshots/mainmenu.img)
+
 ## 🚀 Features
 
 - **Pure Bash 3.2**: Works out of the box on macOS and legacy Linux systems.
