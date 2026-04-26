@@ -184,6 +184,8 @@ Usage:
 file_manager "Home" "$HOME"
 ```
 
+TIP: You can highlight multiple items using TAB, and hit `$` to launch a prompt (`!` for a root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
+
 ---
 
 ## 🖼 Advanced Features
