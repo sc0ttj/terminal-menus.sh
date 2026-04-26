@@ -405,6 +405,7 @@ rm "$CONF_FILE"
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 21 of 21 - file_manager"
 
+#TUI_MODE=centered
 file_manager "File Manager Demo" "."
 
 # 5. Capture and display the result after exiting

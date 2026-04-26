@@ -242,7 +242,7 @@ _apply_layout() {
             PADDING_TOP=$(( (term_h - MAX_HEIGHT) / 2 ))
             ;;
         "centered"|*)
-            MAX_WIDTH=74;         MAX_HEIGHT=22
+            MAX_WIDTH=75;         MAX_HEIGHT=22
             PADDING_LEFT=$(( (term_w - MAX_WIDTH) / 2 ))
             PADDING_TOP=$(( (term_h - MAX_HEIGHT) / 2 ))
             ;;
