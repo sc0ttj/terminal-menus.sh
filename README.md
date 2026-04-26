@@ -125,7 +125,7 @@ CONFIG_OUT=$(configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
 ```
 
 ### 15. Form (`form`)
-Advanced DSL-based input grid. Returns shell-evaluable assignments.
+Advanced form builder. Returns shell-evaluable assignments.
 ```bash
 FORM_OUT=$(form "Provisioning" "Node" "> User:user=guest" "[x] Wifi:wlan0" "(*) Prod:p")
 eval "$FORM_OUT"
@@ -150,9 +150,9 @@ RESULT_CMD=$(filtertable "Service Search" "services.csv" 1)
 ```
 
 ### 19. Main Menu (`mainmenu`)
-Kodi-style split-pane orchestrator for launching other widgets.
+Kodi-style split-pane orchestrator for navigating menus, tables, and launching commands and other widgets.
 ```bash
-mainmenu "Media Center" "Select category" "$MENU_DSL" 1
+mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
 
 ### 20. File Manager (`file_manager`)
@@ -210,7 +210,7 @@ TUI_MODE="palette" ANCHOR="br" menu "Actions" "Rebuild" "Deploy" "Quit"
 
 **A full-screen dashboard:**
 ```bash
-TUI_MODE="fullscreen" BACKTITLE="Server Monitor" mainmenu "Dashboard" "Select Tool" "$DSL"
+TUI_MODE="fullscreen" BACKTITLE="Server Monitor" mainmenu "Dashboard" "Select Tool" "$MENU_CFG"
 ```
 
 ---
