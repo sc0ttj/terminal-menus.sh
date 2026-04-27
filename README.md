@@ -187,11 +187,19 @@ file_manager "Home" "$HOME"
 You can highlight multiple items using TAB, and hit `$` to launch a command prompt (`!` for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
 
-### 22. Interactive Spreadsheet
+### 22. Spreadsheet (`spreadsheet`)
 An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCAT|IF), horizontal/vertical scrolling, and undo/redo.
 
 ```bash
 FINAL_DATA=$(spreadsheet "budget.csv")
+```
+
+```
+Controls:
+[Arrows] Move
+[Enter] Confirm
+[z/Z] Undo/Redo
+[q] Quit
 ```
 
 ---
