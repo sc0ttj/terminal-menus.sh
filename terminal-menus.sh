@@ -1157,6 +1157,349 @@ form() {
     done
 }
 
+_save_undo() {
+    # Limit stack size to 20 to prevent disk bloat
+    tail -n 20 "$undo_stack" > "${undo_stack}.tmp"
+    # Append current state as a single line (convert commas to | for stack)
+    cat "$tmp_csv" >> "$undo_stack"
+    : > "$redo_stack" # New action clears redo
+}
+
+spreadsheet() {
+    # --- Spreadsheet Features ---
+    # Navigation: Arrow keys for cell movement; scrollable row/column viewport
+    # Modes: NAV (movement/commands) and EDIT (text entry via ENTER)
+    # Math: Basic operators (+, -, *, /) and cell references (e.g., =A1+B1)
+    # Stats: SUM, AVG, MIN, MAX, COUNT, COUNTA (e.g., =SUM(A1:B10))
+    # Logic: IF statements with multi-char operators (e.g., =IF(A1>=50,OK,FAIL))
+    # Strings: Concatenation using & operator (e.g., =A1&B1)
+    # Formatting: ROUND function for decimal precision (e.g., =ROUND(A1,2))
+    # Clipboard: Instant X (cut), C (copy), V (paste) in NAV mode
+    # History: Multi-level Undo (z) and Redo (Z) support
+    # Data: Persistence via CSV; handles row growth and empty cell alignment
+
+    local MAX_COLS=26
+    local src="$1"
+    local tmp_csv=$(mktemp)
+    
+    # 1. Setup Stacks and Clipboard
+    local clipboard_val=""
+    local undo_idx=0 redo_idx=0
+    rm -f /tmp/tui_undo_* /tmp/tui_redo_*
+
+    # 2. Setup Initial Data
+    [[ -f "$src" ]] && cp "$src" "$tmp_csv" || echo "10,20,30" > "$tmp_csv"
+
+    # 3. Define Undo Helper OUTSIDE the loop
+    _push_undo() {
+        ((undo_idx++))
+        cp "$tmp_csv" "/tmp/tui_undo_${undo_idx}.csv"
+        # New actions invalidate redo history
+        rm -f /tmp/tui_redo_*
+        redo_idx=0
+    }
+
+    local cur_r=1 cur_c=1 top_r=1 top_c=1
+    local mode="NAV" edit_val=""
+
+    _init_tui
+    while true; do
+        # Viewport Math
+        local v_h=$((MAX_HEIGHT - 9))
+        local col_w=12 
+        local v_w_area=$((MAX_WIDTH - 11)) 
+        local v_c_count=$((v_w_area / (col_w + 1) + 1))
+
+        [[ $cur_r -lt $top_r ]] && top_r=$cur_r
+        [[ $cur_r -ge $((top_r + v_h)) ]] && top_r=$((cur_r - v_h + 1))
+        [[ $cur_c -lt $top_c ]] && top_c=$cur_c
+        [[ $cur_c -ge $((top_c + v_c_count)) ]] && top_c=$((cur_c - v_c_count + 1))
+
+        # 4. Rendering Logic
+        # 2. Render with Strict Width Math
+
+        # 1. Header Fix: Use _draw_line or a clamped printf to stop the bleed
+        _draw_header "SPREADSHEET" "Mode: $mode | [Arrows] Move  [Enter] Confirm  [z/Z] Undo/Redo  [q] Quit  "
+        # Wipe the subtitle row perfectly to the right edge
+        _draw_at "$((row - 1))" 0; printf "${BG_MAIN_ESC}%*s" "$MAX_WIDTH" "" >&2
+
+        # 2. Spreadsheet Body (Using your fixed width)
+        local visible_h=$((MAX_HEIGHT - 9))
+        local col_w=12 
+        local v_w_area=$((MAX_WIDTH - 11)) # Your fix
+        local v_c_count=$((v_w_area / (col_w + 1)))
+
+
+        # 2. Tight math for the Grid
+        local grid_data
+        grid_data=$(awk -v cur_r="$cur_r" -v cur_c="$cur_c" \
+                        -v top_r="$top_r" -v top_c="$top_c" \
+                        -v h="$v_h" -v v_c="$v_c_count" \
+                        -v col_w="$col_w" -v w="$MAX_WIDTH" \
+                        -v bg_m_raw="$BG_MAIN" -v bg_a_raw="$BG_ACTIVE" \
+                        -v pt="$PADDING_TOP" -v pl="$PADDING_LEFT" \
+            'BEGIN { FS=","; 
+                bm="\033[48;2;"bg_m_raw"m"; ba="\033[48;2;"bg_a_raw"m\033[1m"; 
+                bh="\033[48;2;80;80;80m\033[38;2;200;200;200m"; 
+                abc="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            }
+            { for(i=1; i<=NF; i++) d[NR,i]=$i; }
+            function res(v,  tc, tr) {
+                v = toupper(v);
+                if(v ~ /^[A-Z][0-9]+$/) {
+                    # Ensure A matches 1, B matches 2
+                    tc = index(abc, substr(v,1,1));
+                    tr = substr(v,2); 
+                    return d[tr,tc] + 0;
+                }
+                return v + 0;
+            }
+            function ev(f,  p, op, s, sc, sr, ec, er, r, c, val, count, min, max, c_num, c_all, n1, n2) {
+                f = toupper(f); sub(/^=/, "", f);
+                
+                # --- RANGE FUNCTIONS ---
+                if (f ~ /^(SUM|AVG|MIN|MAX|COUNT|COUNTA)\(/) {
+                    op = substr(f, 1, index(f, "(") - 1);
+                    sub(/^[A-Z]+\(/, "", f); sub(/\)/, "", f);
+                    split(f, p, ":");
+                    sc = index(abc, substr(p[1],1,1)); sr = substr(p[1],2);
+                    ec = index(abc, substr(p[2],1,1)); er = substr(p[2],2);
+                    s = 0; c_num = 0; c_all = 0;
+                    min = 999999999; max = -999999999;
+                    for(r=sr; r<=er; r++) {
+                        for(c=sc; c<=ec; c++) {
+                            val = d[r,c]; if (val == "") continue;
+                            c_all++;
+                            if (val ~ /^-?[0-9.]+$/) {
+                                num = val + 0; s += num; c_num++;
+                                if (num < min) min = num; if (num > max) max = num;
+                            }
+                        }
+                    }
+                    if (op == "SUM") return s;
+                    if (op == "AVG") return (c_num > 0) ? s / c_num : 0;
+                    if (op == "MIN") return (c_num > 0) ? min : 0;
+                    if (op == "MAX") return (c_num > 0) ? max : 0;
+                    if (op == "COUNT") return c_num;
+                    if (op == "COUNTA") return c_all;
+                }
+                
+                # --- ROUND ---
+                if (f ~ /^ROUND\(/) {
+                    sub(/^ROUND\(/, "", f); sub(/\)/, "", f);
+                    split(f, p, ",");
+                    return sprintf("%." (p[2]+0) "f", res(p[1]));
+                }
+                
+                # --- CONCAT ---
+                if (f ~ /&/) {
+                    split(f, p, "&");
+                    return res(p[1]) res(p[2]);
+                }
+
+                # --- IF ---
+                if (f ~ /^IF\(/) {
+                    sub(/^IF\(/, "", f); sub(/\)/, "", f);
+                    split(f, p, ",");
+                    cond = p[1];
+                    op = (cond ~ />=/) ? ">=" : ((cond ~ /<=/) ? "<=" : ((cond ~ />/) ? ">" : ((cond ~ /</) ? "<" : "=")));
+                    split(cond, cp, op);
+                    v1 = res(cp[1]); v2 = res(cp[2]);
+                    rb = 0;
+                    if(op==">=") rb=(v1>=v2); else if(op=="<=") rb=(v1<=v2);
+                    else if(op==">") rb=(v1>v2); else if(op=="<") rb=(v1<v2); else rb=(v1==v2);
+                    return rb ? p[2] : p[3];
+                }
+
+                # --- MATH ---
+                op = (f~/\+/)?"+":((f~/-/)?"-":((f~/\*/)?"*":((f~/\//)?"/":"")));
+                if (op != "") {
+                    split(f, p, op); n1 = res(p[1]); n2 = res(p[2]);
+                    if(op=="+") return n1+n2; if(op=="-") return n1-n2;
+                    if(op=="*") return n1*n2; return (n2==0)?"DIV/0":n1/n2;
+                }
+                return f;
+            }
+            END {
+                row_num_w = 4;
+                # --- HEADER ---
+                printf "\033[%d;%dH%s  %*s", (pt+6), (pl+1), bm, row_num_w, "";
+                used = 4 + row_num_w;
+                for(c=top_c; c<(top_c + v_c); c++) {
+                    printf "%s %-*.*s %s", bh, col_w, col_w, substr(abc,c,1), bm;
+                    used += (col_w + 2);
+                }
+                # Fill remaining gap to right edge exactly
+                if (w > used) printf "%*s", (w - used), "";
+
+                # --- ROWS ---
+                for(r=top_r; r<(top_r + h); r++) {
+                    ry=r-top_r+pt+7;
+                    printf "\033[%d;%dH%s  %2d %s", ry, (pl+1), bh, r, bm;
+                    used = 2 + row_num_w;
+                    for(c=top_c; c<(top_c + v_c); c++) {
+                        s=(r==cur_r && c==cur_c)?ba:bm; v=d[r,c];
+                        if(v ~ /^=/) v=ev(v);
+                        if(v == "") v=" ";
+                        printf "%s %-*.*s %s", s, col_w, col_w, v, bm;
+                        used += (col_w + 2);
+                    }
+                    # Fill remaining gap to right edge exactly
+                    if (w > used) printf "%*s", (w - used), "";
+                }
+            }' "$tmp_csv")
+
+        printf "%b" "$grid_data" >&2
+        
+        # 3. Status Bar - Fixed width with truncation and trailing fill
+        _draw_at "$((MAX_HEIGHT - 1))" 0
+        local bar_limit=$((MAX_WIDTH - 5)) # Buffer for indents
+        
+        if [[ "$mode" == "EDIT" ]]; then
+            local label=" EDIT: "
+            local val_limit=$(( bar_limit - ${#label} ))
+            printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$edit_val" >&2
+        else
+            local raw=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
+            local label=" [$(printf \\$(printf '%03o' $((cur_c+64))))${cur_r}] Raw: "
+            local val_limit=$(( bar_limit - ${#label} ))
+            printf "  ${FG_HINT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$raw" >&2
+        fi
+
+        # 6. Input Handling
+        local key
+        IFS= read -rsn1 key < /dev/tty
+
+        # --- ENTER KEY HANDLER ---
+        if [[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]; then
+            if [[ "$mode" == "NAV" ]]; then
+                mode="EDIT"
+                edit_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
+            else
+                _push_undo
+                local row_count=$(wc -l < "$tmp_csv")
+                while [[ $row_count -lt $cur_r ]]; do
+                    local pad=""; for ((i=1; i<MAX_COLS; i++)); do pad+=","; done
+                    echo "$pad" >> "$tmp_csv"; ((row_count++))
+                done
+
+                # REBUILDER: The only way to prevent the "Shift to Column A" in BusyBox
+                awk -F, -v r="$cur_r" -v c="$cur_c" -v nv="$edit_val" -v mc="$MAX_COLS" '
+                    BEGIN { OFS="," }
+                    NR == r {
+                        # 1. Force the line into a clean array using the comma separator
+                        # This is more reliable in BusyBox than using $i
+                        n = split($0, row, ",")
+                        
+                        # 2. Update the specific index
+                        row[c] = nv
+                        
+                        # 3. Manually stringify the array back to mc (26) columns
+                        out = ""
+                        for (i = 1; i <= mc; i++) {
+                            val = row[i]
+                            # Ensure index exists in output string even if it was null in input
+                            out = (i == 1) ? val : out OFS val
+                        }
+                        print out; next
+                    }
+                    { print $0 }' "$tmp_csv" > "${tmp_csv}.tmp" && mv "${tmp_csv}.tmp" "$tmp_csv"
+                mode="NAV"
+            fi
+            continue
+        fi
+
+        # --- FIX: Handle NAV mode shortcuts (x, c, v) FIRST ---
+        if [[ "$mode" == "NAV" ]]; then
+            case "$key" in
+                "c")
+                    clipboard_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
+                    continue
+                    ;;
+                "x"|"v")
+                    _push_undo
+                    
+                    local target_val=""
+                    if [[ "$key" == "x" ]]; then
+                        clipboard_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
+                        target_val=""
+                    else
+                        target_val="$clipboard_val"
+                    fi
+
+                    local row_count=$(wc -l < "$tmp_csv")
+                    while [[ $row_count -lt $cur_r ]]; do
+                        local pad_line=""; for ((i=1; i<MAX_COLS; i++)); do pad_line+=","; done
+                        echo "$pad_line" >> "$tmp_csv"
+                        ((row_count++))
+                    done
+                    # Use nv="$target_val" instead of "$edit_val"
+                    awk -F, -v r="$cur_r" -v c="$cur_c" -v nv="$target_val" -v mc="$MAX_COLS" '
+                        BEGIN { OFS="," }
+                        NR == r {
+                            # 1. Force the line into a clean array using the comma separator
+                            # This is more reliable in BusyBox than using $i
+                            n = split($0, row, ",")
+                            
+                            # 2. Update the specific index
+                            row[c] = nv
+                            
+                            # 3. Manually stringify the array back to mc (26) columns
+                            out = ""
+                            for (i = 1; i <= mc; i++) {
+                                val = row[i]
+                                # Ensure index exists in output string even if it was null in input
+                                out = (i == 1) ? val : out OFS val
+                            }
+                            print out; next
+                        }
+                        { print $0 }' "$tmp_csv" > "${tmp_csv}.tmp" && mv "${tmp_csv}.tmp" "$tmp_csv"
+                    continue
+                    ;;
+            esac
+        fi
+
+        case "$key" in
+            "z") # UNDO
+                if [[ $undo_idx -gt 0 ]]; then
+                    ((redo_idx++))
+                    cp "$tmp_csv" "/tmp/tui_redo_${redo_idx}.csv"
+                    cp "/tmp/tui_undo_${undo_idx}.csv" "$tmp_csv"
+                    rm -f "/tmp/tui_undo_${undo_idx}.csv"
+                    ((undo_idx--))
+                fi
+                ;;
+            "Z") # REDO
+                if [[ $redo_idx -gt 0 ]]; then
+                    ((undo_idx++))
+                    cp "$tmp_csv" "/tmp/tui_undo_${undo_idx}.csv"
+                    cp "/tmp/tui_redo_${redo_idx}.csv" "$tmp_csv"
+                    rm -f "/tmp/tui_redo_${redo_idx}.csv"
+                    ((redo_idx--))
+                fi
+                ;;
+            $'\e')
+                read -rsn2 key < /dev/tty
+                [[ "$mode" == "NAV" ]] && case "$key" in
+                    "[A") [[ $cur_r -gt 1 ]] && ((cur_r--)) ;;
+                    "[B") ((cur_r++)) ;;
+                    "[C") [[ $cur_c -lt $MAX_COLS ]] && ((cur_c++)) ;;
+                    "[D") [[ $cur_c -gt 1 ]] && ((cur_c--)) ;;
+                esac
+                ;;
+            "q"|"Q") [[ "$mode" == "NAV" ]] && break ;;
+            $'\177'|$'\010') [[ "$mode" == "EDIT" ]] && edit_val="${edit_val%?}" ;;
+            *)
+                # CRITICAL: Only append to edit_val if we are actually in EDIT mode
+                # This prevents "v" or "x" from being added to the buffer in NAV mode
+                [[ "$mode" == "EDIT" ]] && edit_val+="$key" 
+                ;;
+        esac
+    done
+    cat "$tmp_csv"
+    rm -f "$tmp_csv" /tmp/tui_undo_* /tmp/tui_redo_*
+}
+
 filtermenu() {
     local title=$1 msg=$2 d=0 input_string=""
     

@@ -424,6 +424,38 @@ fi
 
 
 
+# 22. Interactive Spreadsheet
+# ------------------------------------------------------------------------------
+BACKTITLE="terminal-menus.sh demo 22 of 22 - spreadsheet"
+
+# Create a sample financial sheet
+cat <<EOF > budget.csv
+Category,Amount,Notes
+Groceries,150.00,Weekly shop
+Rent,1200.00,Monthly
+Internet,60.00,Fiber
+Savings,200.00,Auto-transfer
+Misc,45.50,Buffer
+EOF
+
+# Launch the spreadsheet widget
+# Use TUI_MODE=fullscreen to provide maximum room for columns
+FINAL_DATA=$(spreadsheet "budget.csv")
+
+# Capture the exit status
+if [[ $? -eq 0 ]]; then
+    # We show the first few lines of the returned CSV data
+    # to prove the data was captured from STDOUT
+    SUMMARY=$(echo "$FINAL_DATA" | head -n 3)
+    msgbox "Spreadsheet Saved" "Data returned to script successfully.\n\nPreview:\n$SUMMARY\n..."
+else
+    msgbox "Spreadsheet" "Changes discarded."
+fi
+
+rm budget.csv
+
+
+
 # ------------------------------------------------------------------------------
 
 # Always run this at the end, after using terminal-menus.sh
