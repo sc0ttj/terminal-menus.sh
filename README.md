@@ -196,6 +196,7 @@ FINAL_DATA=$(spreadsheet "budget.csv")
 
 ```
 Controls:
+
 [Arrows] Move
 [Enter] Confirm
 [z/Z] Undo/Redo
