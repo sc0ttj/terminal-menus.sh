@@ -22,9 +22,6 @@ case "$key" in
 esac
 ```
 
-### Special `cd` handling in the CMD and SUDO_CMD prompts
-If you run `cd foo/bar` in a command prompt, the file_manager should `cd` to that dir, not only the shell.
-
 ### Fix fullscreen
 In fullscreen mode:
 * the help info should be indented one space more (keep same width, just move it to the right one space).
