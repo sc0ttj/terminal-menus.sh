@@ -1913,6 +1913,7 @@ _tree_core() {
         visible_indices=(); formatted_lines=()
         local last_hidden_depth=-1 
         local exp_str="|$(printf "%s|" "${expanded[@]}")"
+        local is_filtering=0; [[ -n "$filter_query" ]] && is_filtering=1
 
         for i in "${!all_nodes[@]}"; do
             local node="${all_nodes[i]}"
@@ -1921,44 +1922,69 @@ _tree_core() {
             local id="${remaining%%|*}"; remaining="${remaining#*|}"
             local label="${remaining%%|*}"; local has_kids="${remaining##*|}"
 
-            # --- 1. HIERARCHY CHECK (Must come first!) ---
-            # If we are currently inside a collapsed branch, we MUST skip
-            if [[ $last_hidden_depth -ne -1 && $depth -gt $last_hidden_depth ]]; then
-                continue
-            fi
-            last_hidden_depth=-1
-
-            # --- 2. ENHANCED FILTER LOGIC ---
-            if [[ "$ENABLE_FILTER" == "true" && -n "$filter_query" ]]; then
-                local match=0
+            # --- 1. FILTER CALCULATION ---
+            local match=0
+            if [[ $is_filtering -eq 1 ]]; then
                 shopt -s nocasematch
+                # Logic: Match if Self, any Ancestor, or any Descendant matches
                 if [[ "$label" == *"$filter_query"* || "$id" == *"$filter_query"* ]]; then
                     match=1
                 else
-                    # Check Ancestors for a match
+                    # Check Ancestors
                     local scan_p=$i check_d=$depth
                     while [[ $scan_p -gt 0 ]]; do
                         ((scan_p--))
                         local p_node="${all_nodes[$scan_p]}"
                         if [[ "${p_node%%|*}" -lt $check_d ]]; then
                             local p_rem="${p_node#*|}"
-                            local p_id="${p_rem%%|*}"
-                            local p_lab="${p_rem#*|}" p_lab="${p_lab%%|*}"
-                            if [[ "$p_lab" == *"$filter_query"* || "$p_id" == *"$filter_query"* ]]; then
+                            if [[ "${p_rem#*|}" == *"$filter_query"* || "${p_rem%%|*}" == *"$filter_query"* ]]; then
                                 match=1; break
                             fi
                             check_d="${p_node%%|*}"
                         fi
                     done
+                    # Check Descendants
+                    if [[ $match -eq 0 ]]; then
+                        local scan_d=$((i + 1))
+                        while [[ $scan_d -lt $count ]]; do
+                            local d_node="${all_nodes[$scan_d]}"
+                            [[ "${d_node%%|*}" -le $depth ]] && break
+                            local d_rem="${d_node#*|}"
+                            if [[ "${d_rem#*|}" == *"$filter_query"* || "${d_rem%%|*}" == *"$filter_query"* ]]; then
+                                match=1; break
+                            fi
+                            ((scan_d++))
+                        done
+                    fi
                 fi
                 shopt -u nocasematch
                 [[ $match -eq 0 ]] && continue
             fi
 
-            # --- 3. SET COLLAPSE MARKER ---
-            # Even if it matches, if it's not expanded, mark the depth to hide children
-            if [[ "$has_kids" == "true" && "$exp_str" != *"|$id|"* ]]; then
-                last_hidden_depth=$depth
+            # --- 2. HIERARCHY / EXPANSION LOGIC ---
+            # If filtering, we ignore 'expanded' state and show the branch
+            if [[ $is_filtering -eq 0 ]]; then
+                if [[ $last_hidden_depth -ne -1 && $depth -gt $last_hidden_depth ]]; then
+                    continue
+                fi
+                last_hidden_depth=-1
+                if [[ "$has_kids" == "true" && "$exp_str" != *"|$id|"* ]]; then
+                    last_hidden_depth=$depth
+                fi
+            fi
+
+            # --- 3. RENDER ---
+            visible_indices[${#visible_indices[@]}]=$i
+            local indent=""; for ((d=0; d<depth; d++)); do indent="  $indent"; done
+            
+            # Icon logic: If filtering, force "▼" for matching parents so user sees they are open
+            local icon="  "
+            if [[ "$has_kids" == "true" ]]; then
+                if [[ $is_filtering -eq 1 || "$exp_str" == *"|$id|"* ]]; then
+                    icon="▼ "
+                else
+                    icon="▶ "
+                fi
             fi
 
             # 3. ROBUST DISABLED CHECK (The Fix)
@@ -1979,14 +2005,10 @@ _tree_core() {
                 fi
             done
 
-            visible_indices[${#visible_indices[@]}]=$i
-            local indent=""; for ((d=0; d<depth; d++)); do indent="  $indent"; done
-            local icon="▶ "; [[ "$exp_str" == *"|$id|"* ]] && icon="▼ "
-            [[ "$has_kids" != "true" ]] && icon="  "
-
             formatted_lines[${#formatted_lines[@]}]="${indent}${icon}${label}|${is_disabled:-false}"
         done
     }
+
 
     _update_tree_cache
     _init_tui
@@ -2072,7 +2094,28 @@ _tree_core() {
             if [[ -z "$ESC_SEQ" ]]; then
                 case "$key" in
                     $'\177'|$'\b') filter_query="${filter_query%?}"; _update_tree_cache; continue ;;
-                    "") [[ $v_count -gt 0 ]] && cur=0; continue ;;
+                    "") # ENTER: JUMP TO MATCH
+                        if [[ ${#visible_indices[@]} -gt 0 ]]; then
+                            cur=0 # Fallback
+                            shopt -s nocasematch
+                            for ((idx=0; idx<${#visible_indices[@]}; idx++)); do
+                                local g_idx=${visible_indices[$idx]}
+                                local node="${all_nodes[$g_idx]}"
+                                local rem="${node#*|}"
+                                local id_str="${rem%%|*}"
+                                local lab_str="${rem#*|}"; lab_str="${lab_str%%|*}"
+
+                                if [[ "$lab_str" == *"$filter_query"* || "$id_str" == *"$filter_query"* ]]; then
+                                    cur=$idx
+                                    break
+                                fi
+                            done
+                            shopt -u nocasematch
+                        fi
+                        # CRITICAL FIX: Jump to the top of the loop now
+                        # This prevents the "List Navigation" Enter logic from running
+                        continue 
+                        ;;
                     *) 
                         # Capture printable chars
                         if [[ -n "$key" ]]; then
