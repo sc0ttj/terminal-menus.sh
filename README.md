@@ -170,6 +170,7 @@ Controls:
 [/]       Search filter
 [$/!]     Shell prompt (user/root)
 [{}/sel]  Current selection in prompt
+[e]       Edit file in $EDITOR
 [f/d]     New file or dir
 [r]       Rename item
 [x/c]     Toggle cut (x)/copy (c)

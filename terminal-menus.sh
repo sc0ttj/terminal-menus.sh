@@ -3600,10 +3600,20 @@ EOF
             if [[ $cur -ne $last_cur ]]; then
                 local node="${raw_list[$cur]}"
                 local p="${node%%|*}"
-                if [[ "${node##*|}" == "false" ]];then
+                
+                # Ensure we have a temp file for the directory listing
+                local preview_file="/tmp/tui_pv_$$.txt"
+
+                if [[ "${node##*|}" == "false" ]]; then
+                    # FILE: Standard preview
                     preview "$p" "$list_top" "$height" "$preview_x" "$preview_offset"
                 else
-                    preview "" "$list_top" "$height" "$preview_x" "$preview_offset"
+                    # DIRECTORY: Ranger-style "Peek" inside
+                    # -1 (one column), -A (all except . ..), -p (slash on dirs)
+                    # We use head -20 because some head versions don't like -n
+                    # 1. List dirs only (those ending in /) then files (everything else)
+                    { ls -1Ap "$p" | grep '/$'; ls -1Ap "$p" | grep -v '/$'; } 2>/dev/null | head -"$height" > "$preview_file"
+                    preview "$preview_file" "$list_top" "$height" "$preview_x" 0
                 fi
                 last_cur=$cur
             fi
@@ -3942,6 +3952,14 @@ EOF
                 # No rebuild=1 needed here if you only update the two rows, 
                 # but for simplicity, rebuild=0 and a surgical redraw is better.
                 ;;
+
+            "e") # Instant Edit
+                local p="${raw_list[$cur]%%|*}"
+                [[ "${raw_list[$cur]##*|}" == "false" ]] && {
+                    _show_cursor; stty sane; printf "\e[0m\e[H\e[J" >&2
+                    ${EDITOR:-vi} "$p"
+                    stty -echo; _init_tui; _hide_cursor; rebuild=1
+                } ;;
 
             "l") # Toggle Detailed View
                 show_details=$(( 1 - show_details ))
