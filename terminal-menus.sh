@@ -3135,42 +3135,91 @@ _update_display_path() {
 
 _get_tab_completion() {
     local current_input="$prompt_buffer"
-    local last_word="${current_input##* }"
-    [[ "$current_input" == *" "* ]] && local prefix="${current_input% *} " || local prefix=""
+    local prefix="" last_word=""
     
+    # 1. Split command into prefix (cd ) and the word being completed (dir/foo)
+    if [[ "$current_input" == *" "* ]]; then
+        prefix="${current_input% *} "
+        last_word="${current_input##* }"
+    else
+        prefix=""
+        last_word="$current_input"
+    fi
+
+    # --- THE FIX FOR #3: FORCE RESET ON NEW PATH INPUT ---
+    # If the user typed anything after the last completion (like a '/' or 'f')
+    # and it no longer matches the cycle, we reset the index.
+    if [[ -n "$last_completion_base" && "$current_input" != "$last_completion_base" ]]; then
+        completion_idx=-1
+    fi
+
+    # --- RESET CYCLE ON NEW DEPTH ---
+    # If the user just added a "/", reset cycling to scan the new subfolder
+    if [[ "$current_input" == */ ]]; then
+        completion_idx=-1
+    fi
+
     # --- CYCLING LOGIC ---
-    # If we are hitting TAB on the same word, just move to the next match
     if [[ $completion_idx -ge 0 && "$current_input" == "$last_completion_base"* ]]; then
         ((completion_idx++))
         [[ $completion_idx -ge ${#completion_matches[@]} ]] && completion_idx=0
         
         prompt_buffer="${prefix}${completion_matches[$completion_idx]}"
         prompt_pos=${#prompt_buffer}
+        last_completion_base="$prompt_buffer"
         return
     fi
 
-    # --- NEW SEARCH LOGIC ---
+    # --- PATH-AWARE SEARCH ---
     completion_matches=()
     completion_idx=-1
-    last_completion_base="$current_input"
+    
+    local dir_part="" partial=""
+    if [[ "$last_word" == *"/"* ]]; then
+        # Capture everything up to and including the LAST slash
+        dir_part="${last_word%/*}/"
+        # Capture everything AFTER the last slash
+        partial="${last_word##*/}"
+    else
+        dir_part=""
+        partial="$last_word"
+    fi
 
-    shopt -s nocasematch
-    for item in "${master_raw_list[@]}"; do
-        local name="${item#*|}"
-        name="${name%|*}"
-        [[ "$name" == ".." ]] && continue
+    # Resolve scan directory
+    local scan_root="$root_dir"
+    [[ "$dir_part" == /* ]] && scan_root="" 
+    local real_scan_dir=$(cd "${scan_root}/${dir_part}" 2>/dev/null && pwd)
+    
+    if [[ -d "$real_scan_dir" ]]; then
+        shopt -s dotglob nocaseglob
+        # Match pattern
+        local pattern="$real_scan_dir/${partial}*"
         
-        # Match filenames starting with the last word
-        if [[ "$name" == "$last_word"* ]]; then
-            completion_matches[${#completion_matches[@]}]="$name"
-        fi
-    done
-    shopt -u nocasematch
+        # 1. Loop Dirs First
+        for f in $pattern; do
+            [[ ! -d "$f" ]] && continue
+            local name="${f##*/}"
+            [[ "$name" == "." || "$name" == ".." ]] && continue
+            completion_matches[${#completion_matches[@]}]="${dir_part}${name}"
+        done
+        
+        # 2. Loop Files Second
+        for f in $pattern; do
+            [[ ! -f "$f" ]] && continue
+            local name="${f##*/}"
+            completion_matches[${#completion_matches[@]}]="${dir_part}${name}"
+        done
+        shopt -u dotglob nocaseglob
+    fi
 
+    # --- APPLY FIRST MATCH ---
     if [[ ${#completion_matches[@]} -gt 0 ]]; then
         completion_idx=0
         prompt_buffer="${prefix}${completion_matches[0]}"
         prompt_pos=${#prompt_buffer}
+        last_completion_base="$prompt_buffer"
+    else
+        printf "\a" >&2
     fi
 }
 
