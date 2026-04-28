@@ -2798,47 +2798,86 @@ _execute_mode_action() {
     local current_path="${current_node%%|*}"
     local targets=""
 
-    # --- FIX: Build a clean list by filtering out the '0' placeholders ---
+    # 1. FORCE sync the local variable with the global prompt_buffer
+    local cmd="$prompt_buffer"
+    
+    #msgbox "DEBUG" "Buffer was: [$cmd]"
+    
+    if [[ "$cmd" == cd\ * || "$cmd" == "cd.." ]]; then
+        local target_dir="${cmd#cd }"
+        [[ "$cmd" == "cd.." ]] && target_dir=".."
+
+        # Handle '~' expansion safely for Bash 3.2
+        if [[ "${target_dir:0:1}" == "~" ]]; then
+            target_dir="${HOME}${target_dir:1}"
+        fi
+
+        # 3. ROBUST PATH RESOLUTION
+        # Resolve against the TUI's root_dir, not the script's launch dir
+        local resolved="$target_dir"
+        [[ ! "$target_dir" == /* ]] && resolved="$root_dir/$target_dir"
+
+        if [[ -d "$resolved" ]]; then
+            # Update the global root_dir
+            root_dir=$(cd "$resolved" && pwd)
+            
+            # Reset UI state and force a re-scan of the new folder
+            ui_mode="NAV"
+            prompt_buffer=""
+            prompt_pos=0
+            rebuild=1
+            cur=0
+            last_dir="FORCE_REBUILD" 
+            return 0
+        else
+            msgbox "Error" "Directory not found: $target_dir"
+            return 1
+        fi
+    fi
+
+    # --- Standard Command Handling ---
     local tagged_count=0
     for item in "${selected_paths[@]}"; do
-        # Only add to the list if the item is a valid path (not '0' or empty)
         if [[ "$item" != "0" && -n "$item" ]]; then
             targets+="'$item' "
             ((tagged_count++))
         fi
     done
-
-    # If no valid paths were found in the array, fallback to the focused item
-    if [[ $tagged_count -eq 0 ]]; then
-        targets="'$current_path'"
-    fi
+    [[ $tagged_count -eq 0 ]] && targets="'$current_path'"
 
     case "$ui_mode" in
         "CMD"|"SUDO_CMD")
-            # 2. SED REPLACEMENT (Portable Version)
-            # Escape slashes in paths so sed / doesn't break
-            local escaped_targets=$(echo "$targets" | sed 's/\//\\\//g')
+            local final_cmd="${prompt_buffer//\{\}/$targets}"
+            final_cmd="${final_cmd//sel/$targets}"
             
-            # Use Here-Doc to feed sed
-            local final_cmd=$(sed "s/{}/$escaped_targets/g; s/sel/$escaped_targets/g" <<EOF
-$prompt_buffer
-EOF
-)
-            # 3. EXECUTION
+            # 1. Create a temporary file to capture output
+            local out_tmp="/tmp/tui_out_$$.txt"
+            
             if [[ "$ui_mode" == "SUDO_CMD" ]]; then
-                _show_cursor; stty sane; printf "\e[0m\e[H\e[J" >&2
-                # Pass the cd command INTO the sudo shell so it knows where to work
-                sudo sh -c "cd '$root_dir' && $final_cmd"
-                printf "\n[Done] Press any key..." >&2; read -n1 -s
-                stty -echo; _init_tui; _hide_cursor
+                # Run sudo and capture BOTH stdout and stderr to the temp file
+                # Use 'tee' so the user sees output in real-time
+                sudo sh -c "cd '$root_dir' && $final_cmd" 2>&1 | tee "$out_tmp"
             else
-                # Use a subshell (parentheses) to change directory temporarily
-                # without affecting the path of the main TUI script.
-                ( cd "$root_dir" && eval "$final_cmd" )
+                # Run standard command and capture output
+                ( cd "$root_dir" && eval "$final_cmd" ) 2>&1 | tee "$out_tmp"
             fi
-            
+
+            # 2. Check if the file is NOT empty
+            if [[ -s "$out_tmp" ]]; then
+                # Output found: Show the "[Done]" prompt
+                printf "\n\e[2m[Done] Press any key...\e[0m" >&2
+                # Use standard read for portability
+                read -rsn1 _ < /dev/tty
+            fi
+
+            # 3. Clean up and restore TUI
+            rm -f "$out_tmp"
+            stty -echo
+            _init_tui
+            _hide_cursor
             prompt_buffer=""; prompt_pos=0; rebuild=1
             ;;
+
         "RENAME")
             new_path="$root_dir/$prompt_buffer"
             mv "$current_path" "$new_path"
@@ -3786,8 +3825,31 @@ EOF
 
         # --- C. NAV MODE HOTKEYS ---
         case "$key" in
-            "q") return 1 ;;
+            "q") return 1 ;; # Now "q" will exit correctly
+            "") # ENTER key
+                if [[ "$ui_mode" != "NAV" ]]; then
+                    # We are in a prompt (SEARCH, CMD, etc.)
+                    _execute_mode_action
+                    continue
+                else
+                    # We are in NAVIGATION mode - Restore selection/CD logic
+                    local node="${raw_list[$cur]}"
+                    local p="${node%%|*}"
+                    local label="${node#*|}"
+                    label="${label%|*}"
 
+                    if [[ "$label" == ".." || "${node##*|}" == "true" ]]; then
+                        # Standard directory navigation
+                        root_dir=$(cd "$p" && pwd)
+                        [[ "$label" == ".." ]] && last_path="${raw_list[$cur]%%|*}" || last_path=""
+                        rebuild=1; cur=-2; _init_tui
+                    else
+                        # File selection
+                        TUI_RESULT="$p"
+                        return 0
+                    fi
+                fi
+                ;;
             $'\t') # TAB: Toggle Tag by Path
                 local path="${raw_list[$cur]%%|*}"
                 local label="${raw_list[$cur]#*|}"
