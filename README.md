@@ -112,16 +112,16 @@ tailbox "Log Monitor" "server.log"
 ```
 
 ### 13. Tree (`tree`)
-Deep hierarchical navigation. Returns the ID of the selected node.
+Deep hierarchical navigation. Returns the ID of the selected node. Optional search/filter input.
 ```bash
 TREE_DATA=("0|usr|/usr|true" "1|bin|bin/|true" "2|bash|bash|false")
-TREE_RES=$(tree "Browser" "Select path:" 1 "${TREE_DATA[@]}")
+TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" 1 "${TREE_DATA[@]}")
 ```
 
 ### 14. Configtree (`configtree`)
-Hierarchical configuration toggle. Returns a list of variable assignments.
+Hierarchical configuration toggle. Returns a list of variable assignments. Optional search/filter input.
 ```bash
-CONFIG_OUT=$(configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
+CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
 ```
 
 ### 15. Form (`form`)
