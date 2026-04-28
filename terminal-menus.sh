@@ -1894,6 +1894,11 @@ _tree_core() {
     # FIX: Reduce width to -6 to accommodate the 1-space indent AND _draw_item's padding
     local box_width=$(( MAX_WIDTH - 6 )) 
 
+    # 1. New Filter State
+    : ${ENABLE_FILTER:=false}
+    local filter_query=""
+    local last_query="INIT"
+
     local visible_indices=() formatted_lines=() expanded=()
 
     # Pre-populate the expanded array with every parent ID
@@ -1906,52 +1911,80 @@ _tree_core() {
 
     _update_tree_cache() {
         visible_indices=(); formatted_lines=()
-        local last_hidden_depth=-1 last_disabled_depth=-1 
-        local i node depth id label has_kids remaining
-        
-        # Performance Fix 1: Use a string for 'expanded' instead of an array
-        # This makes the check [[ $expanded_str == *"|$id|"* ]] nearly instant
+        local last_hidden_depth=-1 
         local exp_str="|$(printf "%s|" "${expanded[@]}")"
 
         for i in "${!all_nodes[@]}"; do
-            node="${all_nodes[i]}"
-            
-            # Performance Fix 2: Use Native Parameter Expansion (No 'read <<<')
-            depth="${node%%|*}"
-            remaining="${node#*|}"
-            id="${remaining%%|*}"
-            remaining="${remaining#*|}"
-            label="${remaining%%|*}"
-            has_kids="${remaining##*|}"
+            local node="${all_nodes[i]}"
+            local depth="${node%%|*}"
+            local remaining="${node#*|}"
+            local id="${remaining%%|*}"; remaining="${remaining#*|}"
+            local label="${remaining%%|*}"; local has_kids="${remaining##*|}"
 
-            # Visibility logic (remains the same)
-            [[ $last_hidden_depth -ne -1 && $depth -gt $last_hidden_depth ]] && continue
+            # --- 1. HIERARCHY CHECK (Must come first!) ---
+            # If we are currently inside a collapsed branch, we MUST skip
+            if [[ $last_hidden_depth -ne -1 && $depth -gt $last_hidden_depth ]]; then
+                continue
+            fi
             last_hidden_depth=-1
-            [[ $last_disabled_depth -ne -1 && $depth -le $last_disabled_depth ]] && last_disabled_depth=-1
-            
-            visible_indices[${#visible_indices[@]}]=$i
-            
-            # Optimization: Pre-calculate indentation
-            local indent=""; for ((d=0; d<depth; d++)); do indent="  $indent"; done
-            
-            local icon="  "
-            if [[ "$has_kids" == "true" ]]; then
-                # Performance Fix 1 (Usage): String matching is O(1) in this context
-                if [[ "$exp_str" == *"|$id|"* ]]; then 
-                    icon="▼ "
-                else 
-                    icon="▶ "; last_hidden_depth=$depth
+
+            # --- 2. ENHANCED FILTER LOGIC ---
+            if [[ "$ENABLE_FILTER" == "true" && -n "$filter_query" ]]; then
+                local match=0
+                shopt -s nocasematch
+                if [[ "$label" == *"$filter_query"* || "$id" == *"$filter_query"* ]]; then
+                    match=1
+                else
+                    # Check Ancestors for a match
+                    local scan_p=$i check_d=$depth
+                    while [[ $scan_p -gt 0 ]]; do
+                        ((scan_p--))
+                        local p_node="${all_nodes[$scan_p]}"
+                        if [[ "${p_node%%|*}" -lt $check_d ]]; then
+                            local p_rem="${p_node#*|}"
+                            local p_id="${p_rem%%|*}"
+                            local p_lab="${p_rem#*|}" p_lab="${p_lab%%|*}"
+                            if [[ "$p_lab" == *"$filter_query"* || "$p_id" == *"$filter_query"* ]]; then
+                                match=1; break
+                            fi
+                            check_d="${p_node%%|*}"
+                        fi
+                    done
                 fi
+                shopt -u nocasematch
+                [[ $match -eq 0 ]] && continue
             fi
 
+            # --- 3. SET COLLAPSE MARKER ---
+            # Even if it matches, if it's not expanded, mark the depth to hide children
+            if [[ "$has_kids" == "true" && "$exp_str" != *"|$id|"* ]]; then
+                last_hidden_depth=$depth
+            fi
+
+            # 3. ROBUST DISABLED CHECK (The Fix)
+            # We look up the tree in the master list to see if ANY ancestor is unchecked
             local is_disabled="false"
-            [[ $last_disabled_depth -ne -1 ]] && is_disabled="true"
-            if [[ "$label" == *"[ ]"* || "$label" == *"( )"* ]]; then
-                [[ $last_disabled_depth -eq -1 ]] && last_disabled_depth=$depth
-            fi
+            local scan_ptr=$i
+            local check_d=$depth
+            while [[ $scan_ptr -gt 0 ]]; do
+                ((scan_ptr--))
+                local p_node="${all_nodes[$scan_ptr]}"
+                local p_depth="${p_node%%|*}"
+                if [[ $p_depth -lt $check_d ]]; then
+                    local p_label="${p_node#*|*|}"; p_label="${p_label%%|*}"
+                    if [[ "$p_label" == *"[ ]"* || "$p_label" == *"( )"* ]]; then
+                        is_disabled="true"; break
+                    fi
+                    check_d=$p_depth
+                fi
+            done
 
-            # Append to array (index-based append is faster in 3.2 than +=)
-            formatted_lines[${#formatted_lines[@]}]="${indent}${icon}${label}|${is_disabled}"
+            visible_indices[${#visible_indices[@]}]=$i
+            local indent=""; for ((d=0; d<depth; d++)); do indent="  $indent"; done
+            local icon="▶ "; [[ "$exp_str" == *"|$id|"* ]] && icon="▼ "
+            [[ "$has_kids" != "true" ]] && icon="  "
+
+            formatted_lines[${#formatted_lines[@]}]="${indent}${icon}${label}|${is_disabled:-false}"
         done
     }
 
@@ -1961,15 +1994,28 @@ _tree_core() {
     while true; do
         _draw_header "$title" "$msg"
         
+        if [[ "$ENABLE_FILTER" == "true" ]]; then
+            _draw_at "$row"
+            local f_style="${BG_WID_ESC}${FG_TEXT_ESC}"
+            [[ $cur -eq -1 ]] && f_style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
+            printf "  Filter: ${f_style} > %-25s ${RESET}${BG_MAIN_ESC}" "$filter_query" >&2
+            _draw_line "" "$row"; _draw_line ""
+        fi
+
         local view_top=$row
         local view_height=$(( MAX_HEIGHT - view_top - 2 ))
         [[ $view_height -lt 5 ]] && view_height=5
-
         local v_count=${#visible_indices[@]}
-        [[ $cur -ge $v_count ]] && cur=$((v_count - 1))
-        [[ $cur -lt 0 ]] && cur=0
-        [[ $cur -lt $top ]] && top=$cur
-        [[ $cur -ge $((top + view_height)) ]] && top=$((cur - view_height + 1))
+
+        # --- CRITICAL FIX 1: BOUNDS CLAMPING ---
+        # Only clamp the list navigation if we aren't focused on the filter (-1)
+        if [[ $cur -ge 0 ]]; then
+            [[ $cur -ge $v_count ]] && cur=$((v_count - 1))
+            [[ $cur -lt 0 ]] && cur=0
+            # Viewport math
+            [[ $cur -lt $top ]] && top=$cur
+            [[ $cur -ge $((top + view_height)) ]] && top=$((cur - view_height + 1))
+        fi
 
         for ((i=0; i<view_height; i++)); do
             local v_idx=$((top + i))
@@ -2016,87 +2062,127 @@ _tree_core() {
         _draw_controls " [Arrows] Move/Expand | ${TOGGLE_CONTROLS}[Enter] ${ENTER_ACTION}"
         _draw_footer
 
-        local key; IFS= read -rsn1 key < /dev/tty
-        if [[ $key == $'\e' ]]; then 
-            read -rsn2 key
+        # --- STEP 1: ATOMIC CAPTURE ---
+        local key="" ESC_SEQ=""
+        IFS= read -rsn1 key < /dev/tty
+        [[ "$key" == $'\e' ]] && read -rsn2 ESC_SEQ < /dev/tty
+
+        # --- STEP 2: FILTER INPUT (Focus at -1) ---
+        if [[ "$ENABLE_FILTER" == "true" && $cur -eq -1 ]]; then
+            if [[ -z "$ESC_SEQ" ]]; then
+                case "$key" in
+                    $'\177'|$'\b') filter_query="${filter_query%?}"; _update_tree_cache; continue ;;
+                    "") [[ $v_count -gt 0 ]] && cur=0; continue ;;
+                    *) 
+                        # Capture printable chars
+                        if [[ -n "$key" ]]; then
+                            filter_query="${filter_query}${key}"
+                            _update_tree_cache
+                            # Force cur to -1 to stay in the input box
+                            cur=-1
+                            continue 
+                        fi
+                        ;;
+                esac
+            else
+                # Down arrow moves to list
+                [[ "$ESC_SEQ" == "[B" ]] && [[ $v_count -gt 0 ]] && cur=0
+                continue
+            fi
+        fi
+
+        # --- STEP 3: LIST NAVIGATION (Focus >= 0) ---
+        if [[ -n "$ESC_SEQ" ]]; then
             local g_idx=${visible_indices[$cur]}
-            IFS='|' read -r d id l k <<< "${all_nodes[$g_idx]}"
-            case "$key" in
-                "[A") [[ $cur -gt 0 ]] && ((cur--)) ;;
+            local node="${all_nodes[$g_idx]}"
+            local d="${node%%|*}"; local rest="${node#*|}"
+            local id="${rest%%|*}"; rest="${rest#*|}"; local k="${rest##*|}"
+
+            case "$ESC_SEQ" in
+                "[A") if [[ $cur -gt 0 ]]; then ((cur--)); elif [[ "$ENABLE_FILTER" == "true" ]]; then cur=-1; fi ;;
                 "[B") [[ $cur -lt $((v_count - 1)) ]] && ((cur++)) ;;
                 "[C") [[ "$k" == "true" ]] && expanded+=("$id") && _update_tree_cache ;;
-                "[D") 
-                    if [[ "$k" == "true" ]]; then
-                        # 1. Remove the parent itself from expanded
-                        for i in "${!expanded[@]}"; do [[ "${expanded[$i]}" == "$id" ]] && unset 'expanded[$i]'; done
-                        
-                        # 2. DEEP COLLAPSE: Remove all descendants from expanded array
-                        # We scan all nodes following the current one
-                        local scan_idx=$((g_idx + 1))
-                        while [[ $scan_idx -lt $count ]]; do
-                            IFS='|' read -r sd sid sl sk <<< "${all_nodes[$scan_idx]}"
-                            # If we hit a node at the same or higher level, we've left the branch
-                            [[ $sd -le $d ]] && break
-                            
-                            # If descendant was expanded, remove it
-                            for i in "${!expanded[@]}"; do [[ "${expanded[$i]}" == "$sid" ]] && unset 'expanded[$i]'; done
-                            ((scan_idx++))
-                        done
-                        _update_tree_cache
-                    fi ;;
+                "[D") # Collapse Logic
+                    for i in "${!expanded[@]}"; do [[ "${expanded[$i]}" == "$id" ]] && unset 'expanded[$i]'; done
+                    local scan_idx=$((g_idx + 1))
+                    while [[ $scan_idx -lt $count ]]; do
+                        local snode="${all_nodes[$scan_idx]}"
+                        [[ "${snode%%|*}" -le $d ]] && break
+                        local sid="${snode#*|}"; sid="${sid%%|*}"
+                        for i in "${!expanded[@]}"; do [[ "${expanded[$i]}" == "$sid" ]] && unset 'expanded[$i]'; done
+                        ((scan_idx++))
+                    done
+                    _update_tree_cache ;;
             esac
             continue
-        elif [[ "$key" == "q" ]]; then return 1
-        elif [[ -z "$key" ]]; then
-            if [[ "$mode" == "select" ]]; then
-                # Correctly extract only the ID (the second field)
-                local selection=${all_nodes[${visible_indices[$cur]}]}
-                local id_part="${selection#*|}" # Remove depth|
-                TUI_RESULT="${id_part%%|*}"
-                echo "${id_part%%|*}"           # Remove |label|has_kids
-                return 0
-            else
-                TUI_RESULT="${all_nodes[@]}"
-                for n in "${all_nodes[@]}"; do echo "$n"; done; return 0
-            fi
-        elif [[ "$key" == " " ]]; then
-            local g_idx=${visible_indices[$cur]}
-            IFS='|' read -r d id l has_kids <<< "${all_nodes[$g_idx]}"
-            
-            local is_disabled=0; local scan_ptr=$g_idx; local target_d=$d
-            while [[ $scan_ptr -gt 0 ]]; do
-                ((scan_ptr--))
-                IFS='|' read -r pd pid pl phk <<< "${all_nodes[$scan_ptr]}"
-                if [[ $pd -lt $target_d ]]; then
-                    if [[ "$pl" == *"[ ]"* || "$pl" == *"( )"* ]]; then is_disabled=1; break; fi
-                    target_d=$pd
-                fi
-            done
-            [[ $is_disabled -eq 1 ]] && continue
-
-            if [[ "$l" == *"[ ]"* || "$l" == *"[x]"* ]]; then
-                if [[ "$l" == *"[ ]"* ]]; then l="${l/\[ \]/[x]}"
-                else
-                    l="${l/\[x\]/[ ]}"
-                    for ((j=g_idx+1; j<count; j++)); do
-                        IFS='|' read -r cd cid cl chk <<< "${all_nodes[$j]}"
-                        [[ $cd -le $d ]] && break
-                        cl="${cl/\[x\]/[ ]}"; cl="${cl/\(\*\)/( )}"
-                        all_nodes[$j]="$cd|$cid|$cl|$chk"
-                    done
-                fi
-                all_nodes[$g_idx]="$d|$id|$l|$has_kids"
-            elif [[ "$l" == *"( )"* || "$l" == *"(*)"* ]]; then
-                 local scan=$g_idx; while [[ $scan -gt 0 ]]; do IFS='|' read -r sd sid sl sk <<< "${all_nodes[$((scan-1))]}"; [[ $sd -lt $d ]] && break; ((scan--)); done
-                 local end=$g_idx; while [[ $end -lt $((count-1)) ]]; do IFS='|' read -r sd sid sl sk <<< "${all_nodes[$((end+1))]}"; [[ $sd -lt $d ]] && break; ((end++)); done
-                 for ((j=scan; j<=end; j++)); do IFS='|' read -r td tid tl tk <<< "${all_nodes[$j]}"; [[ $td -eq $d ]] && tl="${tl/\(\*\)/( )}" && all_nodes[$j]="$td|$tid|$tl|$tk"; done
-                 l="${l/\( \)/(*)}"
-                 all_nodes[$g_idx]="$d|$id|$l|$has_kids"
-            fi
-            _update_tree_cache
         fi
+
+        case "$key" in
+            $'\177'|$'\b') # Backspace Jump
+                [[ "$ENABLE_FILTER" == "true" ]] && cur=-1 ;;
+            " ") # Space Toggle
+                local g_idx=${visible_indices[$cur]}
+                local node="${all_nodes[$g_idx]}"
+                local d="${node%%|*}"; local rest="${node#*|}"
+                local id="${rest%%|*}"; rest="${rest#*|}"
+                local l="${rest%%|*}"; local has_kids="${rest##*|}"
+
+                # Check if parents are disabled
+                local is_disabled=0; local scan_ptr=$g_idx; local target_d=$d
+                while [[ $scan_ptr -gt 0 ]]; do
+                    ((scan_ptr--))
+                    local pnode="${all_nodes[$scan_ptr]}"
+                    local pd="${pnode%%|*}"; local prest="${pnode#*|}"; local pl="${prest#*|}"
+                    if [[ $pd -lt $target_d ]]; then
+                        if [[ "$pl" == *"[ ]"* || "$pl" == *"( )"* ]]; then is_disabled=1; break; fi
+                        target_d=$pd
+                    fi
+                done
+                [[ $is_disabled -eq 1 ]] && continue
+
+                if [[ "$l" == *"[ ]"* || "$l" == *"[x]"* ]]; then
+                    if [[ "$l" == *"[ ]"* ]]; then l="${l/\[ \]/[x]}"
+                    else
+                        l="${l/\[x\]/[ ]}"
+                        for ((j=g_idx+1; j<count; j++)); do
+                            local cnode="${all_nodes[$j]}"
+                            local cd="${cnode%%|*}"
+                            [[ $cd -le $d ]] && break
+                            local crest="${cnode#*|}"
+                            local cid="${crest%%|*}"; crest="${crest#*|}"
+                            local cl="${crest%%|*}"; local chk="${crest##*|}"
+                            cl="${cl/\[x\]/[ ]}"; cl="${cl/\(\*\)/( )}"
+                            all_nodes[$j]="$cd|$cid|$cl|$chk"
+                        done
+                    fi
+                    all_nodes[$g_idx]="$d|$id|$l|$has_kids"
+                elif [[ "$l" == *"( )"* || "$l" == *"(*)"* ]]; then
+                     local scan=$g_idx; while [[ $scan -gt 0 ]]; do local sn="${all_nodes[$((scan-1))]}"; [[ ${sn%%|*} -lt $d ]] && break; ((scan--)); done
+                     local end=$g_idx; while [[ $end -lt $((count-1)) ]]; do local en="${all_nodes[$((end+1))]}"; [[ ${en%%|*} -lt $d ]] && break; ((end++)); done
+                     for ((j=scan; j<=end; j++)); do 
+                        local tnode="${all_nodes[$j]}"
+                        local td="${tnode%%|*}"; local trest="${tnode#*|}"
+                        local tid="${trest%%|*}"; trest="${trest#*|}"
+                        local tl="${trest%%|*}"; local tk="${trest##*|}"
+                        [[ $td -eq $d ]] && tl="${tl/\(\*\)/( )}" && all_nodes[$j]="$td|$tid|$tl|$tk"
+                     done
+                     l="${l/\( \)/(*)}"
+                     all_nodes[$g_idx]="$d|$id|$l|$has_kids"
+                fi
+                _update_tree_cache ;;
+            "") # Enter (Select/Confirm)
+                if [[ "$mode" == "select" ]]; then
+                    local selection=${all_nodes[${visible_indices[$cur]}]}
+                    local id_part="${selection#*|}"
+                    TUI_RESULT="${id_part%%|*}"; echo "${TUI_RESULT}"; return 0
+                else
+                    TUI_RESULT="${all_nodes[@]}"; for n in "${all_nodes[@]}"; do echo "$n"; done; return 0
+                fi ;;
+            "q") return 1 ;;
+        esac
     done
 }
+
 
 # Returns a single ID (Dialog style)
 tree() {

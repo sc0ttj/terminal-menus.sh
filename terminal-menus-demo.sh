@@ -180,7 +180,7 @@ TREE_DATA=(
 )
 
 # This will return only the ID (e.g., "requests") of the chosen node
-TREE_RES=$(tree "File Browser" "Select a file or directory:" 2 "${TREE_DATA[@]}")
+TREE_RES=$(ENABLE_FILTER=true tree "File Browser" "Select a file or directory:" 2 "${TREE_DATA[@]}")
 
 
 
@@ -213,7 +213,7 @@ CONFIG_DATA=(
 # system_network_interface_eth=true
 # system_network_dhcp=true
 # (Note: if 'security' is unchecked, its children won't be in the output)
-CONFIG_OUT=$(configtree "Advanced Config" "Configure System Components" 7 "${CONFIG_DATA[@]}")
+CONFIG_OUT=$(ENABLE_FILTER=true configtree "Advanced Config" "Configure System Components" 7 "${CONFIG_DATA[@]}")
 
 
 
