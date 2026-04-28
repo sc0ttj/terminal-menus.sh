@@ -166,6 +166,7 @@ Controls:
 [TAB]     Toggle add to selection ({}/sel)
 [.]       Toggle hidden files
 [l]       Toggle detailed list
+[i]       Toggle ignored (.gitignore)
 [/]       Search filter
 [$/!]     Shell prompt (user/root)
 [{}/sel]  Current selection in prompt

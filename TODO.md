@@ -30,11 +30,6 @@ In fullscreen mode:
 
 Easier to upgrade if its external.
 
-### Respect `.gitignore` files
-
-Press `i` to toggle visibility of "ignored" files.
-Should support `.gitignore`, and other popular "ignore" files.
-
 ------------------------------------------------------------------
 
 ## Improve `mainmenu`
