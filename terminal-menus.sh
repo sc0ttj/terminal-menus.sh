@@ -3231,6 +3231,7 @@ file_manager() {
     local completion_matches=()
     local completion_idx=-1
     local last_completion_base=""
+    local show_ignored=0  # 0 = hide, 1 = show
 
     local help_file="/tmp/tui_help_$$.txt"
     cat << EOF > "$help_file"
@@ -3279,32 +3280,43 @@ EOF
             raw_list=(); detail_list=() 
             [[ "$root_dir" != "$last_dir" ]] && selected_paths=()
 
+            # --- THE FINAL SURGICAL FIX: IGNORE CACHE ---
+            local ignored_cache="|"
+            if [[ $show_ignored -eq 0 ]]; then
+                if type git >/dev/null 2>&1; then
+                    # We use 'ls -A1' to get EVERYTHING (hidden and visible)
+                    # and pipe it into 'git check-ignore --stdin'
+                    # This is the most accurate way to ask Git: "Of these files, what is ignored?"
+                    local raw_ignored
+                    raw_ignored=$(cd "$root_dir" && ls -A1 2>/dev/null | git check-ignore --stdin 2>/dev/null)
+                    
+                    if [[ -n "$raw_ignored" ]]; then
+                        # Safe conversion to pipe-delimited string
+                        local old_ifs="$IFS"; IFS=$'\n'
+                        for line in $raw_ignored; do
+                            # Strip any trailing slashes Git might add to directories
+                            local clean_name="${line%/}"
+                            ignored_cache="${ignored_cache}${clean_name}|"
+                        done
+                        IFS="$old_ifs"
+                    fi
+                fi
+            fi
+
             # --- PRO MOVE: Fetch all metadata in ONE fork ---
             if [[ $show_details -eq 1 ]]; then
-                # FIX: Use both * (visible) and .* (hidden) in the glob
+                # Fetch metadata for visible and hidden files
                 while read -r v1 v2 v3 v4 v5 v6 v7 v8 name; do
                     [[ "$v1" == "total" || -z "$name" ]] && continue
-                    
-                    # 1. Align Permissions (from previous fix)
                     [[ ${#v1} -eq 10 ]] && v1="${v1} "
-
-                    # 2. Align Day (your verified v6/v7 logic)
                     [[ ${#v6} -eq 1 ]] && v6=" $v6"
-
-                    # 3. THE SURGICAL FIX: Right-align Year/Time
-                    # Using %5s right-aligns the value within a 5-character space
-                    local v8_aligned
-                    printf -v v8_aligned "%5s" "$v8"
-
+                    local v8_aligned; printf -v v8_aligned "%5s" "$v8"
                     local clean_name="${name##*/}"
-                    # Skip . and .. entries from the ls output
                     [[ "$clean_name" == "." || "$clean_name" == ".." ]] && continue
-                    
                     local safe_name="${clean_name//[^a-zA-Z0-9_]/_}"
-                    
                     printf -v "META_F_$safe_name" "%s %s %s %5s %s %s %s" \
                         "$v1" "$v3" "$v4" "$v5" "$v6" "$v7" "$v8_aligned"
-                done < <(\ls -lAnhd "$root_dir"/* "$root_dir"/.* 2>/dev/null)
+                done < <(cd "$root_dir" && \ls -lAnhd * .* 2>/dev/null)
             fi
 
             # 1. Add Parent Dir
@@ -3324,7 +3336,17 @@ EOF
                     [[ "$name" == "." || "$name" == ".." ]] && continue
                     [[ $show_hidden -eq 0 && "${name:0:1}" == "." ]] && continue
                     
+                    # 2. THE FIX: Compare against our surgical cache
+                    # If ignored_cache is only "|", this check will safely fail (correct)
+                    if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
+                        if [[ "$ignored_cache" == *"|$name|"* ]]; then
+                            continue
+                        fi
+                    fi
+
                     if [[ -n "$search_query" ]]; then
+                        # Note: In Bash 3.2, tr is fine, but this spawns a process per file
+                        # Consider using case "$name" in *"${search_query# }"*) ;; for speed
                         local l_name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
                         [[ ! "$l_name" == *"$l_query"* ]] && continue
                     fi
@@ -3333,7 +3355,7 @@ EOF
                     local is_dir="false"; [[ -d "$path" ]] && is_dir="true"
                     raw_list[$idx]="$path|$name|$is_dir"
                     selected_paths[$idx]=0
-
+                    
                     # --- THE INSTANT LOOKUP ---
                     if [[ $show_details -eq 1 ]]; then
                         # FIX 3: Must generate the SAME safe key used above
@@ -3347,7 +3369,6 @@ EOF
                 done
             done
             shopt -u dotglob nocaseglob
-            
             # --- CLEANUP (Optional): Remove the temporary variables to free memory ---
             if [[ $show_details -eq 1 ]]; then
                 # Only if you are worried about RAM with thousands of files
@@ -4026,6 +4047,14 @@ EOF
                 cur=$((cur - height / 2))
                 [[ $cur -lt 0 ]] && cur=0
                 rebuild=0; continue ;;
+
+            "i") # Toggle Ignored Files
+                show_ignored=$(( 1 - show_ignored ))
+                # Force a data refresh
+                last_dir="FORCE_REFRESH" 
+                rebuild=1
+                # No need for _init_tui here, the loop will catch rebuild=1
+                ;;
 
             "[") # Page Up (file preview)
                 (( preview_offset -= height ))
