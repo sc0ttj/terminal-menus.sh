@@ -30,13 +30,6 @@ In fullscreen mode:
 
 Easier to upgrade if its external.
 
-### Fix command prompts working dir
-Fix: when a command prompt opens, it should set the prompts working dir to the current dir the file manager is in.
-* I am in `~`, and I open file_manager
-* In file_manager, I use arrows to cd to `~/foo/`
-* I hit "$" and type "touch bar" and hit ENTER
-* The file `~/foo/bar` should be created, not `~/bar`
-
 ### Respect `.gitignore` files
 
 Press `i` to toggle visibility of "ignored" files.
