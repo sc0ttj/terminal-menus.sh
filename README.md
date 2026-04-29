@@ -150,7 +150,7 @@ RESULT_CMD=$(filtertable "Service Search" "services.csv" 1)
 ```
 
 ### 19. Main Menu (`mainmenu`)
-Kodi-style split-pane orchestrator for navigating menus, tables, and launching commands and other widgets.
+A menu on the left, where each menu item loads a navigable table, which can launch commands, and other widgets.
 ```bash
 mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
