@@ -163,20 +163,19 @@ Controls:
 
 [Arrows]  Navigate
 [ENTER]   Open / Select
-[TAB]     Toggle add to selection ({}/sel)
+[TAB]     Toggle add to selection (sel/{})
 [.]       Toggle hidden files
-[l]       Toggle detailed list
+[,]       Toggle detailed list
 [i]       Toggle ignored (.gitignore)
 [/]       Search filter
-[$/!]     Shell prompt (user/root)
-[{}/sel]  Current selection in prompt
-[e]       Edit file in $EDITOR
+[:/!]     Shell prompt (! for root)
+[sel/{}]  Current selection in prompt
+[e]       Edit file in \$EDITOR
 [f/d]     New file or dir
 [r]       Rename item
-[x/c]     Toggle cut (x)/copy (c)
-[v]       Paste
-[j/k/J/K] Down/Up/PageDown/PageUp
-[g/G]     Jump to top/bottom
+[x/c/v]   Cut/copy/paste
+[h/j/k/l] Left/down/up/right (vim)
+[J/K/g/G] PageDown/PageUp/top/bottom
 [q/ESC]   Exit / Cancel
 ```
 

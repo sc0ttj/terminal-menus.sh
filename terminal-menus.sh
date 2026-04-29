@@ -3237,18 +3237,19 @@ file_manager() {
     cat << EOF > "$help_file"
 [Arrows]  Navigate
 [ENTER]   Open / Select
-[TAB]     Add to selection ({}/sel)
+[TAB]     Toggle selection (sel/{})
 [.]       Toggle hidden files
-[l]       Toggle detailed list
+[,]       Toggle detailed list
+[i]       Toggle ignored (.gitignore)
 [/]       Search filter
-[$/!]     Shell prompt (user/root)
-[{}/sel]  Current selection in shell
+[:/!]     Shell prompt (! for root)
+[sel/{}]  Current selection in prompt
+[e]       Edit file in \$EDITOR
 [f/d]     New file or dir
 [r]       Rename item
-[x/c]     Toggle cut (x)/copy (c)
-[v]       Paste
-[j/k/J/K] Down/Up/PageDown/PageUp
-[g/G]     Jump to top/bottom
+[x/c/v]   Cut/copy/paste
+[h/j/k/l] Left/down/up/right (vim)
+[J/K/g/G] PageDown/PageUp/top/bottom
 [q/ESC]   Exit / Cancel
 EOF
 
@@ -3961,7 +3962,7 @@ EOF
                     stty -echo; _init_tui; _hide_cursor; rebuild=1
                 } ;;
 
-            "l") # Toggle Detailed View
+            ",") # Toggle Detailed List View (comma)
                 show_details=$(( 1 - show_details ))
                 show_help=0; rebuild=1; _init_tui ;;
 
@@ -3974,7 +3975,8 @@ EOF
             "!") ui_mode="SUDO_CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
                  
-            "$") ui_mode="CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
+            ":")
+                 ui_mode="CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
 
             "/") ui_mode="SEARCH"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
@@ -4042,6 +4044,11 @@ EOF
                 [[ "$clipboard_op" == "CUT" ]] && clipboard_list=()
                 rebuild=1; _init_tui ;;
 
+            "h") # Move Left (Back to parent)
+                last_path="$root_dir"
+                root_dir=$(cd "$root_dir/.." && pwd)
+                rebuild=1; cur=-2 ;;
+
             "j") # Move Down
                 [[ $cur -lt $((count - 1)) ]] && ((cur++))
                 rebuild=0; continue ;;
@@ -4049,6 +4056,18 @@ EOF
             "k") # Move Up
                 [[ $cur -gt 0 ]] && ((cur--))
                 rebuild=0; continue ;;
+
+            "l") # Move Right (Enter directory or select file)
+                local node="${raw_list[$cur]}"
+                local p="${node%%|*}"
+                if [[ "${node##*|}" == "true" ]]; then
+                    # Navigate into directory
+                    root_dir=$(cd "$p" && pwd)
+                    cur=0; rebuild=1; _init_tui
+                else
+                    # Select file
+                    TUI_RESULT="$p"; return 0
+                fi ;;
 
             "g"|"s") # HOME: Jump to top
                 cur=0; rebuild=0; continue ;;
@@ -4084,20 +4103,6 @@ EOF
                 (( preview_offset += height ))
                 last_cur=-3 # Force redraw Step 5
                 rebuild=0; continue ;;
-
-            "") # Enter / Selection
-                local node="${raw_list[$cur]}"
-                local p="${node%%|*}"
-                local label="${node#*|}"; label="${label%|*}"
-
-                if [[ "$label" == ".." || "${node##*|}" == "true" ]]; then
-                    root_dir=$(cd "$p" && pwd)
-                    # Maintain focus on the directory we just left if moving UP
-                    [[ "$label" == ".." ]] && last_path="${raw_list[$cur]%%|*}" || last_path=""
-                    rebuild=1; cur=-2; _init_tui
-                else
-                    TUI_RESULT="$p"; return 0
-                fi ;;
 
             '.') # Toggle Hidden
                 show_hidden=$(( 1 - show_hidden ))
