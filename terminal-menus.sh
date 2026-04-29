@@ -4045,10 +4045,11 @@ EOF
                 rebuild=1; _init_tui ;;
 
             "h"|"a") # Move Left (Back to parent)
-                last_path="$root_dir"
-                root_dir=$(cd "$root_dir/.." && pwd)
-                rebuild=1; cur=-2 ;;
-
+                if [[ "$root_dir" != "/" ]]; then
+                    last_path="$root_dir"
+                    root_dir=$(cd "$root_dir/.." && pwd)
+                    rebuild=1; cur=-2
+                fi ;;
             "j"|"s") # Move Down
                 [[ $cur -lt $((count - 1)) ]] && ((cur++))
                 rebuild=0; continue ;;
