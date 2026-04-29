@@ -185,7 +185,7 @@ Usage:
 file_manager "Home" "$HOME"
 ```
 
-You can highlight multiple items using TAB, and hit `$` to launch a command prompt (`!` for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
+You can highlight multiple items using TAB, and hit `:` to launch a command prompt (`!` for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
 
 ### 21. Spreadsheet (`spreadsheet`)
