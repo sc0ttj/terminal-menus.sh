@@ -3235,7 +3235,7 @@ file_manager() {
 
     local help_file="/tmp/tui_help_$$.txt"
     cat << EOF > "$help_file"
-[Arrows]  Navigate
+[Arrows]  Navigate (and [w/a/s/d])
 [ENTER]   Open / Select
 [TAB]     Toggle selection (sel/{})
 [.]       Toggle hidden files
@@ -3245,7 +3245,7 @@ file_manager() {
 [:/!]     Shell prompt (! for root)
 [sel/{}]  Current selection in prompt
 [e]       Edit file in \$EDITOR
-[f/d]     New file or dir
+[f/F]     New file (f) or folder (F)
 [r]       Rename item
 [x/c/v]   Cut/copy/paste
 [h/j/k/l] Left/down/up/right (vim)
@@ -3985,7 +3985,7 @@ EOF
             "f") ui_mode="NEW_F"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
 
-            "d") ui_mode="NEW_D"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
+            "F") ui_mode="NEW_D"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
             
             "r") # Rename
@@ -4044,20 +4044,20 @@ EOF
                 [[ "$clipboard_op" == "CUT" ]] && clipboard_list=()
                 rebuild=1; _init_tui ;;
 
-            "h") # Move Left (Back to parent)
+            "h"|"a") # Move Left (Back to parent)
                 last_path="$root_dir"
                 root_dir=$(cd "$root_dir/.." && pwd)
                 rebuild=1; cur=-2 ;;
 
-            "j") # Move Down
+            "j"|"s") # Move Down
                 [[ $cur -lt $((count - 1)) ]] && ((cur++))
                 rebuild=0; continue ;;
 
-            "k") # Move Up
+            "k"|"w") # Move Up
                 [[ $cur -gt 0 ]] && ((cur--))
                 rebuild=0; continue ;;
 
-            "l") # Move Right (Enter directory or select file)
+            "l"|"d") # Move Right (Enter directory or select file)
                 local node="${raw_list[$cur]}"
                 local p="${node%%|*}"
                 if [[ "${node##*|}" == "true" ]]; then
@@ -4069,10 +4069,10 @@ EOF
                     TUI_RESULT="$p"; return 0
                 fi ;;
 
-            "g"|"s") # HOME: Jump to top
+            "g") # HOME: Jump to top
                 cur=0; rebuild=0; continue ;;
 
-            "G"|"e") # END: Jump to bottom
+            "G") # END: Jump to bottom
                 cur=$((count - 1)); rebuild=0; continue ;;
 
             "J") # PAGE DOWN: Move down by half the height

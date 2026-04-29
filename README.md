@@ -161,7 +161,7 @@ An `fff`-style full-featured file manager with search & filter, file previews, m
 ```
 Controls:
 
-[Arrows]  Navigate
+[Arrows]  Navigate (and [w/a/s/d])
 [ENTER]   Open / Select
 [TAB]     Toggle add to selection (sel/{})
 [.]       Toggle hidden files
@@ -170,8 +170,8 @@ Controls:
 [/]       Search filter
 [:/!]     Shell prompt (! for root)
 [sel/{}]  Current selection in prompt
-[e]       Edit file in \$EDITOR
-[f/d]     New file or dir
+[e]       Edit file in $EDITOR
+[f/F]     New file (f) or folder (F)
 [r]       Rename item
 [x/c/v]   Cut/copy/paste
 [h/j/k/l] Left/down/up/right (vim)
