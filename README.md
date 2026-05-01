@@ -75,7 +75,7 @@ PASS=$(passwordbox "Security" "Enter a secret token:" "ppp")
 ```
 
 ### 6. Menu (`menu`)
-A standard single-choice selection list.
+A standard single-choice selection list. Also see `filtermenu`.
 ```bash
 CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
 ```
@@ -138,19 +138,19 @@ eval "$FORM_OUT"
 ```
 
 ### 16. File Navigator (`file_navigator`)
-A lightweight, fast keyboard-driven file picker.
+A lightweight file picker, supports picking single or multiple items. Also see `file_manager`.
 ```bash
 FILE_PICK=$(file_navigator "File picker" "Choose a file" "." 2)
 ```
 
 ### 17. Table (`table`)
-Navigable CSV data grid. Returns the 'Command' field of the selected row.
+Navigable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 ```bash
-LAUNCH_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
+RESULT_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
 ```
 
 ### 18. Filtertable (`filtertable`)
-Searchable, real-time filtered CSV data grid.
+Filterable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 ```bash
 RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "services.csv" 1)
 ```
@@ -162,7 +162,7 @@ mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
 
 ### 20. File Manager (`file_manager`)
-An `fff`-style full-featured file manager with search & filter, file previews, multiple select, command prompts, more.
+A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, more.
 
 ```
 Controls:

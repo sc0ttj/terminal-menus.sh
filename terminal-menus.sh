@@ -696,7 +696,7 @@ msgbox() {
         _draw_footer
         
         IFS= read -rsn1 key < /dev/tty
-        [[ -z $key ]] && return 0
+        [[ -z $key ]] && TUI_RESULT=0 && return 0
     done
 }
 
@@ -816,6 +816,7 @@ inputbox() {
     printf "\e[${phys_row};${PADDING_LEFT}H${BG_MAIN_ESC}%s" "$snap_line" >&2
     TUI_RESULT="$val"
     echo "$val"
+    return 0
 }
 
 passwordbox() {
@@ -878,6 +879,7 @@ passwordbox() {
     _draw_footer
     TUI_RESULT="$val"
     echo "$val"
+    return 0
 }
 
 infobox() {
@@ -927,6 +929,7 @@ gauge() {
         row=$(( MAX_HEIGHT - 1 ))
         _draw_footer
     done
+    return 0
 }
 
 
@@ -1634,8 +1637,10 @@ spreadsheet() {
                 ;;
         esac
     done
+    TUI_RESULT="$(cat "$tmp_csv")"
     cat "$tmp_csv"
     rm -f "$tmp_csv" /tmp/tui_undo_* /tmp/tui_redo_*
+    return 0
 }
 
 filtermenu() {
@@ -2009,7 +2014,7 @@ file_navigator() {
             '.') # Backspace
                 local last_path="${raw_list[$cur]%%|*}"
                 show_hidden=$(( 1 - show_hidden )); rebuild=1; cur=-2 ;;
-            "q") return 1 ;;
+            "q") TUI_RESULT=''; return 1 ;;
 
             # --- VIM and WASD NAVIGATION ---
             "k"|"w") [[ $cur -gt 0 ]] && ((cur--)) ;; # Up
@@ -2394,7 +2399,7 @@ _tree_core() {
                     for n in "${all_nodes[@]}"; do echo "$n"; done
                     return 0
                 fi ;;
-            "q") return 1 ;;
+            "q") TUI_RESULT=''; return 1 ;;
         esac
     done
 }
@@ -2434,7 +2439,7 @@ configtree() {
     raw_data=($(_tree_core "config" "$t" "$m" "$d" "$@"))
     IFS="$old_ifs"
     
-    [[ ${#raw_data[@]} -eq 0 ]] && return 1
+    [[ ${#raw_data[@]} -eq 0 ]] && TUI_RESULT='' && return 1
 
     # ... [rest of your loop logic remains exactly the same] ...
     local path_stack=()
@@ -2981,6 +2986,7 @@ mainmenu() {
                         _init_tui
                     else
                         TUI_RESULT="$cmd"
+                        echo "$TUI_RESULT"
                         return 0
                     fi
                 fi ;;
@@ -4100,7 +4106,7 @@ EOF
 
         # --- C. NAV MODE HOTKEYS ---
         case "$key" in
-            "q") return 1 ;; # Now "q" will exit correctly
+            "q") TUI_RESULT=''; return 1 ;; # Now "q" will exit correctly
             "") # ENTER key
                 if [[ "$ui_mode" != "NAV" ]]; then
                     # We are in a prompt (SEARCH, CMD, etc.)
