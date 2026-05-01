@@ -57,7 +57,8 @@ _TERM_H=$(tput lines)
 [[ $MAX_WIDTH -gt $_TERM_W ]] && MAX_WIDTH=$_TERM_W && PADDING_LEFT=0
 [[ $MAX_HEIGHT -gt $_TERM_H ]] && MAX_HEIGHT=$_TERM_H && PADDING_TOP=0
 
-# a var that always captures the output of a widget
+# A var that always captures the output of a widget, users 
+# should check this var after a widget exits.
 TUI_RESULT=""
 
 LAST_FRAME=""
@@ -306,12 +307,12 @@ _draw_at() {
     printf "\e[%d;%dH${BG_MAIN_ESC}" "$target_row" "$target_col" >&2
 }
 
-_draw_clear_line() {
-    # Combine the move and the clear into ONE printf call
-    local -i target_row=$(( row + PADDING_TOP ))
-    local -i target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-    printf "\e[%d;%dH${BG_MAIN_ESC}%*s" "$target_row" "$target_col" "$MAX_WIDTH" "" >&2
-}
+# _draw_clear_line() {
+#     # Combine the move and the clear into ONE printf call
+#     local -i target_row=$(( row + PADDING_TOP ))
+#     local -i target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
+#     printf "\e[%d;%dH${BG_MAIN_ESC}%*s" "$target_row" "$target_col" "$MAX_WIDTH" "" >&2
+# }
 
 _draw_line() {
     [[ -n "$2" ]] && row=$2
@@ -527,9 +528,18 @@ _draw_list() {
     local type=$1 title=$2 msg=$3 def_idx=$4; shift 4
     local options=("$@") count=${#options[@]} cur=$def_idx
     local selected=(); for ((i=0; i<count; i++)); do selected[i]=0; done
-    local width=$(( MAX_WIDTH - 6 )) # Use dynamic width for better rendering
+
+    # --- FIX 1: Prime the selection array so Enter works immediately ---
+    if [[ "$type" == "radio" || "$type" == "check" ]]; then
+        # If a default index was passed, pre-select it
+        [[ $def_idx -ge 0 && $def_idx -lt $count ]] && selected[$def_idx]=1
+    fi
+
+    TUI_RESULT=$def_idx
 
     _init_tui
+    local width=$(( MAX_WIDTH - 6 )) # Use dynamic width for better rendering
+
     while true; do
         # 1. DRAW HEADER: This sets the global 'row' variable
         _draw_header "$title" "$msg"
@@ -595,7 +605,9 @@ _draw_list() {
                         cur=$idx
                         [[ $m_last == *M ]] && { 
                             if [[ $type == "menu" ]]; then 
-                                TUI_RESULT="${options[cur]}"; return
+                                TUI_RESULT="${options[cur]}";
+                                echo "$TUI_RESULT"
+                                return 0
                             else 
                                 key=" "; 
                             fi
@@ -3049,18 +3061,17 @@ _execute_mode_action() {
 
             # 2. Check if the file is NOT empty
             if [[ -s "$out_tmp" ]]; then
-                # Output found: Show the "[Done]" prompt
-                printf "\n\e[2m[Done] Press any key...\e[0m" >&2
-                # Use standard read for portability
-                read -rsn1 _ < /dev/tty
+                # THE FIX: Display the result inside a themed textbox instead of raw terminal
+                # This ensures BG_MAIN background, themed header, and scrolling
+                textbox "Command Output" "Executed: $final_cmd" "$out_tmp"
             fi
 
             # 3. Clean up and restore TUI
             rm -f "$out_tmp"
-            stty -echo
+            # No need for manual 'read' or 'stty' here; textbox handles the interaction
             _init_tui
             _hide_cursor
-            prompt_buffer=""; prompt_pos=0; rebuild=1
+            prompt_buffer=""; prompt_pos=0; ui_mode="NAV"; rebuild=1
             ;;
 
         "RENAME")
@@ -3122,46 +3133,6 @@ _handle_paste() {
     rebuild=1
 }
 
-_execute_sudo_with_pass() {
-    # 1. Build the selection list
-    local target_list=""
-    for ((idx=0; idx<count; idx++)); do
-        [[ "${selected_paths[$idx]}" -eq 1 ]] && target_list+="'${raw_list[$idx]%%|*}' "
-    done
-    [[ -z "$target_list" ]] && target_list="'${raw_list[$cur]%%|*}'"
-
-    # 2. Replace placeholders in the saved cmd
-    local cmd="${pending_sudo_cmd//\{\}/$target_list}"
-    cmd="${cmd//sel/$target_list}"
-
-    # 3. Pipe password to sudo
-    echo "$prompt_buffer" | sudo -S -p '' sh -c "$cmd" > /dev/null 2>&1
-    
-    # 4. Clean up
-    prompt_buffer=""; pending_sudo_cmd=""; prompt_pos=0; rebuild=1
-}
-
-# _draw_prompt_only() {
-#     # Move to the fixed header row (usually PADDING_TOP + 1)
-#     local prompt_row=$(( PADDING_TOP + $(_get_start_row) + 1 ))
-    
-#     if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
-#         p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
-#     fi
-
-#     # Move cursor, clear line from cursor to end, and print BG_MAIN to keep box solid
-#     # \e[K is the secret: it clears just to the end of the line, preventing flicker
-#     printf "\e[${prompt_row};${PADDING_LEFT}H${BG_MAIN_ESC}${CLR_EOL}" >&2
-    
-#     # Re-run just the header message logic
-#     _draw_header "$title" "$header_msg"
-    
-#     # Reposition physical cursor for typing
-#     local offset=4
-#     [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=3
-#     printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
-# }
-
 _get_prompt_msg() {
     local black_bg="${BG_INPUT_ESC}"
     local white_fg="\e[1;37m"
@@ -3193,32 +3164,6 @@ _get_prompt_msg() {
         printf -v header_msg "${symbol}${black_bg}${white_fg}%-${fill_w}s${RESET}${BG_MAIN_ESC}" "$content"
     fi
 }
-
-# _refresh_prompt() {
-#     _get_prompt_msg
-
-#     # Dynamically find the row where the "message/path" area starts
-#     # We use a local to protect the global row counter
-#     local -i p_row=$(( PADDING_TOP + $(_get_start_row)))
-    
-#     # In fullscreen, _get_start_row usually points to the line 
-#     # under the title. If that's still too high for your layout,
-#     # your +1 offset for fullscreen is the correct "tin-standard" fix.
-#     # [[ "$TUI_MODE" == "fullscreen" ]] && ((p_row++))    
-#     printf "\e[${p_row};${PADDING_LEFT}H${BG_MAIN_ESC}  %b" "$header_msg" >&2
-    
-#     local sym_len=2
-#     case "$ui_mode" in
-#         "CMD"|"SUDO_CMD") sym_len=3 ;;
-#         "SEARCH")         sym_len=11 ;;
-#         "RENAME")         sym_len=9 ;;
-#         "NEW_F")          sym_len=12 ;;
-#         "NEW_D")          sym_len=11 ;;
-#     esac
-    
-#     printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos ))H" >&2
-#     _show_cursor
-# }
 
 _refresh_prompt() {
     _get_prompt_msg
@@ -3302,7 +3247,6 @@ _refresh_sidebar_only() {
         fi
     done
 }
-
 
 _update_display_path() {
     display_path="$root_dir"
