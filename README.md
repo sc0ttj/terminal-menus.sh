@@ -16,6 +16,8 @@ The **`mainmenu`** in fullscreen mode:
 
 ![file_manager](screenshots/mainmenu.png)
 
+---
+
 ## 🚀 Features
 
 - **Pure Bash 3.2**: Works out of the box on macOS and legacy Linux systems.
@@ -24,6 +26,8 @@ The **`mainmenu`** in fullscreen mode:
 - **Adaptive Layouts**: Modal popups, full-screen dashboards, toast notifications, and command palettes.
 - **High Performance**: Minimal use of subshells; uses internal bash built-ins for all logic.
 
+---
+
 ## 📦 Installation
 
 Simply source the script in your bash project:
@@ -31,6 +35,8 @@ Simply source the script in your bash project:
 ```bash
 source ./terminal-menus.sh
 ```
+
+---
 
 ## 🛠 Basic Usage
 
@@ -102,13 +108,13 @@ Visual progress bar tracking piped input (0-100).
 ### 11. Textbox (`textbox`)
 A read-only scrollable file viewer.
 ```bash
-textbox "Source View" "./terminal-menus.sh"
+textbox "Source view" "File: terminal-menus.sh" "./terminal-menus.sh"
 ```
 
 ### 12. Tailbox (`tailbox`)
 Live-monitoring of a file (similar to `tail -f`).
 ```bash
-tailbox "Log Monitor" "server.log"
+tailbox "Log Monitor" "File: server.log" "server.log"
 ```
 
 ### 13. Tree (`tree`)
@@ -134,19 +140,19 @@ eval "$FORM_OUT"
 ### 16. File Navigator (`file_navigator`)
 A lightweight, fast keyboard-driven file picker.
 ```bash
-FILE_PICK=$(file_navigator "Choose File" "." 1)
+FILE_PICK=$(file_navigator "File picker" "Choose a file" "." 2)
 ```
 
 ### 17. Table (`table`)
 Navigable CSV data grid. Returns the 'Command' field of the selected row.
 ```bash
-LAUNCH_CMD=$(table "Action Center" "data.csv" 1)
+LAUNCH_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
 ```
 
 ### 18. Filtertable (`filtertable`)
 Searchable, real-time filtered CSV data grid.
 ```bash
-RESULT_CMD=$(filtertable "Service Search" "services.csv" 1)
+RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "services.csv" 1)
 ```
 
 ### 19. Main Menu (`mainmenu`)
@@ -326,6 +332,8 @@ The `mainmenu` demo includes a `update_config` helper to manage `key=value` conf
 # Saves 'theme=dark' to your config file
 update_config "theme='dark'"
 ```
+
+--- 
 
 ## 📜 License
 

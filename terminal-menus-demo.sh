@@ -397,7 +397,7 @@ Wireshark,4.0.7,Network,echo "tshark -D"
 SystemInfo,1.0,Utility,echo "uname -a"
 EOF
 
-RESULT_CMD=$(filtertable "Filterable table" "Type to search, and choose an item." "filter_demo.csv" 3)
+RESULT_CMD=$(filtertable "Filterable table" "Type to search, pick an item." "filter_demo.csv" 3)
 rm filter_demo.csv
 [[ -n "$RESULT_CMD" ]] && msgbox "Selection Result" "The table returned: $RESULT_CMD"
 
