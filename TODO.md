@@ -1,6 +1,88 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
+## Improve `file_manager` and `file_navigator`
+
+Remember selection between `cd`, and return whole selection each on a new line.
+Both widgets should use this fixed `_handle_selection` (currently inside file_navigator).
+
+```
+_handle_selection() {
+    local results=""
+    local tagged_count=0
+
+    # 1. Collect everything tagged with TAB
+    # In file_manager, selected_paths usually stores the string path, not just a 1/0
+    for path in "${selected_paths[@]}"; do
+        if [[ "$path" != "0" && -n "$path" ]]; then
+            results+="$path "
+            ((tagged_count++))
+        fi
+    done
+    
+    # 2. If multi-select exists, return it
+    if [[ $tagged_count -gt 0 ]]; then 
+        TUI_RESULT="${results% }" # Trim trailing space
+        return 2 # Signal to exit the widget
+    fi
+
+    # 3. Fallback to item under cursor
+    local node="${raw_list[$cur]}"
+    local p="${node%%|*}"
+    local label="${node#*|}"; label="${label%|*}"
+    local is_d="${node##*|}"
+
+    if [[ "$label" == ".." || "$is_d" == "true" ]]; then
+        # Navigate into Directory
+        root_dir=$(cd "$p" && pwd)
+        # last_path logic for the '..' highlight
+        [[ "$label" == ".." ]] && last_path="${p%/*}" || last_path=""
+        rebuild=1; cur=-2; _init_tui
+        return 0 # Stay in widget
+    else
+        # Select single File
+        TUI_RESULT="$p"
+        return 2 # Signal to exit the widget
+    fi
+}
+
+```
+
+
+Quote:
+```
+Storage: When a user hits TAB, store the absolute path 
+(e.g., $(pwd)/$filename) in the `selected_paths` array.
+
+Joining: Use `results+="$path"$'\n'` to build the string.
+
+Return: Always echo -e "$TUI_RESULT" or printf "%b" "$TUI_RESULT" 
+at the end so the subshell RES=$(...) captures the vertical list 
+correctly.
+```
+
+
+For file_navigator:
+```
+        "") # ENTER
+            if [[ "$ui_mode" != "NAV" ]]; then
+                _execute_mode_action
+            else
+                _handle_selection
+                [[ $? -eq 2 ]] && return 0
+            fi ;;
+            
+        "l") # Vim Right
+            if [[ "$ui_mode" == "NAV" ]]; then
+                _handle_selection
+                [[ $? -eq 2 ]] && return 0
+            else
+                # Handle cursor movement in prompt
+                ((prompt_pos < ${#prompt_buffer})) && ((prompt_pos++))
+                _refresh_prompt
+            fi ;;
+```
+
 ## Improve `file_manager`
 
 ### More readable key handling code
