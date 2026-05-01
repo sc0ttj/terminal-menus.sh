@@ -1,12 +1,24 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Improve `file_manager` and `file_navigator`
+## Make sure $TUI_RESULT is always sent to stdout and the contains correct data
 
-Remember selection between `cd`, and return whole selection each on a new line.
-Both widgets should use this fixed `_handle_selection` (currently inside file_navigator).
+* $TUI_RESULT should always hold the return data of the widget after the widget has ended
+* Use `echo -e` to send to stdout
+* Use with the correct, appropriate return codes (0 is ok, 1 is error, etc)
 
-```
+## Rename `file_navigator` to `filepicker`
+Make it more consistent with other widgets.
+
+## Rename `file_manager` to `filemanager`
+Make it more consistent with other widgets.
+
+### Fix `file_navigator` multiple selection
+
+* Both widgets should use this fixed function called `_handle_selection`.
+* Currently there's a worse one inside `file_navigator`, which forgets selection lists when you `cd` to another dir.
+
+```sh
 _handle_selection() {
     local results=""
     local tagged_count=0
@@ -15,7 +27,7 @@ _handle_selection() {
     # In file_manager, selected_paths usually stores the string path, not just a 1/0
     for path in "${selected_paths[@]}"; do
         if [[ "$path" != "0" && -n "$path" ]]; then
-            results+="$path "
+            results+="$path"$'\n'
             ((tagged_count++))
         fi
     done
@@ -65,22 +77,14 @@ correctly.
 For file_navigator:
 ```
         "") # ENTER
-            if [[ "$ui_mode" != "NAV" ]]; then
-                _execute_mode_action
-            else
-                _handle_selection
-                [[ $? -eq 2 ]] && return 0
-            fi ;;
+          _handle_selection
+          [[ $? -eq 2 ]] && return 0
+          ;;
             
         "l") # Vim Right
-            if [[ "$ui_mode" == "NAV" ]]; then
-                _handle_selection
-                [[ $? -eq 2 ]] && return 0
-            else
-                # Handle cursor movement in prompt
-                ((prompt_pos < ${#prompt_buffer})) && ((prompt_pos++))
-                _refresh_prompt
-            fi ;;
+          _handle_selection
+          [[ $? -eq 2 ]] && return 0
+          ;;
 ```
 
 ## Improve `file_manager`
