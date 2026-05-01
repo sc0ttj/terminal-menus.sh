@@ -4125,8 +4125,29 @@ EOF
                         [[ "$label" == ".." ]] && last_path="${raw_list[$cur]%%|*}" || last_path=""
                         rebuild=1; cur=-2; _init_tui
                     else
-                        # File selection
-                        TUI_RESULT="$p"
+                        # --- THE MULTI-SELECT NEWLINE FIX ---
+                        local targets=""
+                        local tagged_count=0
+
+                        # 1. Check the 'selected_paths' array for tagged items
+                        for path in "${selected_paths[@]}"; do
+                            if [[ "$path" != "0" && -n "$path" ]]; then
+                                # Append path followed by a real newline
+                                targets+="$path"$'\n'
+                                ((tagged_count++))
+                            fi
+                        done
+
+                        # 2. If nothing was tagged, use the single item under cursor
+                        if [[ $tagged_count -eq 0 ]]; then
+                            TUI_RESULT="$p"
+                        else
+                            # Trim the very last trailing newline to keep the list clean
+                            TUI_RESULT="${targets%$'\n'}"
+                        fi
+                        
+                        # Output for subshell capture and exit widget
+                        echo "$TUI_RESULT"
                         return 0
                     fi
                 fi
