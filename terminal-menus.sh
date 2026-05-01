@@ -18,6 +18,11 @@
 : ${FG_INPUT:="95;175;215"}         # Light blue for active input text
 : ${FG_INPUT_ROOT:="255;60;60"}     # Red for Root prompt
 
+# Define a "Soft Bold" that only changes the foreground, not the background
+: ${SB:="\e[1;37m"}
+# Define a "Soft Reset" that returns to Hint color while keeping BG_MAIN
+: ${SR:="\e[22m${FG_HINT_ESC}"}
+
 # : ${FG_BLUE_BOLD:="\e[1;38;2;${FG_INPUT}m"}
 # : ${HL_WHITE_BOLD:="\e[48;2;${BG_ACTIVE}m\e[38;2;255;255;255;1m"}
 
@@ -201,16 +206,16 @@ _apply_layout() {
             PADDING_LEFT=0;       PADDING_TOP=0
             ;;
         "popup")
-            MAX_WIDTH=50;         MAX_HEIGHT=7
+            MAX_WIDTH=50;         MAX_HEIGHT=6
             PADDING_LEFT=$(( (term_w - MAX_WIDTH) / 2 ))
             PADDING_TOP=$(( (term_h - 10) / 2 ))
             ;;
         "top")
-            MAX_WIDTH=$term_w;   MAX_HEIGHT=10
+            MAX_WIDTH=$term_w;   MAX_HEIGHT=8
             PADDING_LEFT=0;       PADDING_TOP=0
             ;;
         "bottom")
-            MAX_WIDTH=$term_w;   MAX_HEIGHT=10
+            MAX_WIDTH=$term_w;   MAX_HEIGHT=8
             PADDING_LEFT=0;       PADDING_TOP=$(( term_h - MAX_HEIGHT ))
             ;;
         "toast")
@@ -241,6 +246,16 @@ _apply_layout() {
             PADDING_LEFT=$(( (term_w - MAX_WIDTH) / 2 ))
             PADDING_TOP=$(( (term_h - MAX_HEIGHT) / 2 ))
             ;;
+        "custom")
+            # Fallback to centered defaults if variables aren't set
+            MAX_WIDTH=${TUI_WIDTH:-75}
+            MAX_HEIGHT=${TUI_HEIGHT:-22}
+
+            # 1. Manual Position OR 2. Auto-Center
+            # If PADDING_X is not set, we calculate it to keep the box centered
+            PADDING_LEFT=${TUI_X:-$(( (term_w - MAX_WIDTH) / 2 ))}
+            PADDING_TOP=${TUI_Y:-$(( (term_h - MAX_HEIGHT) / 2 ))}
+            ;;
         "centered"|*)
             MAX_WIDTH=75;         MAX_HEIGHT=22
             PADDING_LEFT=$(( (term_w - MAX_WIDTH) / 2 ))
@@ -257,14 +272,28 @@ _apply_layout() {
 _apply_layout
 
 _get_start_row() {
-    # If we have a backtitle AND we are at the very top of the screen (Full Screen)
-    # we need to push the content down to Row 4 to leave 2 empty lines.
-    if [[ -n "$BACKTITLE" && $PADDING_TOP -eq 0 ]]; then
-        echo 3
+    local offset=0
+    
+    # 1. Calculate internal padding based on text content
+    [[ -n "$title" ]] && ((offset++))
+    [[ -n "$msg" ]] && ((offset++))
+    # Only add the spacer if there is a header block to separate
+    [[ -n "$title" || -n "$msg" ]] && ((offset++))
+
+    # 2. THE FIX: Protect the BACKTITLE in Fullscreen Mode
+    # If we are at the top of the terminal 
+    if [[ "$TUI_MODE" == "fullscreen" ]]; then
+        # If we have a backtitle, the first 2 lines are RESERVED.
+        # So the minimum safe row is 2.
+        if [[ -n "$BACKTITLE" ]]; then
+             [[ $offset -lt 2 ]] && echo 2 || echo "$offset"
+        else
+             echo "$offset"
+        fi
     else
-        # In centered-box mode, the title is OUTSIDE the box, 
-        # so we only need a 1-line margin INSIDE the box.
-        echo 2
+        # In centered/popup modes, we don't have a backtitle 
+        # at the top of the terminal, so we can be flush (0).
+        echo "$offset"
     fi
 }
 
@@ -298,39 +327,50 @@ _draw_line() {
 _draw_spacer() { ((row++)); }
 
 _draw_header() {
-    local title=$1 msg=$2
-    
-    # --- FIX 1: Remove subshell from _get_start_row ---
-    if [[ -n "$BACKTITLE" && $PADDING_TOP -eq 0 ]]; then
+    local t=$1 m=$2
+    title=$t msg=$m
+
+    # Start at the top of the internal box
+    row=2
+
+    # Ensure we don't draw over the backtitle in fullscreen
+    if [[ $PADDING_TOP -eq 0 && -n "$BACKTITLE" ]]; then
         row=3
-    else
-        row=2
+    fi
+    # 1. Title Row - Only draw if not empty
+    if [[ -n "$title" ]]; then
+        _draw_line "  ${FG_TEXT_ESC}=== $title ===${RESET}${BG_MAIN_ESC}"
     fi
     
-    # 1. Title Row - Built with %b for immediate speed
-    _draw_line "  ${FG_TEXT_ESC}=== $title ===${RESET}${BG_MAIN_ESC}"
-    
-    # 2. Convert literal "\n" into real newlines without a subshell
-    local expanded_msg
-    printf -v expanded_msg "%b" "$msg"
+    # 2. Message Rows - Only draw if not empty
+    if [[ -n "$msg" ]]; then
+        local expanded_msg
+        printf -v expanded_msg "%b" "$msg"
+        local old_ifs="$IFS"
+        IFS=$'\n'
+        for line in $expanded_msg; do
+            # Using your existing target_row/target_col logic
+            local -i target_row=$(( row + PADDING_TOP ))
+            local -i target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
+            printf "\e[%d;%dH${BG_MAIN_ESC}  %s" "$target_row" "$target_col" "$line" >&2
+            _draw_line ""
+        done
+        IFS="$old_ifs"
+    fi
 
-    # 3. Render each line individually
-    local old_ifs="$IFS"
-    IFS=$'\n' # Standard Bash 3.2 newline variable
-    for line in $expanded_msg; do
-        # Directly calculate coordinates to avoid calling _draw_at in a loop
-        local -i target_row=$(( row + PADDING_TOP ))
-        local -i target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-        
-        # Combine Move + Padding + Text into one atomic I/O operation
-        printf "\e[%d;%dH${BG_MAIN_ESC}  %s" "$target_row" "$target_col" "$line" >&2
-        
-        # Increment row and draw the trailing background snap
+    # 3. Spacer - Only if header content was drawn
+    if [[ -n "$title" || -n "$msg" ]]; then
         _draw_line ""
-    done
-    IFS="$old_ifs"
+    fi
     
-    _draw_line ""
+    # Remove the empty line under headers in toast and palette modes,
+    # if $title or $msg not empty - if both are empty, dont move things up,
+    # this keeps "content only" stuff nicely padded in the box
+    if [[ "$TUI_MODE" == "toast" || "$TUI_MODE" == "palette" ]]; then
+        if [[ -n "$title" || -n "$msg" ]]; then
+            ((row--))
+        fi
+    fi
 }
 
 _draw_controls() {
@@ -483,50 +523,75 @@ _draw_form_field() {
 }
 
 _draw_list() {
+    _apply_layout
     local type=$1 title=$2 msg=$3 def_idx=$4; shift 4
     local options=("$@") count=${#options[@]} cur=$def_idx
     local selected=(); for ((i=0; i<count; i++)); do selected[i]=0; done
-    local width=30 
+    local width=$(( MAX_WIDTH - 6 )) # Use dynamic width for better rendering
 
     _init_tui
     while true; do
+        # 1. DRAW HEADER: This sets the global 'row' variable
         _draw_header "$title" "$msg"
         
+        # 2. VIEWPORT / START POSITION
+        # We capture exactly where the list starts
         local list_top=$row
-        for ((i=0; i<count; i++)); do
-            _draw_at "$((list_top + i))"
+        
+        # Calculate max visible height based on the box size
+        # -2 accounts for the Controls and Footer rows
+        local max_h=$(( MAX_HEIGHT - list_top - 2 ))
+        [[ $max_h -lt 3 ]] && max_h=3 # Safety minimum
+        
+        # Determine actual loop count (clamped to viewport)
+        local display_count=$count
+        [[ $display_count -gt $max_h ]] && display_count=$max_h
+
+        # 3. RENDER LIST
+        for ((i=0; i<display_count; i++)); do
+            # Sync global 'row' for _draw_item and _draw_line
+            row=$((list_top + i))
+            
+            _draw_at "$row"
             printf "  " >&2 
             local is_cur=0; [[ $i -eq $cur ]] && is_cur=1
+            
+            # _draw_item handles the widget graphics (brackets, radio, etc)
             _draw_item "$type" "$is_cur" "${selected[i]}" "${options[i]}" "$width"
-            _draw_line "" "$((list_top + i))"
+            
+            # _draw_line fills the background to the right edge
+            _draw_line "" "$row"
         done
         
-        row=$((list_top + count))
+        # 4. CONTROLS & FOOTER
+        row=$((list_top + display_count))
         local hint=" [Arrows] Move | [Space] Toggle | [Enter] Select"
         [[ $type == "menu" ]] && hint=" [Arrows] Move | [Enter] Select"
         
-        ((row++))
+        # Move down for the controls (if there's room)
+        [[ $row -lt $((MAX_HEIGHT - 1)) ]] && ((row++))
         _draw_controls "$hint"
         _draw_footer
 
-        # --- FIXED INPUT HANDLING ---
+        # --- INPUT HANDLING ---
         local key
         IFS= read -rsn1 key < /dev/tty
         
         if [[ "$key" == $'\e' ]]; then 
-            # Read the next 2 chars (e.g., [A) from TTY
             read -rsn2 key < /dev/tty
             case "$key" in
                 "[A") [[ $cur -gt 0 ]] && ((cur--)) ;;
                 "[B") [[ $cur -lt $((count-1)) ]] && ((cur++)) ;;
-                "<0"|"<3") 
-                    # Mouse reads must also point to TTY
+                "[M"|"<0"|"<3"|"[<") 
+                    # Mouse logic: Resolve relative to PADDING_TOP and the dynamic list_top
                     read -d ';' -r m_btn < /dev/tty
                     read -d ';' -r m_col < /dev/tty
                     read -r m_last < /dev/tty
                     local m_row=${m_last%[mM]}
-                    local idx=$((m_row - list_top - PADDING_TOP))
-                    if [[ $idx -ge 0 && $idx -lt $count ]]; then
+                    
+                    # THE FIX: Calculate index based on absolute screen row minus padding and header
+                    local idx=$(( m_row - PADDING_TOP - list_top ))
+                    if [[ $idx -ge 0 && $idx -lt $display_count ]]; then
                         cur=$idx
                         [[ $m_last == *M ]] && { 
                             if [[ $type == "menu" ]]; then 
@@ -538,7 +603,6 @@ _draw_list() {
                     fi
                     ;;
             esac
-            # Special check to prevent Escape from triggering the Space logic
             [[ $key != " " ]] && continue
         fi
         
@@ -550,12 +614,15 @@ _draw_list() {
             fi
         elif [[ -z "$key" ]]; then
             if [[ $type == "menu" ]]; then 
-                # Assign to global TUI_RESULT for modal support
-                TUI_RESULT="${options[cur]}"; return
+                TUI_RESULT="${options[cur]}"; 
+                echo "$TUI_RESULT"
+                return 0
             else 
                 local res=""
                 for ((i=0; i<count; i++)); do [[ ${selected[i]} -eq 1 ]] && res+="${options[i]} "; done
-                TUI_RESULT="${res% }"; return
+                TUI_RESULT="${res% }"
+                echo "$TUI_RESULT"
+                return 0
             fi
         fi
     done
@@ -676,11 +743,16 @@ inputbox() {
     local input_row=$row
     local phys_row=$((input_row + PADDING_TOP))
 
+    # Hacky fix for modes with no padding outside the BG_MAIN box
+    local cursor_marker_shift=0
+    [[ "$TUI_MODE" == "fullscreen" || "$TUI_MODE" == "top" || "$TUI_MODE" == "bottom" ]] && cursor_marker_shift=1
+
     while true; do
         _hide_cursor
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %-34s ${RESET}${BG_MAIN_ESC}" "$val" >&2
-        printf "\e[${phys_row};$((PADDING_LEFT + 5 + pos))H" >&2
+        printf "\e[${phys_row};$((PADDING_LEFT + 5 + pos + cursor_marker_shift))H" >&2
+        
         _show_cursor
 
         # Read the first character
@@ -742,6 +814,10 @@ passwordbox() {
     local input_row=$row
     local phys_row=$((input_row + PADDING_TOP))
 
+    # Hacky fix for modes with no padding outside the BG_MAIN box
+    local cursor_marker_shift=0
+    [[ "$TUI_MODE" == "fullscreen" || "$TUI_MODE" == "top" || "$TUI_MODE" == "bottom" ]] && cursor_marker_shift=1
+
     while true; do
         _hide_cursor
         
@@ -751,7 +827,7 @@ passwordbox() {
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %-34s ${RESET}${BG_MAIN_ESC}" "$masked_val" >&2
         
         # Position cursor at the end of the asterisks
-        printf "\e[${phys_row};$((PADDING_LEFT + 5 + ${#masked_val}))H" >&2
+        printf "\e[${phys_row};$((PADDING_LEFT + 5 + cursor_marker_shift+ ${#masked_val}))H" >&2
         _show_cursor
 
         IFS= read -rsn1 char < /dev/tty
@@ -807,33 +883,45 @@ infobox() {
 
 gauge() {
     local title=$1 msg=$2 pct
+    # Standardise width
+    local bar_width=40
+    
     _init_tui
-
+    # Non-blocking read from stdin (allows piping like: seq 1 100 | gauge "Title")
     while read -r pct; do
-        _draw_header "$title" "$msg (${pct}%)"
+        # 1. Surgical Redraw of Header
+        _draw_header "$title" "$msg"
 
-        # Progress Bar Logic
-        local width=40
-        local fill=$((pct * width / 100))
-        local empty=$((width - fill))
+        # 2. Capture the actual starting point
+        local start_row=$row
+        local fill=$((pct * bar_width / 100))
+        local empty=$((bar_width - fill))
 
-        _draw_at "$row"; printf "  " >&2
-        printf "${BG_BLUE_ESC}%*s" "$fill" "" >&2
-        printf "${BG_WID_ESC}%*s" "$empty" "" >&2
+        # 3. Render Progress Bar Zone
+        _draw_at "$start_row" 0
+        printf "  " >&2 # Left margin
         
-        # Snap the border and close the line
-        _draw_line "" "$row"
+        # Draw Fill (Blue) and Empty (Grey)
+        printf "${BG_BLUE_ESC}%*s${BG_WID_ESC}%*s${RESET}" "$fill" "" "$empty" "" >&2
+        
+        # THE FIX: Apply BG_MAIN_ESC to the percentage text so it doesn't look like a black hole
+        printf "${BG_MAIN_ESC} ${FG_TEXT_ESC}${pct}%%${RESET}" >&2
 
-        #((row++))
+        # 4. Snap the background to the right edge
+        row=$start_row
+        _draw_line "" 
+
+        # 6. Position footer at the bottom
+        row=$(( MAX_HEIGHT - 1 ))
         _draw_footer
     done
 }
 
+
 textbox() {
-    local title=$1 src=$2 top=0
+    local title=$1 msg=$2 src=$3 top=0
     local last_top=-1
-    local box_width=$(( MAX_WIDTH - 6 ))
-    
+
     [[ ! -f "$src" ]] && { msgbox "Error" "File not found: $src"; return 1; }
 
     # Bash 3.2 Compatible file loading
@@ -847,9 +935,10 @@ textbox() {
     local count=${#lines[@]}
 
     _init_tui
+    local box_width=$(( MAX_WIDTH - 6 ))
     while true; do
         if [[ $top -ne $last_top ]]; then
-            _draw_header "$title" "File: $src"
+            _draw_header "$title" "$msg"
 
             local view_top=$row
             local height=$(( MAX_HEIGHT - view_top - 2 ))
@@ -906,54 +995,61 @@ textbox() {
 }
 
 tailbox() {
-    local title=$1 src=$2
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local title=$1 msg=$2 src=$3
     [[ ! -f "$src" ]] && { msgbox "Error" "File not found: $src"; return 1; }
     
     _init_tui
+    local box_width=$(( MAX_WIDTH - 4 ))
     while true; do
-        # 1. Header and Controls
-        _draw_header "$title (Tail)" "File: $src"
-        _draw_controls " Watching file... | [Enter] Close"
-        _draw_line "" 
+        _draw_header "$title" "$msg"
 
-        # 2. Dynamic Height Calculation (same as textbox)
         local view_top=$row
-        local height=$(( MAX_HEIGHT - view_top - 1 ))
+        # Subtract 3 for spacer, controls, and footer
+        local height=$(( MAX_HEIGHT - view_top - 2 ))
         [[ $height -lt 3 ]] && height=3
 
-        # 3. Content Logic
         local lines=(); IFS=$'\n' read -d '' -r -a lines < "$src"
         local count=${#lines[@]}
         local top=$(( count - height ))
         [[ $top -lt 0 ]] && top=0
 
-        # 4. Content Viewport
         for ((i=0; i<height; i++)); do
             local idx=$((top + i))
             local current_view_row=$((view_top + i))
             
-            _draw_at "$current_view_row"
-            printf "  " >&2 
+            # 1. Move to start and draw left margin
+            _draw_at "$current_view_row" 0
+            printf "${BG_MAIN_ESC}  " >&2 
 
             if [[ $idx -lt $count ]]; then
-                # Expand tabs and cut to width to keep the box straight
-                local content=$(echo "${lines[$idx]}" | expand -t 4 | cut -c 1-"$box_width")
-                _draw_item "text" 0 0 "$content" "$box_width"
+                # 2. Get content and strip/pad it to EXACTLY box_width
+                local raw_content=$(echo "${lines[$idx]}" | expand -t 4 | cut -c 1-"$box_width")
+                # Use %-s to pad to box_width and %b to interpret ANSI
+                # We wrap the content in BG_WID_ESC and immediately RESET
+                printf "${BG_WID_ESC}%-${box_width}.${box_width}s${RESET}" "$raw_content" >&2
+            else
+                # 3. Empty row padding
+                printf "${BG_WID_ESC}%${box_width}s${RESET}" "" >&2
             fi
             
-            # Snap the border
-            _draw_line "" "$current_view_row"
+            # 4. SURGICAL FIX: Paint the remaining right-side margin
+            # This stops the 'bleed' by forcing BG_MAIN until the edge
+            printf "${BG_MAIN_ESC}  ${RESET}" >&2
+            
+            # 5. Move global row counter
+             row=$(( MAX_HEIGHT - 1 ))
         done
 
-        # 5. Cleanup Footer
-        row=$((view_top + height))
+        # Draw a spacer line of BG_MAIN above the controls to clean up
+        _draw_at "$((row - 1))" 0
+        printf "${BG_MAIN_ESC}%*s${RESET}" "$MAX_WIDTH" "" >&2
+
+        _draw_controls " Watching: ${src##*/} | [Enter] Close"
         _draw_footer
 
         # 6. Non-blocking input (1s refresh)
         local key; IFS= read -rsn1 -t 1 key
-        # Return 0 on Enter (empty key)
-        [[ -n "$key" || $? -eq 0 ]] && [[ -z "$key" ]] && return 0
+        [[ $? -eq 0 && -z "$key" ]] && return 0
     done
 }
 
@@ -1032,7 +1128,7 @@ form() {
         
         # 4. FIX: Position the start row UNDER the title/header
         # If your header takes 3 lines, we start at 4.
-        row=$(( _get_start_row + 5 ))
+        #row=$(( _get_start_row + 3 ))
 
         for ((i=0; i<count; i++)); do
             local active=0; (( i == cur )) && active=1
@@ -1053,7 +1149,7 @@ form() {
         _draw_footer
         # Position controls at the bottom relative to MAX_HEIGHT
         row=$(( MAX_HEIGHT - 1 ))
-        _draw_controls "[TAB/Arrows] Nav | [Space] Toggle | [Enter] Submit"
+        _draw_controls " [TAB/Arrows] Nav | [Space] Toggle | [Enter] Submit"
 
         local key; IFS= read -rsn1 key < /dev/tty
         if [[ $key == $'\e' ]]; then
@@ -1179,7 +1275,8 @@ spreadsheet() {
     # Data: Persistence via CSV; handles row growth and empty cell alignment
 
     local MAX_COLS=26
-    local src="$1"
+    local title="$1"
+    local src="$2"
     local tmp_csv=$(mktemp)
     
     # 1. Setup Stacks and Clipboard
@@ -1202,24 +1299,38 @@ spreadsheet() {
     local cur_r=1 cur_c=1 top_r=1 top_c=1
     local mode="NAV" edit_val=""
 
+    # handle shifting viewport up a line if $title is empty
+    local shift=0
+    [[ -n "$title" ]] && ((shift++))
+
+    # fix for fullscreen mode
+    if [[ "$TUI_MODE" == "fullscreen" ]]; then
+        [[ -n "$BACKTITLE" ]] && ((shift++))
+    fi
+
     _init_tui
     while true; do
         # Viewport Math
-        local v_h=$((MAX_HEIGHT - 9))
+        local v_h=$(( MAX_HEIGHT - 7 - shift ))
         local col_w=12 
         local v_w_area=$((MAX_WIDTH - 11)) 
         local v_c_count=$((v_w_area / (col_w + 1) + 1))
 
+        # --- SCROLL LOGIC ---
+        # Scroll up: if cursor is above viewport, move viewport top to cursor
         [[ $cur_r -lt $top_r ]] && top_r=$cur_r
+        # Scroll down: if cursor is below viewport, slide viewport top to keep cursor at bottom
         [[ $cur_r -ge $((top_r + v_h)) ]] && top_r=$((cur_r - v_h + 1))
+        # Scroll left: if cursor is left of viewport, move viewport left to cursor
         [[ $cur_c -lt $top_c ]] && top_c=$cur_c
+        # Scroll right: if cursor is right of viewport, slide viewport left to keep cursor at edge
         [[ $cur_c -ge $((top_c + v_c_count)) ]] && top_c=$((cur_c - v_c_count + 1))
 
-        # 4. Rendering Logic
-        # 2. Render with Strict Width Math
+        # Nicer (padded) $mode name for header
+        [[ "$mode" == "NAV" ]] && modetxt="NAV " || modetxt="EDIT"
 
         # 1. Header Fix: Use _draw_line or a clamped printf to stop the bleed
-        _draw_header "SPREADSHEET" "Mode: $mode | [Arrows] Move  [Enter] Confirm  [z/Z] Undo/Redo  [q] Quit  "
+        _draw_header "$title" "Mode: $modetxt | [Arrows] Move  [Enter] Confirm  [z/Z] Undo/Redo  [q] Quit  "
         # Wipe the subtitle row perfectly to the right edge
         _draw_at "$((row - 1))" 0; printf "${BG_MAIN_ESC}%*s" "$MAX_WIDTH" "" >&2
 
@@ -1238,6 +1349,7 @@ spreadsheet() {
                         -v col_w="$col_w" -v w="$MAX_WIDTH" \
                         -v bg_m_raw="$BG_MAIN" -v bg_a_raw="$BG_ACTIVE" \
                         -v pt="$PADDING_TOP" -v pl="$PADDING_LEFT" \
+                        -v shift="$shift" \
             'BEGIN { FS=","; 
                 bm="\033[48;2;"bg_m_raw"m"; ba="\033[48;2;"bg_a_raw"m\033[1m"; 
                 bh="\033[48;2;80;80;80m\033[38;2;200;200;200m"; 
@@ -1323,7 +1435,7 @@ spreadsheet() {
             END {
                 row_num_w = 4;
                 # --- HEADER ---
-                printf "\033[%d;%dH%s  %*s", (pt+6), (pl+1), bm, row_num_w, "";
+                printf "\033[%d;%dH%s  %*s", (pt + 4 + shift), (pl+1), bm, row_num_w, "";
                 used = 4 + row_num_w;
                 for(c=top_c; c<(top_c + v_c); c++) {
                     printf "%s %-*.*s %s", bh, col_w, col_w, substr(abc,c,1), bm;
@@ -1334,7 +1446,7 @@ spreadsheet() {
 
                 # --- ROWS ---
                 for(r=top_r; r<(top_r + h); r++) {
-                    ry=r-top_r+pt+7;
+                    ry = r - top_r + pt + 5 + shift;
                     printf "\033[%d;%dH%s  %2d %s", ry, (pl+1), bh, r, bm;
                     used = 2 + row_num_w;
                     for(c=top_c; c<(top_c + v_c); c++) {
@@ -1363,7 +1475,7 @@ spreadsheet() {
             local raw=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
             local label=" [$(printf \\$(printf '%03o' $((cur_c+64))))${cur_r}] Raw: "
             local val_limit=$(( bar_limit - ${#label} ))
-            printf "  ${FG_HINT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$raw" >&2
+            printf "${FG_HINT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$raw" >&2
         fi
 
         # 6. Input Handling
@@ -1478,6 +1590,13 @@ spreadsheet() {
                     ((redo_idx--))
                 fi
                 ;;
+
+            # --- VIM and WASD NAVIGATION (NAV Mode Only) ---
+            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && ((cur_c--)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
+            "j"|"s") [[ "$mode" == "NAV" ]] && ((cur_r++)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
+            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && ((cur_r--)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
+            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && ((cur_c++)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
+
             $'\e')
                 read -rsn2 key < /dev/tty
                 [[ "$mode" == "NAV" ]] && case "$key" in
@@ -1487,8 +1606,15 @@ spreadsheet() {
                     "[D") [[ $cur_c -gt 1 ]] && ((cur_c--)) ;;
                 esac
                 ;;
-            "q"|"Q") [[ "$mode" == "NAV" ]] && break ;;
-            $'\177'|$'\010') [[ "$mode" == "EDIT" ]] && edit_val="${edit_val%?}" ;;
+
+            "q"|"Q") 
+                [[ "$mode" == "NAV" ]] && break
+                ;;
+
+            $'\177'|$'\010')
+                [[ "$mode" == "EDIT" ]] && edit_val="${edit_val%?}"
+                ;;
+
             *)
                 # CRITICAL: Only append to edit_val if we are actually in EDIT mode
                 # This prevents "v" or "x" from being added to the buffer in NAV mode
@@ -1524,10 +1650,10 @@ filtermenu() {
     local last_query="INIT_STATE"
     local cur=$d # Set initial focus
     local scroll_offset=0
-    local box_width=$(( MAX_WIDTH - 6 ))
     local start_row=$(_get_start_row)
 
     _init_tui
+    local box_width=$(( MAX_WIDTH - 6 ))
     while true; do
         row=$start_row
 
@@ -1537,7 +1663,7 @@ filtermenu() {
             local opt
             shopt -s nocasematch
             for opt in "${all_options[@]}"; do
-                if [[ -z "$filter_query" || "$opt" == *"$filter_query"* ]]; then
+                if [[ -z "$filter_query" || "$opt" == *$filter_query* ]]; then
                     filtered[${#filtered[@]}]="$opt"
                 fi
             done
@@ -1547,7 +1673,7 @@ filtermenu() {
         fi
 
         # 2. Viewport Geometry
-        local max_vh=$(( MAX_HEIGHT - 9 )) 
+        local max_vh=$(( MAX_HEIGHT - 8 )) 
         [[ $max_vh -lt 3 ]] && max_vh=3
 
         # 3. Header & Search
@@ -1595,11 +1721,17 @@ filtermenu() {
         done
         
         # 6. Pinned Footer & Controls
-        local adjustment=0
-        [[ "$TUI_MODE" == "fullscreen" ]] && adjustment=-1
-        row=$((list_top + max_vh + adjustment))
+        row=$((list_top + max_vh))
+
+        # Draw the spacer immediately after the last list row
+        _draw_at "$row"
         _draw_spacer
+
+        # Position controls on the very next line
         _draw_controls " [Arrows/j/k] Move | [Enter] Select"
+
+        # Position footer on the last row of the widget area
+        row=$((row + 1))
         _draw_footer
 
         # 7. Input Handling
@@ -1665,10 +1797,10 @@ preview() {
 }
 
 file_navigator() {
-    local title=$1 root_dir=${2:-.}
+    local title=$1 msg=$2 root_dir=${3:-.}
     # --- STARTUP FOCUS UPDATE ---
     # Default to 0 if not provided or empty
-    local cur=${3:-0}
+    local cur=${4:-0}
     
     local top=0 menu_w=30 
     local preview_x=$(( menu_w + 8 )) 
@@ -1741,6 +1873,9 @@ file_navigator() {
         if [[ ${#display_path} -gt $max_path_w ]]; then
             display_path="...${display_path:$(( ${#display_path} - max_path_w + 3 ))}"
         fi
+        # Replace path to $HOME with just "~"
+        [[ "$display_path" == "$HOME"* ]] && display_path="~${display_path#$HOME}"
+
         _draw_header "$title" "Path: $display_path"
 
         local list_top=$row
@@ -1820,7 +1955,7 @@ file_navigator() {
         # 3. POSITION FOOTER
         row=$((list_top + height))
         _draw_spacer
-        _draw_controls " [TAB] Mark | [BS] Hidden | [Enter] Select | [q] Quit"
+        _draw_controls " [TAB] Mark | [.] Toggle hidden | [Enter] Select | [q] Quit"
         _draw_footer
 
         # 4. Handle inputs
@@ -1859,12 +1994,27 @@ file_navigator() {
             $'\t') # Mark
                 selected_paths[$cur]=$(( 1 - ${selected_paths[$cur]} ))
                 [[ $cur -lt $((count - 1)) ]] && ((cur++)) ;;
-            $'\177'|$'\b') # Backspace
+            '.') # Backspace
                 local last_path="${raw_list[$cur]%%|*}"
                 show_hidden=$(( 1 - show_hidden )); rebuild=1; cur=-2 ;;
             "q") return 1 ;;
-            "") # Enter
+
+            # --- VIM and WASD NAVIGATION ---
+            "k"|"w") [[ $cur -gt 0 ]] && ((cur--)) ;; # Up
+            "j"|"s") [[ $cur -lt $((count - 1)) ]] && ((cur++)) ;; # Down
+            "h"|"a") # Left (Back to Parent)
+                local old_name="${root_dir##*/}"
+                local parent_dir="${root_dir%/*}"
+                if [[ -n "$parent_dir" && "$root_dir" != "/" ]]; then
+                    root_dir="$parent_dir"
+                    last_path="$root_dir/$old_name"
+                    rebuild=1; cur=-2
+                    [[ -n "$TUI_CD_FILE" ]] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
+                    _init_tui
+                fi ;;
+            "l"|"d"|"") # Right or Enter (Open/Select)
                 _handle_selection; [[ $? -eq 2 ]] && return 0 ;;
+
             $'\e')
                 read -rsn2 key
                 case "$key" in
@@ -1891,8 +2041,6 @@ _tree_core() {
     local mode=$1 title=$2 msg=$3 def_idx=${4:-0}; shift 4
     local all_nodes=("$@") count=${#all_nodes[@]}
     local cur=$def_idx top=0
-    # FIX: Reduce width to -6 to accommodate the 1-space indent AND _draw_item's padding
-    local box_width=$(( MAX_WIDTH - 6 )) 
 
     # 1. New Filter State
     : ${ENABLE_FILTER:=false}
@@ -1927,7 +2075,7 @@ _tree_core() {
             if [[ $is_filtering -eq 1 ]]; then
                 shopt -s nocasematch
                 # Logic: Match if Self, any Ancestor, or any Descendant matches
-                if [[ "$label" == *"$filter_query"* || "$id" == *"$filter_query"* ]]; then
+                if [[ "$label" == *$filter_query* || "$id" == *$filter_query* ]]; then
                     match=1
                 else
                     # Check Ancestors
@@ -1937,7 +2085,7 @@ _tree_core() {
                         local p_node="${all_nodes[$scan_p]}"
                         if [[ "${p_node%%|*}" -lt $check_d ]]; then
                             local p_rem="${p_node#*|}"
-                            if [[ "${p_rem#*|}" == *"$filter_query"* || "${p_rem%%|*}" == *"$filter_query"* ]]; then
+                            if [[ "${p_rem#*|}" == *$filter_query* || "${p_rem%%|*}" == *$filter_query* ]]; then
                                 match=1; break
                             fi
                             check_d="${p_node%%|*}"
@@ -1950,7 +2098,7 @@ _tree_core() {
                             local d_node="${all_nodes[$scan_d]}"
                             [[ "${d_node%%|*}" -le $depth ]] && break
                             local d_rem="${d_node#*|}"
-                            if [[ "${d_rem#*|}" == *"$filter_query"* || "${d_rem%%|*}" == *"$filter_query"* ]]; then
+                            if [[ "${d_rem#*|}" == *$filter_query* || "${d_rem%%|*}" == *$filter_query* ]]; then
                                 match=1; break
                             fi
                             ((scan_d++))
@@ -2009,9 +2157,10 @@ _tree_core() {
         done
     }
 
-
     _update_tree_cache
+
     _init_tui
+    local box_width=$(( MAX_WIDTH - 6 )) 
 
     while true; do
         _draw_header "$title" "$msg"
@@ -2020,21 +2169,22 @@ _tree_core() {
             _draw_at "$row"
             local f_style="${BG_WID_ESC}${FG_TEXT_ESC}"
             [[ $cur -eq -1 ]] && f_style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
+            # Use a fixed width for the filter bar to prevent bleeding
             printf "  Filter: ${f_style} > %-25s ${RESET}${BG_MAIN_ESC}" "$filter_query" >&2
-            _draw_line "" "$row"; _draw_line ""
+            _draw_line "" "$row"
+            _draw_line "" # Spacer
         fi
 
         local view_top=$row
+        # THE FIX: Anchor height to the bottom of the widget box
         local view_height=$(( MAX_HEIGHT - view_top - 2 ))
         [[ $view_height -lt 5 ]] && view_height=5
         local v_count=${#visible_indices[@]}
 
-        # --- CRITICAL FIX 1: BOUNDS CLAMPING ---
-        # Only clamp the list navigation if we aren't focused on the filter (-1)
+        # --- Viewport Clamping ---
         if [[ $cur -ge 0 ]]; then
             [[ $cur -ge $v_count ]] && cur=$((v_count - 1))
             [[ $cur -lt 0 ]] && cur=0
-            # Viewport math
             [[ $cur -lt $top ]] && top=$cur
             [[ $cur -ge $((top + view_height)) ]] && top=$((cur - view_height + 1))
         fi
@@ -2042,21 +2192,27 @@ _tree_core() {
         for ((i=0; i<view_height; i++)); do
             local v_idx=$((top + i))
             local current_view_row=$((view_top + i))
-            _draw_at "$current_view_row"
+            _draw_at "$current_view_row" 0
             printf "  " >&2
             
             if [[ $v_idx -lt $v_count ]]; then
                 local is_cur=0; [[ $v_idx -eq $cur ]] && is_cur=1
                 
-                IFS='|' read -r content_line item_disabled <<< "${formatted_lines[$v_idx]}"
+                # Split correctly using parameter expansion
+                local line_data="${formatted_lines[$v_idx]}"
+                local content_line="${line_data%|*}"
+                local item_disabled="${line_data##*|}"
                 
-                local item_w=$box_width
-                [[ "$content_line" == *"▶"* || "$content_line" == *"▼"* ]] && item_w=$(( box_width + 2 ))
+                # --- THE DYNAMIC WIDTH FIX ---
+                # 1. We want the highlight to reach the same edge for every line.
+                # 2. We use MAX_WIDTH - 6 as the base content area.
+                local item_w=$(( MAX_WIDTH - 6 ))
+                
+                # 3. Handle the "too short" icon bug:
+                # If the line has an icon, _draw_item needs a larger width 
+                # to ensure the background fill covers the same distance.
+                [[ "$content_line" == *"▶"* || "$content_line" == *"▼"* ]] && ((item_w += 2))
 
-                # THE PRIORITY FIX:
-                # If the item is focused (is_cur=1), we draw it NORMALLY.
-                # _draw_item will handle the blue HL_WHITE_BOLD style.
-                # We only override the color if it is NOT focused AND disabled.
                 if [[ "$item_disabled" == "true" && $is_cur -eq 0 ]]; then
                     local OLD_TEXT=$FG_TEXT_ESC
                     FG_TEXT_ESC=$FG_HINT_ESC
@@ -2066,22 +2222,22 @@ _tree_core() {
                     _draw_item "menu" "$is_cur" 0 "$content_line" "$item_w"
                 fi
             else
-                # THE FIX: Clear the area exactly up to box_width + 2
-                # We avoid using MAX_WIDTH here because it's what's causing 
-                # the background to spill over by 1 char.
-                local clear_w=$(( box_width + 2 ))
-                printf "  %${clear_w}s" "" >&2
+                # Clear empty rows exactly to the widget edge
+                printf "%$((MAX_WIDTH - 2))s" "" >&2
             fi
-            _draw_line "" "$current_view_row"
+            
+            # Reset row and snap the background fill
+            row=$current_view_row
+            _draw_line ""
         done
 
-        row=$((view_top + view_height))
+        # --- FOOTER ANCHOR ---
+        row=$(( MAX_HEIGHT - 2 ))
+        local hint=" [Arrows] Move/Expand | [Enter] Select"
+        [[ "$mode" == "config" ]] && hint=" [Arrows] Move/Expand | [Space] Toggle | [Enter] Confirm"
+        
         _draw_line ""
-        TOGGLE_CONTROLS=""
-        ENTER_ACTION="Select"
-        [[ "$mode" == "config" ]] && TOGGLE_CONTROLS="[Space] Toggle | "
-        [[ "$mode" == "config" ]] && ENTER_ACTION="Confirm"
-        _draw_controls " [Arrows] Move/Expand | ${TOGGLE_CONTROLS}[Enter] ${ENTER_ACTION}"
+        _draw_controls "$hint"
         _draw_footer
 
         # --- STEP 1: ATOMIC CAPTURE ---
@@ -2105,7 +2261,7 @@ _tree_core() {
                                 local id_str="${rem%%|*}"
                                 local lab_str="${rem#*|}"; lab_str="${lab_str%%|*}"
 
-                                if [[ "$lab_str" == *"$filter_query"* || "$id_str" == *"$filter_query"* ]]; then
+                                if [[ "$lab_str" == *$filter_query* || "$id_str" == *$filter_query* ]]; then
                                     cur=$idx
                                     break
                                 fi
@@ -2217,9 +2373,14 @@ _tree_core() {
                 if [[ "$mode" == "select" ]]; then
                     local selection=${all_nodes[${visible_indices[$cur]}]}
                     local id_part="${selection#*|}"
-                    TUI_RESULT="${id_part%%|*}"; echo "${TUI_RESULT}"; return 0
+                    # return
+                    TUI_RESULT="${id_part%%|*}"
+                    echo "${TUI_RESULT}"
+                    return 0
                 else
-                    TUI_RESULT="${all_nodes[@]}"; for n in "${all_nodes[@]}"; do echo "$n"; done; return 0
+                    TUI_RESULT="${all_nodes[@]}"
+                    for n in "${all_nodes[@]}"; do echo "$n"; done
+                    return 0
                 fi ;;
             "q") return 1 ;;
         esac
@@ -2313,12 +2474,14 @@ configtree() {
 }
 
 table() {
-    local title=$1 src=$2 top=0 cur=$((${3:-0} - 1)) # Set initial focus
-    local box_width=$(( MAX_WIDTH - 6 )) 
+    local title=$1 msg=$2 src=$3 top=0 cur=$((${4:-0} - 1)) # Set initial focus
     local display_lines=() commands=() header_row=""
     
     [[ ! -f "$src" ]] && { msgbox "Error" "File not found: $src"; return 1; }
 
+    _init_tui
+
+    local box_width=$(( MAX_WIDTH - 6 )) 
     # 1. Parse CSV
     local first=true
     local w1=$(( box_width * 33 / 100 ))
@@ -2337,9 +2500,8 @@ table() {
     done < "$src"
     local count=${#display_lines[@]}
     
-    _init_tui
     while true; do
-        _draw_header "$title" "Table View: $src"
+        _draw_header "$title" "$msg"
 
         # 2. DYNAMIC HEIGHT MATH
         local view_top=$row
@@ -2400,14 +2562,16 @@ table() {
 }
 
 filtertable() {
-    local title=$1 src=$2 d=-1
-    if [[ "$3" =~ ^[0-9]+$ ]]; then d=$(($3 - 1)); fi
+    local title=$1 msg=$2 src=$3 d=-1
+    if [[ "$4" =~ ^[0-9]+$ ]]; then d=$(($4 - 1)); fi
 
     local filter_query="" last_query="INIT_STATE"
-    local cur=$d top=0 box_width=$(( MAX_WIDTH - 6 ))
+    local cur=$d top=0
     
     [[ ! -f "$src" ]] && { msgbox "Error" "File not found: $src"; return 1; }
 
+    _init_tui
+    local box_width=$(( MAX_WIDTH - 6 ))
     local w1=$(( box_width * 33 / 100 ))
     local w2=$(( box_width * 26 / 100 ))
     local w3=$(( box_width - w1 - w2 - 2 ))
@@ -2427,7 +2591,6 @@ filtertable() {
         fi
     done < "$src"
 
-    _init_tui
     while true; do
         # --- 3. Filtering (Maintain relative master order) ---
         if [[ "$filter_query" != "$last_query" ]]; then
@@ -2436,7 +2599,7 @@ filtertable() {
             local i
             # Iterate through indices numerically to maintain file order
             for ((i=0; i<${#master_lines[@]}; i++)); do
-                if [[ -z "$filter_query" || "${master_lines[i]}" == *"$filter_query"* ]]; then
+                if [[ -z "$filter_query" || "${master_lines[i]}" == *$filter_query* ]]; then
                     filtered_lines+=("${master_lines[i]}")
                     filtered_cmds+=("${master_cmds[i]}")
                 fi
@@ -2447,7 +2610,7 @@ filtertable() {
         fi
 
         # [Steps 4-6 remain exactly the same as your working version]
-        _draw_header "$title" "Use the input below to filter results"
+        _draw_header "$title" "$msg"
         _draw_at "$row"
         local search_style=$([[ $cur -eq -1 ]] && echo "${BG_INPUT_ESC}${FG_BLUE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
         printf "  Filter: ${search_style} > %-25s ${RESET}" "$filter_query" >&2
@@ -2567,7 +2730,7 @@ modal() {
 }
 
 mainmenu() {
-    local title=$1 msg=$2 dsl=$3
+    local title=$1 msg="$2" dsl=$3
     # --- STARTUP FOCUS FIX ---
     # If $4 is provided, subtract 1 to convert natural number to index.
     # If not provided, default to index 0.
@@ -2606,7 +2769,7 @@ mainmenu() {
 
     local side_w=$(( MAX_WIDTH * 25 / 100 ))
     local table_x=$(( side_w + 6 )) 
-    local table_w=$(( MAX_WIDTH - table_x - 2 ))
+    local table_w=$(( MAX_WIDTH - table_x - 3 ))
     local absolute_table_x_esc="\e[$(( PADDING_LEFT + table_x ))G"
 
     while true; do
@@ -2673,16 +2836,21 @@ mainmenu() {
         fi
 
         # 5. RENDERING
-        local frame=""
-        row=$(_get_start_row)
-        printf -v line "  ${FG_TEXT_ESC}=== %s ===${BG_MAIN_ESC}${CLR_EOL}" "$title"
-        frame+="\e[${row};${PADDING_LEFT}H${BG_MAIN_ESC}${line}\n"
-        ((row++))
-        frame+="\e[${row};${PADDING_LEFT}H${BG_MAIN_ESC}  ${side_msgs[$cur_side]}${CLR_EOL}\n"
-        ((row++)); ((row++))
+        local frame="" # clear frame or it sbuilds up a huge string
+
+        # This draws title/msg ONLY if they exist and sets 'row' perfectly
+        # _draw_header "$title" "${side_msgs[$cur_side]}"
+        _draw_header "$title" "$msg"
         
+        # Capture the dynamic starting position
         local list_top=$row
+        
+        # Calculate viewport height based on available space
+        # -2 for the controls and footer area
         local view_h=$(( MAX_HEIGHT - list_top - 2 ))
+        [[ $view_h -lt 5 ]] && view_h=5
+        
+        # Data area height (subtracting the table headers)
         local data_h=$(( view_h - 3 ))
 
         # --- VIEWPORT AUTO-ADJUST ---
@@ -2701,22 +2869,28 @@ mainmenu() {
                 if [[ $i -eq $cur_side ]]; then
                     [[ $focus -eq 0 ]] && style=$HL_WHITE_BOLD || style="${BG_WID_ESC}${BOLD}"
                 fi
-                printf -v item "${style} %-$((side_w - 2))s ${RESET}${BG_MAIN_ESC}" "${side_labels[$i]}"
+                
+                # THE FIX: Add a leading space of BG_MAIN_ESC to shift the widget right
+                printf -v item "${BG_MAIN_ESC} ${style} %-$((side_w - 2))s ${RESET}${BG_MAIN_ESC}" "${side_labels[$i]}"
                 row_content+="$item"
             else 
-                printf -v item "%${side_w}s" ""; row_content+="$item"
+                # Match the shift in the empty row padding as well
+                printf -v item "${BG_MAIN_ESC} %$((side_w))s" ""; row_content+="$item"
             fi
 
             row_content+="$absolute_table_x_esc"
 
+            # Filter input
             if [[ $i -eq 0 ]]; then
                 local s_style=$BG_WID_ESC; [[ $focus -eq 1 && $cur_table -eq -1 ]] && s_style=$BG_INPUT_ESC
                 local lbl_style=$([[ $focus -eq 1 && $cur_table -eq -1 ]] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
                 printf -v item "${lbl_style}Filter: ${s_style}${lbl_style} > ${FG_INPUT_ESC}%-20s ${RESET}${BG_MAIN_ESC}" "$filter_query"
                 row_content+="$item"
+            # Table header
             elif [[ $i -eq 2 ]]; then
                 printf -v item "${BG_TABLE_HEADER_ESC}${BOLD} %-${table_w}s ${RESET}${BG_MAIN_ESC}" "$table_header"
                 row_content+="$item"
+            # Table body
             elif [[ $i -ge 3 ]]; then
                 local data_idx=$((i - 3 + table_top))
                 if [[ $f_count -eq 0 ]]; then
@@ -2737,7 +2911,7 @@ mainmenu() {
         done
 
         local footer_row=$((list_top + view_h + 1))
-        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC} [Tab] Switch | [Arrows/jk] Nav | [Enter] Select | [q] Quit ${RESET}"
+        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  [Tab] Switch | [Arrows/jk] Nav | [Enter] Select | [q] Quit ${RESET}"
 
         LAST_FRAME="$frame"
         printf "%b" "$frame" >&2
@@ -2758,6 +2932,17 @@ mainmenu() {
         fi
 
         case "$key" in
+            "/") 
+                # THE FIX: Jump to Filter Input
+                if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
+                    # If already in filter, add the slash to the query
+                    filter_query+="$key"
+                else
+                    # Jump to filter mode
+                    focus=1
+                    cur_table=-1
+                fi
+                ;;
             "q") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || return 1 ;;
             "j") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || { [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && ((cur_side++)); } || { [[ $cur_table -lt $((f_count-1)) ]] && ((cur_table++)); }; } ;;
             "k") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || { [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && ((cur_side--)); } || { [[ $cur_table -gt -1 ]] && ((cur_table--)); }; } ;;
@@ -2956,22 +3141,26 @@ _execute_sudo_with_pass() {
     prompt_buffer=""; pending_sudo_cmd=""; prompt_pos=0; rebuild=1
 }
 
-_draw_prompt_only() {
-    # Move to the fixed header row (usually PADDING_TOP + 1)
-    local prompt_row=$(( PADDING_TOP + 1 ))
+# _draw_prompt_only() {
+#     # Move to the fixed header row (usually PADDING_TOP + 1)
+#     local prompt_row=$(( PADDING_TOP + $(_get_start_row) + 1 ))
     
-    # Move cursor, clear line from cursor to end, and print BG_MAIN to keep box solid
-    # \e[K is the secret: it clears just to the end of the line, preventing flicker
-    printf "\e[${prompt_row};${PADDING_LEFT}H${BG_MAIN_ESC}${CLR_EOL}" >&2
+#     if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
+#         p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
+#     fi
+
+#     # Move cursor, clear line from cursor to end, and print BG_MAIN to keep box solid
+#     # \e[K is the secret: it clears just to the end of the line, preventing flicker
+#     printf "\e[${prompt_row};${PADDING_LEFT}H${BG_MAIN_ESC}${CLR_EOL}" >&2
     
-    # Re-run just the header message logic
-    _draw_header "$title" "$header_msg"
+#     # Re-run just the header message logic
+#     _draw_header "$title" "$header_msg"
     
-    # Reposition physical cursor for typing
-    local offset=4
-    [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=3
-    printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
-}
+#     # Reposition physical cursor for typing
+#     local offset=4
+#     [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=3
+#     printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
+# }
 
 _get_prompt_msg() {
     local black_bg="${BG_INPUT_ESC}"
@@ -3005,43 +3194,57 @@ _get_prompt_msg() {
     fi
 }
 
+# _refresh_prompt() {
+#     _get_prompt_msg
+
+#     # Dynamically find the row where the "message/path" area starts
+#     # We use a local to protect the global row counter
+#     local -i p_row=$(( PADDING_TOP + $(_get_start_row)))
+    
+#     # In fullscreen, _get_start_row usually points to the line 
+#     # under the title. If that's still too high for your layout,
+#     # your +1 offset for fullscreen is the correct "tin-standard" fix.
+#     # [[ "$TUI_MODE" == "fullscreen" ]] && ((p_row++))    
+#     printf "\e[${p_row};${PADDING_LEFT}H${BG_MAIN_ESC}  %b" "$header_msg" >&2
+    
+#     local sym_len=2
+#     case "$ui_mode" in
+#         "CMD"|"SUDO_CMD") sym_len=3 ;;
+#         "SEARCH")         sym_len=11 ;;
+#         "RENAME")         sym_len=9 ;;
+#         "NEW_F")          sym_len=12 ;;
+#         "NEW_D")          sym_len=11 ;;
+#     esac
+    
+#     printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos ))H" >&2
+#     _show_cursor
+# }
+
 _refresh_prompt() {
     _get_prompt_msg
+    local -i p_row=$(( PADDING_TOP + $(_get_start_row) ))
+    
+    if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
+        p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
+    fi
 
-    # Dynamically find the row where the "message/path" area starts
-    # We use a local to protect the global row counter
-    local -i p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
-    
-    # In fullscreen, _get_start_row usually points to the line 
-    # under the title. If that's still too high for your layout,
-    # your +1 offset for fullscreen is the correct "tin-standard" fix.
-    # [[ "$TUI_MODE" == "fullscreen" ]] && ((p_row++))    
+    # Just draw the text, don't move the cursor for typing yet
     printf "\e[${p_row};${PADDING_LEFT}H${BG_MAIN_ESC}  %b" "$header_msg" >&2
-    
-    local sym_len=2
-    case "$ui_mode" in
-        "CMD"|"SUDO_CMD") sym_len=3 ;;
-        "SEARCH")         sym_len=11 ;;
-        "RENAME")         sym_len=9 ;;
-        "NEW_F")          sym_len=12 ;;
-        "NEW_D")          sym_len=11 ;;
-    esac
-    
-    printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos ))H" >&2
-    _show_cursor
 }
 
 _refresh_sidebar_only() {
-    local clean_query="${search_query# }" # Strip leading UI space
+    local clean_query="${search_query# }" 
     local filtered=() f_idx=0
     
+    # 1. GLOBBING FIX: 
+    # Use [[ $name == $pattern ]] without quotes on the right side for globbing.
     shopt -s nocasematch
     for item in "${master_raw_list[@]}"; do
         local name="${item#*|}"
         name="${name%|*}"
-        # Match using glob (FAST in 3.2)
-        # Bypass filter for '..'
-        if [[ "$name" == ".." ]] || [[ -z "$clean_query" || "$name" == *"$clean_query"* ]]; then
+        
+        # If query is empty, or name matches the glob pattern
+        if [[ "$name" == ".." ]] || [[ -z "$clean_query" ]] || [[ "$name" == *$clean_query* ]]; then
             filtered[f_idx]="$item"
             ((f_idx++))
         fi
@@ -3052,28 +3255,23 @@ _refresh_sidebar_only() {
     count=${#raw_list[@]}
     cur=0; top=0
 
-    # 3. Geometry: Use the dynamic anchor
-    # Default offset from the content start
-    local list_offset=4
+    # 2. VERTICAL ALIGNMENT FIX:
+    # Use the current global 'row' (set by _draw_header) as the base list_top.
+    local list_top=$(( PADDING_TOP + row ))
     
-    # The Fix: If we are in fullscreen and have a backtitle, 
-    # we must push the origin down by 1 to align with the initial draw.
-    if [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]]; then
-        ((list_offset++))
-    fi
+    # Calculate height based on space left above footer/controls
+    local height=${1:-$(( MAX_HEIGHT - row - 2 ))}
+    [[ $height -lt 1 ]] && height=1 
 
-    # Calculate actual terminal row based on _get_start_row base
-    local list_top=$(( PADDING_TOP + $(_get_start_row) + list_offset ))
-    
-    local height=$(( MAX_HEIGHT - (list_top - PADDING_TOP) + 1 ))
-    [[ $height -lt 5 ]] && height=5 
-
-    # 4. Rendering Loop: Surgical line updates
+    # 3. RENDERING LOOP
     for ((i=0; i<height; i++)); do
         local v_idx=$((top + i))
         local current_row=$((list_top + i))
         
-        # Move to absolute row and clear with Main BG before drawing
+        # Boundary check
+        [[ $current_row -ge $((PADDING_TOP + MAX_HEIGHT - 1)) ]] && break
+        
+        # Move and Clear with BG_MAIN
         printf "\e[${current_row};${PADDING_LEFT}H${BG_MAIN_ESC}  " >&2
         
         if [[ $v_idx -lt $count ]]; then
@@ -3083,29 +3281,28 @@ _refresh_sidebar_only() {
             local label="${remain%|*}"
             local is_dir="${remain##*|}"
             
-            # Style logic: Focus stays on the top result while filtering
             local is_cur=0; [[ $v_idx -eq $cur ]] && is_cur=1
             local style=$BG_WID_ESC
             [[ $is_cur -eq 1 ]] && style=$HL_WHITE_BOLD
             
-            # Color logic
             local color=$FG_TEXT_ESC
             if [[ "$is_dir" == "true" ]]; then
-                color="\e[1;34m" # Bold Blue
+                color="\e[1;34m" 
             elif [[ -x "$path" ]]; then
-                color="\e[1;32m" # Bold Green
+                color="\e[1;32m"
             elif [[ "${label:0:1}" == "." ]]; then
-                color="\e[2m"   # Faint
+                color="\e[2m"
             fi
 
-            # Print the item truncated to menu_w to maintain the box layout
+            # Print padded/truncated label
             printf "${style}${color} %-${menu_w}s ${RESET}${BG_MAIN_ESC}" "${label:0:$menu_w}" >&2
         else
-            # Clear empty rows below the filtered results
+            # Wipe unused rows
             printf "%$((menu_w + 2))s" "" >&2
         fi
     done
 }
+
 
 _update_display_path() {
     display_path="$root_dir"
@@ -3319,7 +3516,6 @@ EOF
                         "$v1" "$v3" "$v4" "$v5" "$v6" "$v7" "$v8_aligned"
                 done < <(cd "$root_dir" && \ls -lAnhd * .* 2>/dev/null)
             fi
-
             # 1. Add Parent Dir
             if [[ "$root_dir" != "/" ]]; then
                 raw_list[0]="${root_dir%/*}|..|true"
@@ -3437,10 +3633,8 @@ EOF
             _draw_header "$title" "Path: $display_path"
         else
             # 1. Manually draw ONLY the Title line (Row 1)
-            local title_row=$(( PADDING_TOP + 2 ))
-            _draw_header "$title" "Path: $display_path"
-            # printf "\e[${title_row};${PADDING_LEFT}H${BG_MAIN_ESC}  ${FG_TEXT_ESC}=== %s ===${RESET}${BG_MAIN_ESC}${CLR_EOL}" "$title" >&2
-            
+            #local title_row=$(( PADDING_TOP + 2 ))
+            #_draw_header "$title" "" 
             # 2. Let the surgical redraw handle the Prompt line (Row 3)
             _refresh_prompt
         fi
@@ -3448,11 +3642,14 @@ EOF
         # Position physical cursor for the prompt
         if [[ "$ui_mode" != "NAV" ]]; then
             # Header row is PADDING_TOP + _get_start_row
-            local prompt_row=$(( PADDING_TOP + 1 )) 
+            local prompt_row=$(( PADDING_TOP + $(_get_start_row) + 1))
+            if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
+                prompt_row=$(( PADDING_TOP + $(_get_start_row) + 2))
+            fi
             # Calculate offset: "Path: " or "$ " length
             local offset=4 
             [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=2
-            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
+            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos + 1 ))H" >&2
             _show_cursor
         fi
 
@@ -3623,14 +3820,32 @@ EOF
         row=$((list_top + height))
         _draw_spacer
 
-        # Define a "Soft Bold" that only changes the foreground, not the background
-        local SB="\e[1;37m" 
-        # Define a "Soft Reset" that returns to Hint color while keeping BG_MAIN
-        local SR="\e[22m${FG_HINT_ESC}"
-
         _draw_controls " ${SB}~${SR} Home | ${SB}x/c/v${SR} Cut/Copy/Paste | ${SB}r${SR} Rename | ${SB}?${SR} Help | ${SB}q${SR} Quit"
-
         _draw_footer
+        _hide_cursor
+
+        # IF in a prompt mode, MOVE cursor back to the prompt line
+        if [[ "$ui_mode" != "NAV" ]]; then
+            _refresh_prompt # Re-draws the colored input bar
+            
+            # Re-calculate position
+            local p_row=$(( PADDING_TOP + $(_get_start_row) ))
+            if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
+                p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
+            fi
+            local sym_len=2
+            case "$ui_mode" in
+                "CMD"|"SUDO_CMD") sym_len=3 ;;
+                "SEARCH")         sym_len=11 ;;
+                "RENAME")         sym_len=9 ;;
+                "NEW_F")          sym_len=12 ;;
+                "NEW_D")          sym_len=11 ;;
+            esac
+            
+            # Position cursor EXACTLY where the user is typing
+            printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos + 1))H" >&2
+            _show_cursor
+        fi
 
         # 6. INPUT HANDLING
         IFS= read -rsn1 key < /dev/tty || break
@@ -3746,7 +3961,7 @@ EOF
                             # EMPTY PROMPT: Behave exactly like ESCAPE
                             local last_p="${raw_list[$cur]%%|*}"
                             search_query=""
-                            prompt_pos=0
+                            prompt_pos=1
                             ui_mode="NAV"
                             raw_list=("${master_raw_list[@]}")
                             count=${#raw_list[@]}
@@ -3768,9 +3983,7 @@ EOF
                             # adjustments needed to prompt placement in fullscreen mode
                             [[ -n "$BACKTITLE" && "$TUI_MODE" == 'fullscreen' ]] && p_row=$(( PADDING_TOP + 4 ))
                             
-                            printf "\e[${p_row};$((PADDING_LEFT + 2))H${BG_MAIN_ESC}%-*s${RESET}${BG_MAIN_ESC}" \
-                                   "$((MAX_WIDTH - 4))" "$header_msg" >&2
-                            rebuild=0
+                            rebuild=1
                             continue
                         fi
                     
@@ -3850,14 +4063,34 @@ EOF
                             # 2. FAST SURGICAL UPDATES
                             _get_prompt_msg
                             _refresh_prompt
-                            _refresh_sidebar_only
-                            continue # Skip slow rebuild
+                            row=$(( $(_get_start_row) + 2)) 
+                            if [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]];then
+                                row=$(( $(_get_start_row) + 3)) 
+                            fi                            
+                            list_top=$row
+
+                            local max_vh=$(( MAX_HEIGHT - row - 2 ))
+                            [[ $max_vh -lt 1 ]] && max_vh=1
+                            _refresh_sidebar_only "$max_vh"
+                            continue
                         else
                             prompt_buffer="${prompt_buffer:0:prompt_pos-1}${prompt_buffer:prompt_pos}"
                             ((prompt_pos--))
                             _refresh_prompt
                             continue
                         fi
+                    else
+                        # --- THE FIX: Close prompt if empty ---
+                        ui_mode="NAV"
+                        prompt_buffer=""
+                        prompt_pos=0
+                        rebuild=1
+                        # If it was a search, reset the view to normal
+                        if [[ "$ui_mode" == "SEARCH" ]]; then
+                            search_query=""
+                            _refresh_sidebar_only
+                        fi
+                        continue
                     fi ;;
 
                 *) # Character Input
@@ -3870,8 +4103,23 @@ EOF
                             # 2. SURGICAL UPDATES (Do not use rebuild=1)
                             _get_prompt_msg       # Update the header string
                             _refresh_prompt       # Draw the black bar immediately
-                            _refresh_sidebar_only # Filter and draw the list immediately
-                            
+                            # --- THE FIX ---
+                            # Capture the current row, move it up 2 lines, 
+                            # and sync list_top so the sidebar redraws higher.
+                            row=$(( $(_get_start_row) + 2)) 
+                            if [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]];then
+                                row=$(( $(_get_start_row) + 3)) 
+                            fi                            
+                            list_top=$row
+
+                            # This prevents the sidebar from breaking out of the box
+                            # We subtract the header rows and the 2 footer/control rows
+                            local max_vh=$(( MAX_HEIGHT - row - 2 ))
+                            [[ $max_vh -lt 1 ]] && max_vh=1
+
+                            # Pass the explicit height to your sidebar refresher
+                            _refresh_sidebar_only "$max_vh"
+
                             continue # Skip Nav logic
                         else
                             prompt_buffer="${prompt_buffer:0:prompt_pos}${key}${prompt_buffer:prompt_pos}"
@@ -3896,6 +4144,8 @@ EOF
                     # and only filter the sidebar every 2nd or 3rd keystroke, 
                     # or simply accept a slightly slower filter for a faster cursor.
                     
+                    row=$(( $(_get_start_row) + 2)) 
+                    list_top=$row
                     # For Bash 3.2, the best balance is:
                     _refresh_sidebar_only # A function that only draws the filenames
                 fi
