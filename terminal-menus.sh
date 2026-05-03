@@ -4403,6 +4403,45 @@ _set_fm() {
     done < "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
+# Usage: _get_simple_date "yyyy-mm-dd-hh:mm:ss" "yyyy-mm-dd"
+_get_simple_date() {
+    local input="$1" now="$2"
+    [[ -z "$input" || "$input" == "0000-00-00-00:00:00" ]] && echo "Never" && return
+
+    local in_date="${input:0:10}"
+    local now_date="${now:0:10}"
+
+    # If it's not today, show only the date (no time)
+    if [[ "$in_date" != "$now_date" ]]; then
+        echo "$in_date"
+        return
+    fi
+
+    # Parse hours and minutes (slicing is faster than IFS)
+    local ih=${input:11:2} im=${input:14:2}
+    local nh=${now:11:2}   nm=${now:14:2}
+
+    # Strip leading zeros to prevent octal errors
+    ih=${ih#0} im=${im#0} nh=${nh#0} nm=${nm#0}
+
+    # Total minutes from start of day
+    local in_total=$(( (ih * 60) + im ))
+    local now_total=$(( (nh * 60) + nm ))
+    local diff=$(( now_total - in_total ))
+
+    # 1. Less than 1 hour ago -> "X mins ago"
+    if (( diff < 60 )); then
+        if (( diff < 5 )); then echo "now"; else echo "${diff} mins ago"; fi
+    # 2. Less than 9 hours ago -> "X hours ago"
+    elif (( diff < 540 )); then
+        echo "$(( diff / 60 )) hours ago"
+    # 3. Same day but > 9 hours -> "hh:mm" (truncated seconds)
+    else
+        echo "${input:11:5}"
+    fi
+}
+
+
 kanban() {
     local CONTROLS_TXT="
   
@@ -4612,6 +4651,8 @@ ${SB}q${SR}           Quit"
             "q") cleanup; return 0 ;;
 
             "/") 
+                 local NOW_FULL=$(date +%Y-%m-%d-%H:%M:%S)
+
                 # 1. Generate the CSV for filtertable
                 # Columns: title, tags, author, owner, created, modified, (Hidden) filepath
                 local filter_csv="/tmp/pm_filter_$$.csv"
@@ -4630,12 +4671,17 @@ ${SB}q${SR}           Quit"
                     local r_cre=$(_get_fm "$f" "created")
                     local r_mod=$(_get_fm "$f" "modified")
                     
+                    # --- THE FIX: RELATIVE DATES ---
+                    local rel_cre=$(_get_simple_date "$r_cre"  "$NOW_FULL") # Pass the cached time
+                    local rel_mod=$(_get_simple_date "$r_mod" "$NOW_FULL") # Pass the cached time
+
                     # Ensure no commas in values to break CSV (Bash 3.2 replace)
                     r_title="${r_title//,/;}"
                     r_tags="${r_tags//,/;}"
                     
                     # The hidden 7th column is the full path to the file
-                    echo "$r_title,$r_tags,$r_auth,$r_own,$r_cre,$r_mod,$f" >> "$filter_csv"
+                    # Note: We display rel_cre and rel_mod in the CSV
+                    echo "$r_title,$r_tags,$r_auth,$r_own,$rel_cre,$rel_mod,$f" >> "$filter_csv"
                 done
                 IFS="$old_ifs"
 
