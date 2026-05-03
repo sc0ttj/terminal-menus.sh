@@ -4450,8 +4450,13 @@ ${SB}q${SR}           Quit"
     _save_redo() { rm -rf "$redo_dir"/*; cp "$dir"/*.md "$redo_dir/" 2>/dev/null; }
 
     while true; do
-        # 1. Map files to columns (Keep your existing mapping logic)
-        for ((c=0; c<num_cols; c++)); do eval "files_$c=()"; eval "count_$c=0"; done
+        # --- 1. Map Files to Columns (Optimized with Title Caching) ---
+        # Use num_cols (which you defined as ${#kanban_cols[@]})
+        for ((c=0; c<num_cols; c++)); do 
+            eval "files_$c=()"
+            eval "titles_$c=()"
+            eval "count_$c=0"
+        done
 
         # --- THE FIX: Robust Sort Command Construction ---
         local rev_flag=""
@@ -4474,19 +4479,25 @@ ${SB}q${SR}           Quit"
         for entry in $manifest; do
             local fname="${entry#*|}"
             local fpath="$dir/$fname"
-            local s=$(_get_fm "$fpath" "status")
+            
+            local f_status=$(_get_fm "$fpath" "status")
+            local f_title=$(_get_fm "$fpath" "title")
+            : ${f_title:=${fname%.md}}
+
+            # Use num_cols here too
             for ((c=0; c<num_cols; c++)); do
-                if [[ "$s" == "${kanban_cols[$c]}" ]]; then
-                    local idx=$(eval "echo \$count_$c")
+                if [[ "$f_status" == "${kanban_cols[$c]}" ]]; then
+                    local c_var="count_$c"
+                    local idx="${!c_var}"
+                    
                     eval "files_${c}[$idx]=\"\$fname\""
+                    eval "titles_${c}[$idx]=\"\$f_title\""
                     eval "count_$c=$((idx + 1))"
-                fi
-                # --- THE FIX: Snap cursor to the target file if it's set ---
-                if [[ -n "$target_filename" && "$fname" == "$target_filename" ]]; then
-                    # We found our moving file! Snap the column and row to it.
-                    sel_c=$c
-                    sel_r=$idx # idx comes from your internal mapping loop
-                    target_filename="" # Reset so it doesn't snap every loop
+                    
+                    if [[ -n "$target_filename" && "$fname" == "$target_filename" ]]; then
+                        sel_c=$c; sel_r=$idx; target_filename=""
+                    fi
+                    break # Speed optimization: found the column, stop looking
                 fi
             done
         done
@@ -4503,19 +4514,42 @@ ${SB}q${SR}           Quit"
         local view_h=$(( MAX_HEIGHT - list_top - 3 ))
         [[ $view_h -lt 3 ]] && view_h=3 # Safety floor
 
-        # --- RENDER GRID WITH SCROLLING & TRUNCATION ---
+        # --- 2. PRE-CALCULATE DYNAMIC WIDTHS (Reduced Gutters) ---
+        local num_cols=${#kanban_cols[@]}
+        # Subtract 4 (2 for left margin, 2 for right) 
+        # AND subtract (num_cols - 1) for the 1-space internal gaps
+        local total_gap_space=$(( num_cols - 1 ))
+        local usable_w=$(( MAX_WIDTH - 4 - total_gap_space ))
+        
+        local base_col_w=$(( usable_w / num_cols ))
+        local remainder=$(( usable_w % num_cols ))
+
+        # --- RENDER GRID ---
         for ((c=0; c<num_cols; c++)); do
-            local x=$(( (c * col_w) + 2 ))
-            [[ "$TUI_MODE" == "fullscreen" ]] && x=$(( (c * col_w) + 3 )) # nudge list to right 1 char in fullscreen mode
+            # Calculate width for this column
+            local item_w=$(($base_col_w - 1))
+            [[ $c -eq $((num_cols - 1)) ]] && ((item_w += remainder))
+
+            # Horizontal position logic:
+            # Start at 3 (2-space margin + 1st char)
+            # Add (previous column widths) + (1 space gap per previous column)
+            local x=2
+            [[ "$TUI_MODE" == "fullscreen" ]] && x=3 # Fullscreen nudge
+            for ((prev=0; prev<c; prev++)); do 
+                ((x += base_col_w + 1)) 
+            done
+            
             local var_name="count_$c"
             local c_len="${!var_name}"
             local top=${col_tops[$c]}
 
-            # 1. STICKY HEADER (Fixed position)
+            # 1. STICKY HEADER
             local h_style="${BG_TABLE_HEADER_ESC}"
             [[ $sel_c -eq $c ]] && h_style="${BG_TABLE_HEADER_ESC}${SB}${BOLD}"
+            
             _draw_at "$list_top" "$x"
-            printf "${h_style} %-${pad_w}.${pad_w}s ${RESET}${BG_MAIN_ESC}" "${kanban_cols[$c]}" >&2
+            # Draw exactly the item_w width (no extra spaces inside printf here)
+            printf "${h_style}%-${item_w}.${item_w}s${RESET}${BG_MAIN_ESC}" " ${kanban_cols[$c]}" >&2
             
             # 2. SCROLLABLE VIEWPORT
             for ((i=0; i<view_h; i++)); do
@@ -4525,21 +4559,19 @@ ${SB}q${SR}           Quit"
                 
                 if [[ $idx -lt $c_len ]]; then
                     local style=$([[ $sel_c -eq $c && $sel_r -eq $idx ]] && echo "${HL_WHITE_BOLD}" || echo "${BG_WID_ESC}")
-                    local array_idx="files_${c}[$idx]"
-                    local item_name="${!array_idx}"
-                    local display_name="${item_name%.md}"
                     
-                    # --- THE FIX: TRUNCATE WITH ELLIPSIS ---
-                    if [[ ${#display_name} -gt $pad_w ]]; then
-                        local trunc_l=$((pad_w - 3))
-                        display_name="${display_name:0:$trunc_l}..."
+                    local t_var="titles_${c}[$idx]"
+                    local d_name="${!t_var}"
+                    [[ -z "$d_name" ]] && { local f_var="files_${c}[$idx]"; d_name="${!f_var}"; }
+
+                    if [[ ${#d_name} -gt $item_w ]]; then
+                        d_name="${d_name:0:$((item_w - 3))}..."
                     fi
                     
-                    # Use %-w.ws to force exact width and prevent overflow
-                    printf "${style} %-${pad_w}.${pad_w}s ${RESET}${BG_MAIN_ESC}" "$display_name" >&2
+                    printf "${style}%-${item_w}.${item_w}s${RESET}${BG_MAIN_ESC}" " $d_name" >&2
                 else
-                    # Surgical clear: Overwrite the full col_w width with background
-                    printf "%-${col_w}s" "" >&2
+                    # Clear using exactly the item_w
+                    printf "${BG_MAIN_ESC}%-${item_w}s" "" >&2
                 fi
             done
         done
