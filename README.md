@@ -155,19 +155,13 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "services.csv" 1)
 ```
 
-### 19. Main Menu (`mainmenu`)
-A menu on the left, where each menu item loads a navigable table, which can launch commands, and other widgets.
-```bash
-mainmenu "Media Center" "Select category" "$MENU_CFG" 1
-```
-
-### 20. File Manager (`file_manager`)
+### 19. File Manager (`file_manager`)
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, more.
 
-```
 Controls:
 
-[Arrows]  Navigate (and [w/a/s/d])
+```
+[Arrows]  Navigate (also w/a/s/d and h/j/k/l)
 [ENTER]   Open / Select
 [TAB]     Toggle add to selection (sel/{})
 [.]       Toggle hidden files
@@ -194,19 +188,57 @@ file_manager "Home" "$HOME"
 You can highlight multiple items using TAB, and hit `:` to launch a command prompt (`!` for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
 
-### 21. Spreadsheet (`spreadsheet`)
+### 20. Spreadsheet (`spreadsheet`)
 An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCAT|IF), horizontal/vertical scrolling, and undo/redo.
 
 ```bash
 FINAL_DATA=$(spreadsheet "budget.csv")
 ```
 
+Controls:
 ```
+[Arrows] Navigate (also w/a/s/d and h/j/k/l)
+[Enter]  Select/confirm
+[z/Z]    Undo/Redo
+[q]      Quit
+```
+
+### 21. Project manager (`kanban`)
+A multi-column kanban board, with a searchable table view.
+
+```bash
+kanban "Awesome Project" "Manage notes & tickets" ./some-folder
+```
+
+Controls:
+```
+Arrows      Navigate (also w/a/s/d and h/j/k/l)
+W/A/S/D     Move item (also H/J/K/L)
+/           Search items
+o           Cycle sort (by rank, modified, created, completed)
+O           Toggle ascending/descending
+Enter/e     Edit note in $EDITOR
+n           New note
+t           Append tag
+z/Z         Undo/redo
+q           Quit
+```
+
+### 22. Main Menu (`mainmenu`)
+A menu on the left, where each menu item loads a navigable table, which can launch commands, and other widgets.
+
+```bash
+mainmenu "Media Center" "Select category" "$MENU_CFG" 1
+```
+
 Controls:
 
-[Arrows] Move
-[Enter] Confirm
-[z/Z] Undo/Redo
+```
+[Arrows/jk]  Navigate 
+[Tab]        Switch between menus and tables
+[Enter]      Select menu item (go to Search input)
+[Enter]      Select table item (run command)
+[BACKSPACE]  Go to Search input
 [q] Quit
 ```
 

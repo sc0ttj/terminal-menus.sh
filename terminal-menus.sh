@@ -2593,18 +2593,37 @@ filtertable() {
     local w2=$(( box_width * 26 / 100 ))
     local w3=$(( box_width - w1 - w2 - 2 ))
 
-    # --- 2. Master Data Load (Preserve File Order) ---
+        # --- 2. Master Data Load (Handles dynamic column counts) ---
     local master_lines=() master_cmds=() header_row=""
     local first=true
-    while IFS=',' read -r c1 c2 c3 cmd; do
-        local formatted=$(printf "%-${w1}s %-${w2}s %-${w3}s" "$c1" "$c2" "$c3")
+
+    while IFS= read -r line; do
+        # Split line into array using comma as delimiter
+        local old_ifs="$IFS"; IFS=','; local cells=($line); IFS="$old_ifs"
+        local cell_count=${#cells[@]}
+        local display_count=$((cell_count - 1)) # All but the last
+        
+        # Calculate dynamic width for each column based on total box width
+        local col_w=$(( (box_width - display_count) / display_count ))
+        local formatted=""
+        
+        # Build the visible row
+        for ((i=0; i<display_count; i++)); do
+            local val="${cells[$i]}"
+            if [[ ${#val} -gt $col_w ]]; then
+                val="${val:0:$((col_w - 3))}..."
+            fi
+            printf -v part "%-${col_w}.${col_w}s " "$val"
+            formatted+="$part"
+        done
+
         if [[ "$first" == "true" ]]; then
             header_row="$formatted"
             first=false
         else
-            # Using += ensures sequential indexing (0, 1, 2...) in order of read
             master_lines+=("$formatted")
-            master_cmds+=("$cmd")
+            # Store the VERY LAST cell as the command
+            master_cmds+=("${cells[$display_count]}")
         fi
     done < "$src"
 
@@ -2639,7 +2658,7 @@ filtertable() {
         [[ $view_height -lt 5 ]] && view_height=5
         
         _draw_at "$row"
-        printf "  ${BG_TABLE_HEADER_ESC}${BOLD} %-${box_width}s ${RESET}" "${header_row}" >&2
+        printf "  ${BG_TABLE_HEADER_ESC}${BOLD} %-${box_width}.${box_width}s ${RESET}" "${header_row}" >&2
         _draw_line "" "$row"
         
         local data_top=$row
@@ -4331,5 +4350,439 @@ EOF
                 show_help=0
                 last_path="${raw_list[$cur]%%|*}"; cur=-2; rebuild=1 ;;
         esac
+    done
+}
+
+
+_get_fm() {
+    local key="$2" val=""
+    while IFS= read -r line; do
+        [[ "$line" == "$key:"* ]] && { val="${line#*: }"; echo "${val//\"/}"; return; }
+    done < "$1"
+}
+
+_set_fm() {
+    local file="$1" key="$2" new_v="$3" tmp="$1.tmp"
+    while IFS= read -r line; do
+        if [[ "$line" == "$key:"* ]]; then
+            echo "$key: $new_v"
+        else
+            echo "$line"
+        fi
+    done < "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+kanban() {
+    local CONTROLS_TXT="
+  
+${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR}     Navigate (also ${SB}Arrows${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
+${SB}W${SR}/${SB}A${SR}/${SB}S${SR}/${SB}D${SR}     Move item (also ${SB}H${SR}/${SB}J${SR}/${SB}K${SR}/${SB}L${SR})
+${SB}/${SR}           Search items
+${SB}o${SR}           Cycle sort (by rank, modified, created, completed)
+${SB}O${SR}           Toggle ascending/descending
+${SB}Enter${SR}/${SB}e${SR}     Edit note in \\\$EDITOR
+${SB}n${SR}           New note
+${SB}t${SR}           Append tag
+${SB}z${SR}/${SB}Z${SR}         Undo/redo
+${SB}q${SR}           Quit"
+
+    local title=$1
+    local msg=$2
+    local dir="$3" config="$dir/.project-config"
+    [[ ! -d "$dir" ]] && { msgbox "Error" "Project dir not found"; return 1; }
+
+    local kanban_cols=() content=""
+    if [[ -f "$config" ]]; then
+        content=$(cat "$config")
+        local old_ifs="$IFS"; IFS=','; kanban_cols=($content); IFS="$old_ifs"
+    fi
+    [[ ${#kanban_cols[@]} -eq 0 ]] && kanban_cols=("Backlog" "Todo" "Doing" "Done")
+    
+    _init_tui && _hide_cursor
+
+    local num_cols=${#kanban_cols[@]}
+    local usable_w=$(( MAX_WIDTH - 4 ))
+    local col_w=$(( usable_w / num_cols ))
+    # This captures the leftover space
+    local remainder=$(( usable_w % num_cols ))
+
+    local pad_w=$(( col_w - 3 )) 
+    local sel_c=0 sel_r=0 
+    # Array to track the scroll position for each column
+    local col_tops=(); for ((c=0; c<num_cols; c++)); do col_tops[c]=0; done
+
+    local undo_dir="$dir/.undo" redo_dir="$dir/.redo"
+    local sort_mode="rank" sort_rev=false
+    mkdir -p "$undo_dir" "$redo_dir"
+
+    _save_undo() { rm -rf "$undo_dir"/*; cp "$dir"/*.md "$undo_dir/" 2>/dev/null; }
+    _save_redo() { rm -rf "$redo_dir"/*; cp "$dir"/*.md "$redo_dir/" 2>/dev/null; }
+
+    while true; do
+        # 1. Map files to columns (Keep your existing mapping logic)
+        for ((c=0; c<num_cols; c++)); do eval "files_$c=()"; eval "count_$c=0"; done
+
+        # --- THE FIX: Robust Sort Command Construction ---
+        local rev_flag=""
+        [[ "$sort_rev" == "true" ]] && rev_flag="r"
+        
+        local old_ifs="$IFS"; IFS=$'\n'
+        local manifest=$(for f in "$dir"/*.md; do
+            [[ ! -f "$f" ]] && continue
+            local val=$(_get_fm "$f" "$sort_mode")
+            # Ensure rank is a sortable 3-digit number
+            if [[ "$sort_mode" == "rank" ]]; then
+                [[ -z "$val" ]] && val="100"
+                printf "%03d|%s\n" "$val" "${f##*/}"
+            else
+                [[ -z "$val" ]] && val="0000-00-00-00:00:00"
+                echo "${val}|${f##*/}"
+            fi
+        done | sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ))
+
+        for entry in $manifest; do
+            local fname="${entry#*|}"
+            local fpath="$dir/$fname"
+            local s=$(_get_fm "$fpath" "status")
+            for ((c=0; c<num_cols; c++)); do
+                if [[ "$s" == "${kanban_cols[$c]}" ]]; then
+                    local idx=$(eval "echo \$count_$c")
+                    eval "files_${c}[$idx]=\"\$fname\""
+                    eval "count_$c=$((idx + 1))"
+                fi
+                # --- THE FIX: Snap cursor to the target file if it's set ---
+                if [[ -n "$target_filename" && "$fname" == "$target_filename" ]]; then
+                    # We found our moving file! Snap the column and row to it.
+                    sel_c=$c
+                    sel_r=$idx # idx comes from your internal mapping loop
+                    target_filename="" # Reset so it doesn't snap every loop
+                fi
+            done
+        done
+        IFS="$old_ifs"
+
+        row=2
+        [[ $PADDING_TOP -eq 0 && -n "$BACKTITLE" ]] && row=3
+        # _draw_header "Project: ${dir##*/}" "${dir/#$HOME/~}"
+        _draw_header "$title" "$msg"
+        local list_top=$row
+        
+        # Calculate available height for the viewport
+        # -2 for Footer/Controls, -1 for Column Headers
+        local view_h=$(( MAX_HEIGHT - list_top - 3 ))
+        [[ $view_h -lt 3 ]] && view_h=3 # Safety floor
+
+        # --- RENDER GRID WITH SCROLLING & TRUNCATION ---
+        for ((c=0; c<num_cols; c++)); do
+            local x=$(( (c * col_w) + 2 ))
+            [[ "$TUI_MODE" == "fullscreen" ]] && x=$(( (c * col_w) + 3 )) # nudge list to right 1 char in fullscreen mode
+            local var_name="count_$c"
+            local c_len="${!var_name}"
+            local top=${col_tops[$c]}
+
+            # 1. STICKY HEADER (Fixed position)
+            local h_style="${BG_TABLE_HEADER_ESC}"
+            [[ $sel_c -eq $c ]] && h_style="${BG_TABLE_HEADER_ESC}${SB}${BOLD}"
+            _draw_at "$list_top" "$x"
+            printf "${h_style} %-${pad_w}.${pad_w}s ${RESET}${BG_MAIN_ESC}" "${kanban_cols[$c]}" >&2
+            
+            # 2. SCROLLABLE VIEWPORT
+            for ((i=0; i<view_h; i++)); do
+                local r=$((list_top + i + 1))
+                local idx=$((top + i))
+                _draw_at "$r" "$x"
+                
+                if [[ $idx -lt $c_len ]]; then
+                    local style=$([[ $sel_c -eq $c && $sel_r -eq $idx ]] && echo "${HL_WHITE_BOLD}" || echo "${BG_WID_ESC}")
+                    local array_idx="files_${c}[$idx]"
+                    local item_name="${!array_idx}"
+                    local display_name="${item_name%.md}"
+                    
+                    # --- THE FIX: TRUNCATE WITH ELLIPSIS ---
+                    if [[ ${#display_name} -gt $pad_w ]]; then
+                        local trunc_l=$((pad_w - 3))
+                        display_name="${display_name:0:$trunc_l}..."
+                    fi
+                    
+                    # Use %-w.ws to force exact width and prevent overflow
+                    printf "${style} %-${pad_w}.${pad_w}s ${RESET}${BG_MAIN_ESC}" "$display_name" >&2
+                else
+                    # Surgical clear: Overwrite the full col_w width with background
+                    printf "%-${col_w}s" "" >&2
+                fi
+            done
+        done
+
+        row=$(( MAX_HEIGHT - 1 ))
+        _draw_footer
+        local sort_dir="▲"
+        [[ "$sort_rev" == "true" ]] && sort_dir="▼"
+        _draw_controls " ${SB}wasd${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o/O${SR} Sort: $sort_mode $sort_dir | ${SB}z/Z${SR} Undo/redo | ${SB}?${SR} Help"
+        printf "\e[1;1H" >&2
+
+                # 5. Input Handling
+        local key; IFS= read -rsn1 key < /dev/tty
+        
+        # Handle Escape Sequences (Arrows and ESC)
+        if [[ "$key" == $'\e' ]]; then
+            local next_chars=""
+            stty -icanon -echo min 0 time 0
+            next_chars=$(dd bs=3 count=1 2>/dev/null)
+            stty icanon echo
+            
+            if [[ -z "$next_chars" ]]; then return 0; fi # ESC to quit
+            
+            case "$next_chars" in
+                "[A") key="k" ;; "[B") key="j" ;; "[C") key="l" ;; "[D") key="h" ;;
+                *) : ;; # Ignore everything else
+            esac
+        fi
+
+        # Calculate target for action keys
+        local target="" cur_file=""
+        if [[ "$key" != "q" ]]; then
+            cur_file=$(eval "echo \"\${files_${sel_c}[$sel_r]}\"")
+            [[ -n "$cur_file" ]] && target="$dir/$cur_file"
+        fi
+
+        case "$key" in
+            "q") cleanup; return 0 ;;
+
+            "/") 
+                # 1. Generate the CSV for filtertable
+                # Columns: title, tags, author, owner, created, modified, (Hidden) filepath
+                local filter_csv="/tmp/pm_filter_$$.csv"
+                local old_ifs="$IFS"; IFS=$'\n'
+                
+                # Header for the table display
+                echo "Title,Tags,Author,Owner,Created,Modified,Command" > "$filter_csv"
+                
+                for f in "$dir"/*.md; do
+                    [[ ! -f "$f" ]] && continue
+                    
+                    local r_title=$(_get_fm "$f" "title")
+                    local r_tags=$(_get_fm "$f" "tags")
+                    local r_auth=$(_get_fm "$f" "author")
+                    local r_own=$(_get_fm "$f" "owner")
+                    local r_cre=$(_get_fm "$f" "created")
+                    local r_mod=$(_get_fm "$f" "modified")
+                    
+                    # Ensure no commas in values to break CSV (Bash 3.2 replace)
+                    r_title="${r_title//,/;}"
+                    r_tags="${r_tags//,/;}"
+                    
+                    # The hidden 7th column is the full path to the file
+                    echo "$r_title,$r_tags,$r_auth,$r_own,$r_cre,$r_mod,$f" >> "$filter_csv"
+                done
+                IFS="$old_ifs"
+
+                # 2. Call your existing filtertable widget
+                # Note: We pass 1 as the default index
+                local chosen_file=$(filtertable "Project search" "Type to filter..." "$filter_csv" 1)
+                rm -f "$filter_csv"
+
+                # 3. If a file was picked, open it
+                if [[ -n "$chosen_file" && -f "$chosen_file" ]]; then
+                    ${EDITOR:-vi} "$chosen_file"
+                fi
+                
+                # Repaint the board
+                _init_tui 
+                ;;
+
+            # --- NAVIGATION: Skip Empty Columns, WITH VIEWPORT SYNC ---
+            # --- NAVIGATION: Vertical ---
+            "k"|"w") 
+                if [[ $sel_r -gt 0 ]]; then
+                    ((sel_r--))
+                    # Scroll up if cursor hits top of viewport
+                    [[ $sel_r -lt ${col_tops[$sel_c]} ]] && col_tops[$sel_c]=$sel_r
+                fi ;;
+            "j"|"s") 
+                local c_len=$(eval "echo \$count_$sel_c")
+                if [[ $sel_r -lt $((c_len - 1)) ]]; then
+                    ((sel_r++))
+                    # Scroll down if cursor hits bottom of viewport
+                    [[ $sel_r -ge $((col_tops[$sel_c] + view_h)) ]] && col_tops[$sel_c]=$((sel_r - view_h + 1))
+                fi ;;
+
+            # --- NAVIGATION: Horizontal (Skip Empty) ---
+            "h"|"a") 
+                local prev_c=$((sel_c - 1))
+                while [[ $prev_c -ge 0 ]]; do
+                    local c_len=$(eval "echo \$count_$prev_c")
+                    if [[ $c_len -gt 0 ]]; then
+                        sel_c=$prev_c
+                        # Snap sel_r to a valid index in the new column
+                        local new_max=$(eval "echo \$count_$sel_c")
+                        [[ $sel_r -ge $new_max ]] && sel_r=$((new_max - 1))
+                        [[ $sel_r -lt 0 ]] && sel_r=0
+                        # Sync viewport for the new column
+                        [[ $sel_r -lt ${col_tops[$sel_c]} ]] && col_tops[$sel_c]=$sel_r
+                        [[ $sel_r -ge $((col_tops[$sel_c] + view_h)) ]] && col_tops[$sel_c]=$((sel_r - view_h + 1))
+                        break
+                    fi
+                    ((prev_c--))
+                done ;;
+
+            "l"|"d") 
+                local next_c=$((sel_c + 1))
+                while [[ $next_c -lt $num_cols ]]; do
+                    local c_len=$(eval "echo \$count_$next_c")
+                    if [[ $c_len -gt 0 ]]; then
+                        sel_c=$next_c
+                        local new_max=$(eval "echo \$count_$sel_c")
+                        [[ $sel_r -ge $new_max ]] && sel_r=$((new_max - 1))
+                        [[ $sel_r -lt 0 ]] && sel_r=0
+                        [[ $sel_r -lt ${col_tops[$sel_c]} ]] && col_tops[$sel_c]=$sel_r
+                        [[ $sel_r -ge $((col_tops[$sel_c] + view_h)) ]] && col_tops[$sel_c]=$((sel_r - view_h + 1))
+                        break
+                    fi
+                    ((next_c++))
+                done ;;
+            
+            # --- MOVE ITEMS LEFT/RIGHT (A/D or H/L) ---
+            "L"|"D") 
+                if [[ $sel_c -lt $((num_cols-1)) && -n "$cur_file" ]]; then
+                    _save_undo; local moving_file="$cur_file"
+                    local target_col=$((sel_c + 1))
+                    local target_status="${kanban_cols[$target_col]}"
+
+                    _set_fm "$target" "status" "$target_status"
+                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
+                    [[ $target_col -eq $((num_cols - 1)) ]] && _set_fm "$target" "completed" "$(date +%Y-%m-%d-%H:%M:%S)"
+
+                    sel_c=$target_col
+                    # Internal Re-map to find new index
+                    for ((c=0; c<num_cols; c++)); do eval "files_$c=()"; eval "count_$c=0"; done
+                    local old_ifs="$IFS"; IFS=$'\n'
+                    local manifest=$(for f in "$dir"/*.md; do
+                        [[ ! -f "$f" ]] && continue
+                        local val=$(_get_fm "$f" "$sort_mode")
+                        printf "%03d|%s\n" "${val:-500}" "${f##*/}"
+                    done | sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ))
+                    for entry in $manifest; do
+                        local fname="${entry#*|}"
+                        local s=$(_get_fm "$dir/$fname" "status")
+                        for ((c=0; c<num_cols; c++)); do
+                            if [[ "$s" == "${kanban_cols[$c]}" ]]; then
+                                local c_idx=$(eval "echo \$count_$c")
+                                eval "files_${c}[$c_idx]=\"\$fname\""; eval "count_$c=$((c_idx + 1))"
+                                [[ "$fname" == "$moving_file" && $c -eq $sel_c ]] && sel_r=$c_idx
+                            fi
+                        done
+                    done
+                    IFS="$old_ifs"
+                fi ;;
+
+            "H"|"A")
+                if [[ $sel_c -gt 0 && -n "$cur_file" ]]; then
+                    _save_undo; local moving_file="$cur_file"
+                    local target_col=$((sel_c - 1))
+                    _set_fm "$target" "status" "${kanban_cols[$target_col]}"
+                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
+
+                    sel_c=$target_col
+                    for ((c=0; c<num_cols; c++)); do eval "files_$c=()"; eval "count_$c=0"; done
+                    local old_ifs="$IFS"; IFS=$'\n'
+                    local manifest=$(for f in "$dir"/*.md; do
+                        [[ ! -f "$f" ]] && continue
+                        local val=$(_get_fm "$f" "$sort_mode")
+                        printf "%03d|%s\n" "${val:-500}" "${f##*/}"
+                    done | sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ))
+                    for entry in $manifest; do
+                        local fname="${entry#*|}"
+                        local s=$(_get_fm "$dir/$fname" "status")
+                        for ((c=0; c<num_cols; c++)); do
+                            if [[ "$s" == "${kanban_cols[$c]}" ]]; then
+                                local c_idx=$(eval "echo \$count_$c")
+                                eval "files_${c}[$c_idx]=\"\$fname\""; eval "count_$c=$((c_idx + 1))"
+                                [[ "$fname" == "$moving_file" && $c -eq $sel_c ]] && sel_r=$c_idx
+                            fi
+                        done
+                    done
+                    IFS="$old_ifs"
+                fi ;;
+
+            # --- RANKING UP/DOWN (W/S or K/J) ---
+            "K"|"W") # MOVE UP
+                if [[ -n "$cur_file" && $sel_r -gt 0 ]]; then
+                    _save_undo; sort_mode="rank"; sort_rev=false
+                    local prev_f=$(eval "echo \"\${files_${sel_c}[$((sel_r - 1))]}\"")
+                    local cur_p=$(_get_fm "$target" "rank"); : ${cur_p:=500}
+                    local pre_p=$(_get_fm "$dir/$prev_f" "rank"); : ${pre_p:=500}
+
+                    # If they are the same, we MUST create a difference
+                    if [[ "$cur_p" -eq "$pre_p" ]]; then
+                        pre_p=$((cur_p - 1))
+                    fi
+
+                    # Swap values
+                    _set_fm "$target" "rank" "$pre_p"
+                    _set_fm "$dir/$prev_f" "rank" "$cur_p"
+                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
+                    ((sel_r--))
+                    # Viewport sync
+                    [[ $sel_r -lt ${col_tops[$sel_c]} ]] && col_tops[$sel_c]=$sel_r
+                fi ;;
+
+            "J"|"S") # MOVE DOWN
+                local c_len=$(eval "echo \$count_$sel_c")
+                if [[ -n "$cur_file" && $sel_r -lt $((c_len - 1)) ]]; then
+                    _save_undo; sort_mode="rank"; sort_rev=false
+                    local next_f=$(eval "echo \"\${files_${sel_c}[$((sel_r + 1))]}\"")
+                    local cur_p=$(_get_fm "$target" "rank"); : ${cur_p:=500}
+                    local nxt_p=$(_get_fm "$dir/$next_f" "rank"); : ${nxt_p:=500}
+
+                    # If they are the same, we MUST create a difference
+                    if [[ "$cur_p" -eq "$nxt_p" ]]; then
+                        nxt_p=$((cur_p + 1))
+                    fi
+
+                    # Swap values
+                    _set_fm "$target" "rank" "$nxt_p"
+                    _set_fm "$dir/$next_f" "rank" "$cur_p"
+                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
+                    ((sel_r++))
+                    # Viewport sync
+                    [[ $sel_r -ge $((col_tops[$sel_c] + view_h)) ]] && col_tops[$sel_c]=$((sel_r - view_h + 1))
+                fi ;;
+
+
+            # --- OTHER ACTIONS ---
+            "o") case "$sort_mode" in "rank") sort_mode="modified" ;; "modified") sort_mode="created" ;; "created") sort_mode="completed" ;; *) sort_mode="rank" ;; esac ;;
+            "O") [[ "$sort_rev" == "true" ]] && sort_rev="false" || sort_rev="true" ;;
+            "e"|"") [[ -n "$cur_file" ]] && { ${EDITOR:-vi} "$target"; _init_tui; } ;;
+            "n") 
+                name=$(inputbox "New Note" "Filename (no extension):")
+                # Sanitize filename: replace / with - to prevent path traversal errors
+                name="${name//\//-}"
+                if [[ -n "$name" ]]; then
+                    _save_undo
+                    local d=$(date +%Y-%m-%d-%H:%M:%S)
+                    # We quote the destination path to handle spaces in $name
+                    printf "title: %s\ncreated: %s\nmodified: %s\ncompleted: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
+                           "$name" "$d" "$d" "${kanban_cols[$sel_c]}" "$USER" "$USER" > "$dir/${name}.md"
+                fi 
+                # Force a re-init to show the new card immediately
+                _init_tui 
+                ;;
+            "t") [[ -n "$cur_file" ]] && { tag=$(inputbox "Tag" "Add tag:"); _set_fm "$target" "tags" "$(_get_fm "$target" "tags") $tag"; } ;;
+            "z") _save_redo; cp "$undo_dir"/*.md "$dir/" 2>/dev/null ;;
+            "Z") cp "$redo_dir"/*.md "$dir/" 2>/dev/null ;;
+            "?") 
+                [[ "$TUI_MODE" == "fullscreen" ]] && BG_COLOR= || BG_COLOR=$BG_MAIN
+                BG_MODAL=$BG_COLOR modal "infobox 'Controls' \"$CONTROLS_TXT\""; _init_tui ;;
+        esac
+
+        # --- AT THE VERY END OF THE WHILE LOOP ---
+        local max_r=$(eval "echo \$count_$sel_c")
+        if (( max_r == 0 )); then 
+            sel_r=0
+        elif (( sel_r >= max_r )); then 
+            sel_r=$((max_r - 1))
+        fi
+        # If sel_r was -1 from a move or deletion, safety check:
+        (( sel_r < 0 )) && sel_r=0
     done
 }

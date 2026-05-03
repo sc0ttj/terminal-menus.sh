@@ -10,7 +10,7 @@
 
 # 1. Info Box (Non-blocking)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 1 of 21 - infobox"
+BACKTITLE="terminal-menus.sh demo 1 of 23 - infobox"
 infobox "Welcome" "This is a demo.\n \nPlease wait 2 seconds."
 sleep 2
 
@@ -18,7 +18,7 @@ sleep 2
 
 # 2. Message Box & Buttons
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 2 of 21 - msgbox"
+BACKTITLE="terminal-menus.sh demo 2 of 23 - msgbox"
 OK_LABEL="Let's Go!"
 msgbox \
     "A widget with two buttons" \
@@ -27,7 +27,7 @@ msgbox \
 
 # 3. TUI Modes
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 3 of 21 - yesno (modes)"
+BACKTITLE="terminal-menus.sh demo 3 of 23 - yesno (modes)"
 
 # Added "custom" to the array
 MODES=("centered" "classic" "fullscreen" "popup" "top" "bottom" "toast" "palette" "custom")
@@ -55,7 +55,7 @@ while true; do
     YES_LABEL="Yes"; NO_LABEL="No"
     title="Choose a mode"
     msg="Current mode: $TUI_MODE.\nSee next mode?"
-    BACKTITLE="terminal-menus.sh demo 3 of 21 - mode: $TUI_MODE"
+    BACKTITLE="terminal-menus.sh demo 3 of 23 - mode: $TUI_MODE"
 
     # --- MODE SPECIFIC OVERRIDES ---
     case "$TUI_MODE" in
@@ -74,6 +74,7 @@ while true; do
     esac
 
     if [[ $current_idx -eq 8 ]];then
+        OK_LABEL="Let's move on.."
         TUI_MODE=classic msgbox "Thats all the modes:" "
  
 centered, classic, fullscreen, popup,
@@ -99,7 +100,7 @@ NO_LABEL="NO"
 
 # 4. Yes/No with theme switching
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 4 of 21 - yesno"
+BACKTITLE="terminal-menus.sh demo 4 of 23 - yesno"
 YES_LABEL="Indeed"
 NO_LABEL="Not really"
 
@@ -117,42 +118,42 @@ NO_LABEL="No"
 
 # 5. Input Box
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 5 of 21 - inputbox"
+BACKTITLE="terminal-menus.sh demo 5 of 23 - inputbox"
 USER_NAME=$(inputbox "Enter you details" "Username:" "foo")
 
 
 
 # 6. Password Box
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 6 of 21 - passwordbox"
+BACKTITLE="terminal-menus.sh demo 6 of 23 - passwordbox"
 PASS=$(passwordbox "Enter you details" "password:" "ppp")
 
 
 
 # 7. Simple Menu
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 7 of 21 - menu"
+BACKTITLE="terminal-menus.sh demo 7 of 23 - menu"
 CHOICE=$(menu "Choose an item" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
 msgbox "You chose:" "$CHOICE"
 
 
 # 8. Checklist
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 8 of 21 - checklist"
+BACKTITLE="terminal-menus.sh demo 8 of 23 - checklist"
 CHKS=$(checklist "Choose multiple item" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
 msgbox "You chose:" "$CHKS"
 
 
 # 9. Radiolist
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 9 of 21 - radiolist"
+BACKTITLE="terminal-menus.sh demo 9 of 23 - radiolist"
 RADIO=$(radiolist "Choose only one" "Choose exactly one:" 2 "Low" "Medium" "High")
 msgbox "You chose:" "$RADIO"
 
 
 # 10. Filtermenu (Searchable)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 10 of 21 - filtermenu"
+BACKTITLE="terminal-menus.sh demo 10 of 23 - filtermenu"
 
 COUNTRIES="Algeria
 Argentina
@@ -202,7 +203,7 @@ msgbox "You chose:" "$SEARCH"
 
 # 11. Gauge (Progress)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 11 of 21 - gauge"
+BACKTITLE="terminal-menus.sh demo 11 of 23 - gauge"
 (
     for i in $(seq 0 20 100); do
         echo $i
@@ -214,14 +215,14 @@ BACKTITLE="terminal-menus.sh demo 11 of 21 - gauge"
 
 # 12. Textbox (File Viewer)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 12 of 21 - textbox"
+BACKTITLE="terminal-menus.sh demo 12 of 23 - textbox"
 textbox "" "Read file: ./terminal-menus.sh" "./terminal-menus.sh"
 
 
 
 # 13. Tailbox (Live Monitor)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 13 of 21 - tailbox"
+BACKTITLE="terminal-menus.sh demo 13 of 23 - tailbox"
 
 # Get a log file to check
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -237,7 +238,7 @@ tailbox "" "Monitoring file: $REAL_LOG" "$REAL_LOG"
 
 # 14. Tree (Deep Navigation)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 14 of 21 - tree"
+BACKTITLE="terminal-menus.sh demo 14 of 23 - tree"
 TREE_DATA=(
     "0|usr|/usr|true"
     "1|bin|bin/|true"
@@ -266,7 +267,7 @@ msgbox "You chose" "$TREE_RES"
 
 # 15. Configtree (Complex System Configuration)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 15 of 21 - configtree"
+BACKTITLE="terminal-menus.sh demo 15 of 23 - configtree"
 CONFIG_DATA=(
     "0|system|System Settings|true"
     "1|network|[x] Networking|true"
@@ -299,7 +300,7 @@ msgbox "You chose" "$CONFIG_OUT"
 
 # 16. Form (Advanced DSL)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 16 of 21 - form"
+BACKTITLE="terminal-menus.sh demo 16 of 23 - form"
 FORM_OUT=$(form "Demo form" "Enter your details:" \
     "> User:user=$(whoami)" \
     ">* Password:password" \
@@ -332,14 +333,14 @@ Deployment: $deployment
 
 # 17. File Navigator
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 17 of 21 - file_navigator"
+BACKTITLE="terminal-menus.sh demo 17 of 23 - file_navigator"
 FILE_PICK=$(file_navigator "File picker" "Choose a file" "." 2)
 [[ -n "$FILE_PICK" ]] && msgbox "You chose" "$FILE_PICK"
 
 
 # 18. Table-based System Launcher
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 18 of 21 - table"
+BACKTITLE="terminal-menus.sh demo 18 of 23 - table"
 cat <<EOF > table_demo.csv
 App,Version,Usage,Command
 Update,2.4.1,System,echo "sudo apt update"
@@ -372,7 +373,7 @@ rm table_demo.csv
 
 # 19. Filterable Table
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 19 of 21 - filtertable"
+BACKTITLE="terminal-menus.sh demo 19 of 23 - filtertable"
 cat <<EOF > filter_demo.csv
 App,Version,Usage,Command
 Update,2.4.1,System,echo "sudo apt update"
@@ -404,9 +405,89 @@ rm filter_demo.csv
 
 
 
+# 20. An `fff` style file manager
+# ------------------------------------------------------------------------------
+BACKTITLE="terminal-menus.sh demo 20 of 23 - file_manager"
+
+file_manager "Advanced file manager" "."
+
+# 5. Capture and display the result after exiting
+RESULT=$?
+if [[ $RESULT -eq 0 && -n "$TUI_RESULT" ]]; then
+    msgbox "You chose:" "$TUI_RESULT"
+elif [[ $RESULT -eq 1 ]]; then
+    msgbox "You quit the File Manager (Pressed 'q')."
+fi
+
+
+
+
+# 21. Interactive Spreadsheet
+# ------------------------------------------------------------------------------
+BACKTITLE="terminal-menus.sh demo 21 of 23 - spreadsheet"
+
+# Create a sample financial sheet
+cat <<EOF > budget.csv
+Category,Amount,Notes
+Groceries,150.00,Weekly shop
+Rent,1200.00,Monthly
+Internet,60.00,Fiber
+Savings,200.00,Auto-transfer
+Misc,45.50,Buffer
+EOF
+
+# Launch the spreadsheet widget
+# Use TUI_MODE=fullscreen to provide maximum room for columns
+FINAL_DATA=$(spreadsheet "Spreadsheet editor" "budget.csv")
+
+# Capture the exit status
+if [[ $? -eq 0 ]]; then
+    # We show the first few lines of the returned CSV data
+    # to prove the data was captured from STDOUT
+    SUMMARY=$(echo "$FINAL_DATA" | head -n 8)
+    msgbox "Spreadsheet Saved" "Data returned to script successfully.\n\nPreview:\n$SUMMARY\n..."
+else
+    msgbox "Spreadsheet" "Changes discarded."
+fi
+
+rm budget.csv
+
+
+
+# 22. Kanban board with search
+# ------------------------------------------------------------------------------
+BACKTITLE="terminal-menus.sh demo 22 of 23 - kanban"
+
+cleanup
+
+# Setup a project
+mkdir -p ~/my_project
+echo "Backlog,In Progress,Testing,Done" > ~/my_project/.project-config
+
+# Create a ticket
+cat <<EOF > ~/my_project/fix_tui_bug.md
+title: Get some munchies
+status: Backlog
+created: $(date +"%Y-%m-%d-%H:%M:%S")
+modified: $(date +"%Y-%m-%d-%H:%M:%S")
+completed:
+rank: 100
+author: $(whoami)
+owner: $(whoami)
+tags: @work +jane +bob
+---
+Get some cake for the office.
+EOF
+
+# 3. Launch the manager
+kanban "Project" "Manage your tickets and notes" ~/my_project
+
+
+
+
 # 20. Kodi-style Main Menu (Split Pane)
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 20 of 21 - mainmenu"
+BACKTITLE="terminal-menus.sh demo 23 of 23 - mainmenu"
 
 CONF_FILE="app.conf"
 
@@ -484,55 +565,6 @@ fi
 # --- 6. Cleanup ---
 rm movies.csv music.csv settings.csv "$CONF_FILE"
 
-
-
-
-# 21. An `fff` style file manager
-# ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 21 of 21 - file_manager"
-
-TUI_MODE=classic file_manager "Advanced file manager" "."
-
-# 5. Capture and display the result after exiting
-RESULT=$?
-if [[ $RESULT -eq 0 && -n "$TUI_RESULT" ]]; then
-    msgbox "You chose:" "$TUI_RESULT"
-elif [[ $RESULT -eq 1 ]]; then
-    msgbox "You quit the File Manager (Pressed 'q')."
-fi
-
-
-
-
-# 22. Interactive Spreadsheet
-# ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 22 of 22 - spreadsheet"
-
-# Create a sample financial sheet
-cat <<EOF > budget.csv
-Category,Amount,Notes
-Groceries,150.00,Weekly shop
-Rent,1200.00,Monthly
-Internet,60.00,Fiber
-Savings,200.00,Auto-transfer
-Misc,45.50,Buffer
-EOF
-
-# Launch the spreadsheet widget
-# Use TUI_MODE=fullscreen to provide maximum room for columns
-FINAL_DATA=$(spreadsheet "Spreadsheet editor" "budget.csv")
-
-# Capture the exit status
-if [[ $? -eq 0 ]]; then
-    # We show the first few lines of the returned CSV data
-    # to prove the data was captured from STDOUT
-    SUMMARY=$(echo "$FINAL_DATA" | head -n 8)
-    msgbox "Spreadsheet Saved" "Data returned to script successfully.\n\nPreview:\n$SUMMARY\n..."
-else
-    msgbox "Spreadsheet" "Changes discarded."
-fi
-
-rm budget.csv
 
 
 
