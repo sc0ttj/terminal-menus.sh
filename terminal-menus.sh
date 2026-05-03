@@ -4517,7 +4517,7 @@ ${SB}q${SR}           Quit"
         _draw_footer
         local sort_dir="▲"
         [[ "$sort_rev" == "true" ]] && sort_dir="▼"
-        _draw_controls " ${SB}wasd${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o/O${SR} Sort: $sort_mode $sort_dir | ${SB}z/Z${SR} Undo/redo | ${SB}?${SR} Help"
+        _draw_controls " ${SB}wasd${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o/O${SR} Sort: $sort_mode $sort_dir | ${SB}z/Z${SR} Undo | ${SB}?${SR} Help"
         printf "\e[1;1H" >&2
 
                 # 5. Input Handling
