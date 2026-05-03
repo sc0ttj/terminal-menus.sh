@@ -4431,7 +4431,7 @@ _get_simple_date() {
 
     # 1. Less than 1 hour ago -> "X mins ago"
     if (( diff < 60 )); then
-        if (( diff < 5 )); then echo "now"; else echo "${diff} mins ago"; fi
+        if (( diff < 4 )); then echo "just now"; else echo "${diff} mins ago"; fi
     # 2. Less than 9 hours ago -> "X hours ago"
     elif (( diff < 540 )); then
         echo "$(( diff / 60 )) hours ago"
@@ -4658,30 +4658,43 @@ ${SB}q${SR}           Quit"
                 local filter_csv="/tmp/pm_filter_$$.csv"
                 local old_ifs="$IFS"; IFS=$'\n'
                 
+                local rev_flag=""; [[ "$sort_rev" == "true" ]] && rev_flag="r"
+                local sorted_files=$(for f in "$dir"/*.md; do
+                    [[ ! -f "$f" ]] && continue
+                    local val
+                    if [[ "$sort_mode" == "modified" ]]; then
+                        val=$(date -r $(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null) +%Y-%m-%d-%H:%M:%S)
+                    else
+                        val=$(_get_fm "$f" "$sort_mode")
+                    fi
+                    
+                    if [[ "$sort_mode" == "rank" ]]; then
+                        printf "%03d|%s\n" "${val:-100}" "${f##*/}"
+                    else
+                        echo "${val:-0000-00-00-00:00:00}|${f##*/}"
+                    fi
+                done | sort -t '|' -k1${rev_flag})
+
                 # Header for the table display
                 echo "Title,Tags,Author,Owner,Created,Modified,Command" > "$filter_csv"
                 
-                for f in "$dir"/*.md; do
-                    [[ ! -f "$f" ]] && continue
+                for entry in $sorted_files; do
+                    local fname="${entry#*|}"
+                    local f="$dir/$fname"
                     
                     local r_title=$(_get_fm "$f" "title")
                     local r_tags=$(_get_fm "$f" "tags")
                     local r_auth=$(_get_fm "$f" "author")
                     local r_own=$(_get_fm "$f" "owner")
                     local r_cre=$(_get_fm "$f" "created")
-                    local r_mod=$(_get_fm "$f" "modified")
                     
-                    # --- THE FIX: RELATIVE DATES ---
-                    local rel_cre=$(_get_simple_date "$r_cre"  "$NOW_FULL") # Pass the cached time
-                    local rel_mod=$(_get_simple_date "$r_mod" "$NOW_FULL") # Pass the cached time
+                    # Real mtime for display
+                    local r_mod=$(date -r $(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null) +%Y-%m-%d-%H:%M:%S)
+                    
+                    local display_cre=$(_get_simple_date "$r_cre" "$NOW_FULL")
+                    local display_mod=$(_get_simple_date "$r_mod" "$NOW_FULL")
 
-                    # Ensure no commas in values to break CSV (Bash 3.2 replace)
-                    r_title="${r_title//,/;}"
-                    r_tags="${r_tags//,/;}"
-                    
-                    # The hidden 7th column is the full path to the file
-                    # Note: We display rel_cre and rel_mod in the CSV
-                    echo "$r_title,$r_tags,$r_auth,$r_own,$rel_cre,$rel_mod,$f" >> "$filter_csv"
+                    echo "${r_title//,/;},${r_tags//,/;},$r_auth,$r_own,$display_cre,$display_mod,$f" >> "$filter_csv"
                 done
                 IFS="$old_ifs"
 
@@ -4764,7 +4777,6 @@ ${SB}q${SR}           Quit"
                     local target_status="${kanban_cols[$target_col]}"
 
                     _set_fm "$target" "status" "$target_status"
-                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
                     [[ $target_col -eq $((num_cols - 1)) ]] && _set_fm "$target" "completed" "$(date +%Y-%m-%d-%H:%M:%S)"
 
                     sel_c=$target_col
@@ -4773,8 +4785,23 @@ ${SB}q${SR}           Quit"
                     local old_ifs="$IFS"; IFS=$'\n'
                     local manifest=$(for f in "$dir"/*.md; do
                         [[ ! -f "$f" ]] && continue
-                        local val=$(_get_fm "$f" "$sort_mode")
-                        printf "%03d|%s\n" "${val:-500}" "${f##*/}"
+                        # --- THE FIX: Get actual mtime from filesystem ---
+                        local val
+                        if [[ "$sort_mode" == "modified" ]]; then
+                            # macOS/BSD stat syntax
+                            val=$(date -r $(stat -f %m "$f") +%Y-%m-%d-%H:%M:%S 2>/dev/null)
+                            # Linux fallback if above fails
+                            [[ -z "$val" ]] && val=$(date -r "$f" +%Y-%m-%d-%H:%M:%S 2>/dev/null)
+                        else
+                            val=$(_get_fm "$f" "$sort_mode")
+                        fi
+                        if [[ "$sort_mode" == "rank" ]]; then
+                            [[ -z "$val" ]] && val="100"
+                            printf "%03d|%s\n" "$val" "${f##*/}"
+                        else
+                            [[ -z "$val" ]] && val="0000-00-00-00:00:00"
+                            echo "${val}|${f##*/}"
+                        fi
                     done | sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ))
                     for entry in $manifest; do
                         local fname="${entry#*|}"
@@ -4795,7 +4822,6 @@ ${SB}q${SR}           Quit"
                     _save_undo; local moving_file="$cur_file"
                     local target_col=$((sel_c - 1))
                     _set_fm "$target" "status" "${kanban_cols[$target_col]}"
-                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
 
                     sel_c=$target_col
                     for ((c=0; c<num_cols; c++)); do eval "files_$c=()"; eval "count_$c=0"; done
@@ -4835,7 +4861,6 @@ ${SB}q${SR}           Quit"
                     # Swap values
                     _set_fm "$target" "rank" "$pre_p"
                     _set_fm "$dir/$prev_f" "rank" "$cur_p"
-                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
                     ((sel_r--))
                     # Viewport sync
                     [[ $sel_r -lt ${col_tops[$sel_c]} ]] && col_tops[$sel_c]=$sel_r
@@ -4857,7 +4882,6 @@ ${SB}q${SR}           Quit"
                     # Swap values
                     _set_fm "$target" "rank" "$nxt_p"
                     _set_fm "$dir/$next_f" "rank" "$cur_p"
-                    _set_fm "$target" "modified" "$(date +%Y-%m-%d-%H:%M:%S)"
                     ((sel_r++))
                     # Viewport sync
                     [[ $sel_r -ge $((col_tops[$sel_c] + view_h)) ]] && col_tops[$sel_c]=$((sel_r - view_h + 1))
@@ -4875,9 +4899,9 @@ ${SB}q${SR}           Quit"
                 if [[ -n "$name" ]]; then
                     _save_undo
                     local d=$(date +%Y-%m-%d-%H:%M:%S)
-                    # We quote the destination path to handle spaces in $name
-                    printf "title: %s\ncreated: %s\nmodified: %s\ncompleted: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
-                           "$name" "$d" "$d" "${kanban_cols[$sel_c]}" "$USER" "$USER" > "$dir/${name}.md"
+                    # Removed 'modified' field and its placeholder
+                    printf "title: %s\ncreated: %s\ncompleted: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
+                           "$name" "$d" "${kanban_cols[$sel_c]}" "$USER" "$USER" > "$dir/${name}.md"
                 fi 
                 # Force a re-init to show the new card immediately
                 _init_tui 
