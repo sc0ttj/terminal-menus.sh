@@ -2593,8 +2593,8 @@ filtertable() {
     local w2=$(( box_width * 26 / 100 ))
     local w3=$(( box_width - w1 - w2 - 2 ))
 
-        # --- 2. Master Data Load (Handles dynamic column counts) ---
-    local master_lines=() master_cmds=() header_row=""
+    # --- 2. Master Data Load (Handles dynamic column counts) ---
+    local master_lines=() master_search=() master_cmds=() header_row=""
     local first=true
 
     while IFS= read -r line; do
@@ -2623,6 +2623,7 @@ filtertable() {
         else
             master_lines+=("$formatted")
             # Store the VERY LAST cell as the command
+            master_search+=("${line}")
             master_cmds+=("${cells[$display_count]}")
         fi
     done < "$src"
@@ -2635,7 +2636,7 @@ filtertable() {
             local i
             # Iterate through indices numerically to maintain file order
             for ((i=0; i<${#master_lines[@]}; i++)); do
-                if [[ -z "$filter_query" || "${master_lines[i]}" == *$filter_query* ]]; then
+                if [[ -z "$filter_query" || "${master_search[i]}" == *$filter_query* ]]; then
                     filtered_lines+=("${master_lines[i]}")
                     filtered_cmds+=("${master_cmds[i]}")
                 fi
@@ -2690,11 +2691,24 @@ filtertable() {
         _draw_spacer
         _draw_controls " [Typing] Filter | [Arrows/jk] Scroll | [Enter] Select"
 
-        # 7. Input Handling
+                # 7. Input Handling
         local key; IFS= read -rsn1 key < /dev/tty
-        if [[ $key == $'\e' ]]; then
-            read -rsn2 key
-            case "$key" in
+        
+        if [[ "$key" == $'\e' ]]; then
+            # Non-blocking check for trailing characters (arrows)
+            local next_chars=""
+            stty -icanon -echo min 0 time 0
+            next_chars=$(dd bs=3 count=1 2>/dev/null)
+            stty icanon echo
+            
+            if [[ -z "$next_chars" ]]; then
+                # LONE ESCAPE: Exit widget
+                TUI_RESULT=""
+                return 1
+            fi
+            
+            # If we have chars, handle standard arrows
+            case "$next_chars" in
                 "[A") [[ $cur -gt -1 ]] && ((cur--)) ;; 
                 "[B") [[ $cur -lt $((count - 1)) ]] && ((cur++)) ;;
             esac
@@ -2710,18 +2724,35 @@ filtertable() {
                 else filter_query="${filter_query}k"; cur=-1; top=0; fi ;;
             "") # Enter
                 if [[ $cur -ge 0 ]]; then
-                    # If in the table, select the item
                     if [[ $count -gt 0 ]]; then
                         TUI_RESULT="${filtered_cmds[$cur]}"
                         echo "${filtered_cmds[$cur]}"
                         return 0
                     fi
                 else
-                    # If in the input box, move to the first table item
                     [[ $count -gt 0 ]] && cur=0
                 fi ;;
-            $'\177'|$'\b') filter_query="${filter_query%?}"; cur=-1; top=0 ;;
-            *) if [[ "$key" =~ [[:print:]] ]]; then filter_query="${filter_query}${key}"; cur=-1; top=0; fi ;;
+            $'\177'|$'\b') # BACKSPACE
+                if [[ $cur -ge 0 ]]; then
+                    # --- FIX: We are in the table, so jump back to input ---
+                    cur=-1
+                    top=0
+                elif [[ -z "$filter_query" ]]; then
+                    # --- FIX: Already in input AND it's empty, so exit ---
+                    TUI_RESULT=""
+                    return 1
+                else
+                    # --- FIX: In input with text, so delete last char ---
+                    filter_query="${filter_query%?}"
+                    cur=-1; top=0
+                fi ;;
+
+            *) 
+                # Basic printable char check for Bash 3.2
+                if [[ "$key" =~ [[:print:]] ]]; then 
+                    filter_query="${filter_query}${key}"
+                    cur=-1; top=0
+                fi ;;
         esac
     done
 }
@@ -4578,16 +4609,22 @@ ${SB}q${SR}           Quit"
 
                 # 2. Call your existing filtertable widget
                 # Note: We pass 1 as the default index
-                local chosen_file=$(filtertable "Project search" "Type to filter..." "$filter_csv" 1)
+                # Capture result AND the exit status
+                local chosen_file
+                chosen_file=$(filtertable "Project search" "Type to filter..." "$filter_csv" 1)
+                local exit_status=$?
+
                 rm -f "$filter_csv"
 
-                # 3. If a file was picked, open it
-                if [[ -n "$chosen_file" && -f "$chosen_file" ]]; then
-                    ${EDITOR:-vi} "$chosen_file"
+                # If user didn't hit ESC or empty Backspace
+                if [[ $exit_status -eq 0 && -n "$chosen_file" ]]; then
+                    if [[ -f "$chosen_file" ]]; then
+                        ${EDITOR:-vi} "$chosen_file"
+                    fi
                 fi
                 
-                # Repaint the board
-                _init_tui 
+                # Re-init and loop will naturally restore sel_c and sel_r focus
+                _init_tui
                 ;;
 
             # --- NAVIGATION: Skip Empty Columns, WITH VIEWPORT SYNC ---
