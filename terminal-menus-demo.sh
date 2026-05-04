@@ -409,7 +409,7 @@ rm filter_demo.csv
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 20 of 23 - file_manager"
 
-file_manager "Advanced file manager" "."
+file_manager "Advanced file manager" "." 3
 
 # 5. Capture and display the result after exiting
 RESULT=$?
@@ -480,7 +480,7 @@ Get some cake for the office.
 EOF
 
 # 3. Launch the manager
-kanban "Project" "Manage your tickets and notes" ~/my_project
+TUI_MODE=fullscreen kanban "Project" "Manage your tickets and notes" ~/my_project
 
 
 
