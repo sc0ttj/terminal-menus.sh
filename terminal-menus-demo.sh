@@ -333,8 +333,8 @@ Deployment: $deployment
 
 # 17. File Navigator
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 17 of 23 - file_navigator"
-FILE_PICK=$(file_navigator "File picker" "Choose a file" "." 2)
+BACKTITLE="terminal-menus.sh demo 17 of 23 - filepicker"
+FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)
 [[ -n "$FILE_PICK" ]] && msgbox "You chose" "$FILE_PICK"
 
 
@@ -407,9 +407,9 @@ rm filter_demo.csv
 
 # 20. An `fff` style file manager
 # ------------------------------------------------------------------------------
-BACKTITLE="terminal-menus.sh demo 20 of 23 - file_manager"
+BACKTITLE="terminal-menus.sh demo 20 of 23 - filemanager"
 
-file_manager "Advanced file manager" "." 3
+filemanager "Advanced file manager" "." 3
 
 # 5. Capture and display the result after exiting
 RESULT=$?
