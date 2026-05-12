@@ -1,65 +1,24 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Make sure $TUI_RESULT is always sent to stdout and the contains correct data
+## Fix cursor marker placement in `file_manager` command prompts
 
-* $TUI_RESULT should always hold the return data of the widget after the widget has ended
-* Use `echo -e` to send to stdout
-* Use with the correct, appropriate return codes (0 is ok, 1 is error, etc)
+It is one character too far to the right. Move it one character left.
 
-## Rename `file_navigator` to `filepicker`
+## Fix spreadsheet
+
+Only the currently focused cell should be bold text.
+
+## Rename `file_navigator` function to `filepicker`
 Make it more consistent with other widgets.
 
-## Rename `file_manager` to `filemanager`
+## Rename `file_manager` function to `filemanager`
 Make it more consistent with other widgets.
 
 ### Fix `file_navigator` multiple selection
 
 * Both widgets should use this fixed function called `_handle_selection`.
 * Currently there's a worse one inside `file_navigator`, which forgets selection lists when you `cd` to another dir.
-
-```sh
-_handle_selection() {
-    local results=""
-    local tagged_count=0
-
-    # 1. Collect everything tagged with TAB
-    # In file_manager, selected_paths usually stores the string path, not just a 1/0
-    for path in "${selected_paths[@]}"; do
-        if [[ "$path" != "0" && -n "$path" ]]; then
-            results+="$path"$'\n'
-            ((tagged_count++))
-        fi
-    done
-    
-    # 2. If multi-select exists, return it
-    if [[ $tagged_count -gt 0 ]]; then 
-        TUI_RESULT="${results% }" # Trim trailing space
-        return 2 # Signal to exit the widget
-    fi
-
-    # 3. Fallback to item under cursor
-    local node="${raw_list[$cur]}"
-    local p="${node%%|*}"
-    local label="${node#*|}"; label="${label%|*}"
-    local is_d="${node##*|}"
-
-    if [[ "$label" == ".." || "$is_d" == "true" ]]; then
-        # Navigate into Directory
-        root_dir=$(cd "$p" && pwd)
-        # last_path logic for the '..' highlight
-        [[ "$label" == ".." ]] && last_path="${p%/*}" || last_path=""
-        rebuild=1; cur=-2; _init_tui
-        return 0 # Stay in widget
-    else
-        # Select single File
-        TUI_RESULT="$p"
-        return 2 # Signal to exit the widget
-    fi
-}
-
-```
-
 
 Quote:
 ```
@@ -89,25 +48,6 @@ For file_navigator:
 
 ## Improve `file_manager`
 
-### More readable key handling code
-
-```
-# Define these at the top of your library
-KEY_UP=$'\e[A'
-KEY_DOWN=$'\e[B'
-KEY_ESC=$'\e'
-KEY_ENTER=""
-
-...
-
-# Then in your file_manager
-case "$key" in
-    "$KEY_UP")   ((cur--)) ;;
-    "$KEY_DOWN") ((cur++)) ;;
-    "$KEY_ESC")  [[ "$ui_mode" == "NAV" ]] && return ;;
-esac
-```
-
 ### Fix fullscreen
 In fullscreen mode:
 * the help info should be indented one space more (keep same width, just move it to the right one space).
@@ -115,6 +55,16 @@ In fullscreen mode:
 ### Use an external preview script
 
 Easier to upgrade if its external.
+
+
+------------------------------------------------------------------
+
+## Make sure $TUI_RESULT is always sent to stdout and the contains correct data
+
+* $TUI_RESULT should always hold the return data of the widget after the widget has ended
+* Use `echo -e` to send to stdout
+* Use with the correct, appropriate return codes (0 is ok, 1 is error, etc)
+
 
 ------------------------------------------------------------------
 

@@ -3649,7 +3649,7 @@ EOF
             # Calculate offset: "Path: " or "$ " length
             local offset=4 
             [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=2
-            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos + 1 ))H" >&2
+            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
             _show_cursor
         fi
 
@@ -3843,7 +3843,7 @@ EOF
             esac
             
             # Position cursor EXACTLY where the user is typing
-            printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos + 1))H" >&2
+            printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos))H" >&2
             _show_cursor
         fi
 
