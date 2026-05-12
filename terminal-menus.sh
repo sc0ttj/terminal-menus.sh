@@ -3786,8 +3786,8 @@ EOF
                 done
 
                 # 3. DRAW HELP
-                local help_x=$preview_x
-                [[ $show_details -eq 1 ]] && help_x=4
+                local help_x=$((preview_x + 1))
+                [[ $show_details -eq 1 ]] && help_x=5
                 preview "$help_file" "$list_top" "$height" "$help_x" 0
 
                 # LOCK STATE: Set to -3 so navigation doesn't trigger a re-draw
