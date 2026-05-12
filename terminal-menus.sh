@@ -1366,7 +1366,7 @@ spreadsheet() {
                         -v pt="$PADDING_TOP" -v pl="$PADDING_LEFT" \
                         -v shift="$shift" \
             'BEGIN { FS=","; 
-                bm="\033[48;2;"bg_m_raw"m"; ba="\033[48;2;"bg_a_raw"m\033[1m"; 
+                bm="\033[48;2;"bg_m_raw"m\033[22m"; ba="\033[48;2;"bg_a_raw"m\033[1m"; 
                 bh="\033[48;2;80;80;80m\033[38;2;200;200;200m"; 
                 abc="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             }
