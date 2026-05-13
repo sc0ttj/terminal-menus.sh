@@ -3673,7 +3673,10 @@ EOF
             # Calculate offset: "Path: " or "$ " length
             local offset=4 
             [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=2
-            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos ))H" >&2
+            # Hacky fix for modes with no padding outside the BG_MAIN box
+            local cursor_marker_shift=0
+            [[ "$TUI_MODE" == "fullscreen" ]] && cursor_marker_shift=1
+            printf "\e[${prompt_row};$(( PADDING_LEFT + offset + prompt_pos + cursor_marker_shift ))H" >&2
             _show_cursor
         fi
 
@@ -3865,9 +3868,11 @@ EOF
                 "NEW_F")          sym_len=12 ;;
                 "NEW_D")          sym_len=11 ;;
             esac
-            
+            # Hacky fix for modes with no padding outside the BG_MAIN box
+            local cursor_marker_shift=0
+            [[ "$TUI_MODE" == "fullscreen" ]] && cursor_marker_shift=1
             # Position cursor EXACTLY where the user is typing
-            printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos))H" >&2
+            printf "\e[${p_row};$(( PADDING_LEFT + 2 + sym_len + prompt_pos + cursor_marker_shift))H" >&2
             _show_cursor
         fi
 
