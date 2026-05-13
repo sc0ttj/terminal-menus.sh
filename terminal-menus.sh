@@ -1828,18 +1828,20 @@ file_navigator() {
     local exe_col="\e[1;32m" # Bold Green
     local hid_col="\e[2m"    # Faint
     local show_hidden=0
-    local selected_paths=() 
+    local selected_paths=()
+    local selected_paths_preserved=()
 
     root_dir=$(cd "$root_dir" && pwd)
 
     while true; do
         # 1. DATA: Rebuild on Dir change OR Hidden toggle
         if [[ "$root_dir" != "$last_dir" || $rebuild -eq 1 ]]; then
-            raw_list=(); selected_paths=()
-            
+            selected_paths_preserved=("${selected_paths[@]}")
+            raw_list=()
+
             # Add Parent Directory
             raw_list[${#raw_list[@]}]="${root_dir%/*}|..|true"
-            selected_paths[${#selected_paths[@]}]=0
+            selected_paths[${#selected_paths[@]}]=""
             
             shopt -s dotglob; shopt -s nocaseglob
             
@@ -1851,7 +1853,7 @@ file_navigator() {
                 [[ $show_hidden -eq 0 && "$name" == .* ]] && continue
                 
                 raw_list[${#raw_list[@]}]="$path|$name|true"
-                selected_paths[${#selected_paths[@]}]=0
+                selected_paths[${#selected_paths[@]}]=""
             done
 
             # Loop 2: Files
@@ -1861,11 +1863,20 @@ file_navigator() {
                 [[ $show_hidden -eq 0 && "$name" == .* ]] && continue
                 
                 raw_list[${#raw_list[@]}]="$path|$name|false"
-                selected_paths[${#selected_paths[@]}]=0
+                selected_paths[${#selected_paths[@]}]=""
             done
             shopt -u dotglob; shopt -u nocaseglob
             
             count=${#raw_list[@]}
+
+            # --- RESTORE SELECTIONS AFTER REBUILD ---
+            for ((idx=0; idx<count; idx++)); do
+                local node="${raw_list[$idx]}"
+                local p="${node%%|*}"
+                for saved_path in "${selected_paths_preserved[@]}"; do
+                    [[ "$p" == "$saved_path" ]] && selected_paths[$idx]="$p" && break
+                done
+            done
 
             # --- MAINTAIN FOCUS AFTER REBUILD ---
             if [[ $cur -eq -2 ]]; then
@@ -1934,7 +1945,7 @@ file_navigator() {
                 local color=""
                 if [[ $is_cur -eq 1 ]]; then
                     color="\e[1;37m" 
-                elif [[ "${selected_paths[$v_idx]}" -eq 1 ]]; then
+                elif [[ -n "${selected_paths[$v_idx]}" ]]; then
                     color="\e[1;33m"
                 elif [[ "$is_dir" == "true" ]]; then
                     color="$dir_col"
@@ -1981,7 +1992,7 @@ file_navigator() {
         _handle_selection() {
             local results=""
             for ((idx=0; idx<count; idx++)); do
-                [[ "${selected_paths[$idx]}" -eq 1 ]] && results+="${raw_list[$idx]%%|*}"$'\n'
+                [[ -n "${selected_paths[$idx]}" ]] && results+="${selected_paths[$idx]}"$'\n'
             done
             
             if [[ -n "$results" ]]; then 
@@ -2009,7 +2020,11 @@ file_navigator() {
         local key; IFS= read -rsn1 key < /dev/tty
         case "$key" in
             $'\t') # Mark
-                selected_paths[$cur]=$(( 1 - ${selected_paths[$cur]} ))
+                if [[ -n "${selected_paths[$cur]}" ]]; then
+                    selected_paths[$cur]=""
+                else
+                    selected_paths[$cur]="${raw_list[$cur]%%|*}"
+                fi
                 [[ $cur -lt $((count - 1)) ]] && ((cur++)) ;;
             '.') # Backspace
                 local last_path="${raw_list[$cur]%%|*}"
