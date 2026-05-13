@@ -1822,7 +1822,7 @@ filtermenu() {
     done
 }
 
-file_navigator() {
+filepicker() {
     local title=$1 msg=$2 root_dir=${3:-.}
     # --- STARTUP FOCUS UPDATE ---
     # Default to 0 if not provided or empty
@@ -3444,7 +3444,7 @@ _get_tab_completion() {
     fi
 }
 
-file_manager() {
+filemanager() {
     local show_help=0
     local show_details=0
     local cmd_history=()
@@ -3910,7 +3910,7 @@ EOF
                     # Handle other modes (CMD, RENAME, etc)
                     ui_mode="NAV"; prompt_buffer=""; prompt_pos=0; rebuild=1
                 else 
-                    return 1 # Exit file_manager if already in NAV mode
+                    return 1 # Exit filemanager if already in NAV mode
                 fi
             else
                 case "$next_chars" in
