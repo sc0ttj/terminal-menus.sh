@@ -409,6 +409,9 @@ rm filter_demo.csv
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 20 of 23 - filemanager"
 
+# Use external preview script instead of the built-in one
+. ./preview.sh
+
 filemanager "Advanced file manager" "." 3
 
 # 5. Capture and display the result after exiting
