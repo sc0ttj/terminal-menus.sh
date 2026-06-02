@@ -331,7 +331,7 @@ Deployment: $deployment
 
 
 
-# 17. File Navigator
+# 17. File Picker
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 17 of 23 - filepicker"
 FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)

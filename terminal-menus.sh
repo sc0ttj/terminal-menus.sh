@@ -1840,19 +1840,16 @@ filepicker() {
     local hid_col="\e[2m"    # Faint
     local show_hidden=0
     local selected_paths=()
-    local selected_paths_preserved=()
 
     root_dir=$(cd "$root_dir" && pwd)
 
     while true; do
         # 1. DATA: Rebuild on Dir change OR Hidden toggle
         if [[ "$root_dir" != "$last_dir" || $rebuild -eq 1 ]]; then
-            selected_paths_preserved=("${selected_paths[@]}")
             raw_list=()
 
             # Add Parent Directory
             raw_list[${#raw_list[@]}]="${root_dir%/*}|..|true"
-            selected_paths[${#selected_paths[@]}]=""
             
             shopt -s dotglob; shopt -s nocaseglob
             
@@ -1864,7 +1861,6 @@ filepicker() {
                 [[ $show_hidden -eq 0 && "$name" == .* ]] && continue
                 
                 raw_list[${#raw_list[@]}]="$path|$name|true"
-                selected_paths[${#selected_paths[@]}]=""
             done
 
             # Loop 2: Files
@@ -1874,20 +1870,10 @@ filepicker() {
                 [[ $show_hidden -eq 0 && "$name" == .* ]] && continue
                 
                 raw_list[${#raw_list[@]}]="$path|$name|false"
-                selected_paths[${#selected_paths[@]}]=""
             done
             shopt -u dotglob; shopt -u nocaseglob
             
             count=${#raw_list[@]}
-
-            # --- RESTORE SELECTIONS AFTER REBUILD ---
-            for ((idx=0; idx<count; idx++)); do
-                local node="${raw_list[$idx]}"
-                local p="${node%%|*}"
-                for saved_path in "${selected_paths_preserved[@]}"; do
-                    [[ "$p" == "$saved_path" ]] && selected_paths[$idx]="$p" && break
-                done
-            done
 
             # --- MAINTAIN FOCUS AFTER REBUILD ---
             if [[ $cur -eq -2 ]]; then
@@ -1955,17 +1941,23 @@ filepicker() {
 
                 local color=""
                 if [[ $is_cur -eq 1 ]]; then
-                    color="\e[1;37m" 
-                elif [[ -n "${selected_paths[$v_idx]}" ]]; then
-                    color="\e[1;33m"
-                elif [[ "$is_dir" == "true" ]]; then
-                    color="$dir_col"
-                elif [[ "$label" == .* ]]; then
-                    color="$hid_col"
-                elif [[ -x "$path" ]]; then
-                    color="$exe_col"
+                    color="\e[1;37m"
                 else
-                    color="$FG_TEXT_ESC"
+                    local is_tagged=0
+                    for s_path in "${selected_paths[@]}"; do
+                        [[ "$s_path" == "$path" ]] && { is_tagged=1; break; }
+                    done
+                    if [[ $is_tagged -eq 1 ]]; then
+                        color="\e[1;33m"
+                    elif [[ "$is_dir" == "true" ]]; then
+                        color="$dir_col"
+                    elif [[ "$label" == .* ]]; then
+                        color="$hid_col"
+                    elif [[ -x "$path" ]]; then
+                        color="$exe_col"
+                    else
+                        color="$FG_TEXT_ESC"
+                    fi
                 fi
 
                 local style=$BG_WID_ESC
@@ -2001,17 +1993,6 @@ filepicker() {
         # Helper logic for "Selection" (shared by Enter and Right Arrow)
         # Returns: 0 = Continue Loop, 2 = Exit Success (File/Marked Selected)
         _handle_selection() {
-            local results=""
-            for ((idx=0; idx<count; idx++)); do
-                [[ -n "${selected_paths[$idx]}" ]] && results+="${selected_paths[$idx]}"$'\n'
-            done
-            
-            if [[ -n "$results" ]]; then 
-                TUI_RESULT="$results"
-                printf "%b" "$results"
-                return 2 
-            fi
-
             local node="${raw_list[$cur]}"
             local p="${node%%|*}"
             local is_d="${node##*|}"
@@ -2021,20 +2002,41 @@ filepicker() {
                 [[ -n "$TUI_CD_FILE" ]] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
                 _init_tui
                 return 0
-            else
-                TUI_RESULT="$p"
-                echo "$p"
+            fi
+
+            local results=""
+            for path in "${selected_paths[@]}"; do
+                results+="$path"$'\n'
+            done
+
+            if [[ -n "$results" ]]; then
+                TUI_RESULT="$results"
+                printf "%b" "$results"
                 return 2
             fi
+
+            TUI_RESULT="$p"
+            echo "$p"
+            return 2
         }
 
         local key; IFS= read -rsn1 key < /dev/tty
         case "$key" in
             $'\t') # Mark
-                if [[ -n "${selected_paths[$cur]}" ]]; then
-                    selected_paths[$cur]=""
-                else
-                    selected_paths[$cur]="${raw_list[$cur]%%|*}"
+                local path="${raw_list[$cur]%%|*}"
+                local label="${raw_list[$cur]#*|}"
+                label="${label%|*}"
+                if [[ "$label" != ".." ]]; then
+                    local found=-1
+                    for i in "${!selected_paths[@]}"; do
+                        [[ "${selected_paths[$i]}" == "$path" ]] && found=$i && break
+                    done
+                    if [[ $found -ge 0 ]]; then
+                        unset 'selected_paths[$found]'
+                        selected_paths=("${selected_paths[@]}")
+                    else
+                        selected_paths+=("$path")
+                    fi
                 fi
                 [[ $cur -lt $((count - 1)) ]] && ((cur++)) ;;
             '.') # Backspace
@@ -3514,8 +3516,7 @@ EOF
     while true; do
         # 2. DATA REBUILD
         if [[ "$root_dir" != "$last_dir" || $rebuild -eq 1 ]]; then
-            raw_list=(); detail_list=() 
-            [[ "$root_dir" != "$last_dir" ]] && selected_paths=()
+            raw_list=(); detail_list=()
 
             # --- THE FINAL SURGICAL FIX: IGNORE CACHE ---
             local ignored_cache="|"
@@ -3891,6 +3892,34 @@ EOF
             _show_cursor
         fi
 
+        # --- SELECTION HANDLER ---
+        # Returns: 0 = Continue Loop, 2 = Exit Success (File/Marked Selected)
+        _handle_selection() {
+            local node="${raw_list[$cur]}"
+            local p="${node%%|*}"
+            local is_d="${node##*|}"
+
+            if [[ "$is_d" == "true" ]]; then
+                root_dir=$(cd "$p" && pwd); cur=0; rebuild=1; _init_tui
+                return 0
+            fi
+
+            local results=""
+            for path in "${selected_paths[@]}"; do
+                [[ "$path" != "0" && -n "$path" ]] && results+="$path"$'\n'
+            done
+
+            if [[ -n "$results" ]]; then
+                TUI_RESULT="$results"
+                printf "%b" "$results"
+                return 2
+            fi
+
+            TUI_RESULT="$p"
+            echo "$p"
+            return 2
+        }
+
         # 6. INPUT HANDLING
         IFS= read -rsn1 key < /dev/tty || break
 
@@ -3949,14 +3978,7 @@ EOF
                             local buf="$prompt_buffer"; [[ "$ui_mode" == "SEARCH" ]] && buf="$search_query"
                             (( prompt_pos < ${#buf} )) && ((prompt_pos++))
                         else
-                            # NAV MODE: Logic formerly in _handle_selection
-                            local node="${raw_list[$cur]}"
-                            local p="${node%%|*}"
-                            if [[ "${node##*|}" == "true" ]]; then
-                                root_dir=$(cd "$p" && pwd); cur=0; rebuild=1; _init_tui
-                            else
-                                TUI_RESULT="$p"; return 0
-                            fi
+                            _handle_selection; [[ $? -eq 2 ]] && return 0
                         fi ;;
                     "[A"|"[B") # Up/Down
                         preview_offset=0
@@ -4206,43 +4228,7 @@ EOF
                     _execute_mode_action
                     continue
                 else
-                    # We are in NAVIGATION mode - Restore selection/CD logic
-                    local node="${raw_list[$cur]}"
-                    local p="${node%%|*}"
-                    local label="${node#*|}"
-                    label="${label%|*}"
-
-                    if [[ "$label" == ".." || "${node##*|}" == "true" ]]; then
-                        # Standard directory navigation
-                        root_dir=$(cd "$p" && pwd)
-                        [[ "$label" == ".." ]] && last_path="${raw_list[$cur]%%|*}" || last_path=""
-                        rebuild=1; cur=-2; _init_tui
-                    else
-                        # --- THE MULTI-SELECT NEWLINE FIX ---
-                        local targets=""
-                        local tagged_count=0
-
-                        # 1. Check the 'selected_paths' array for tagged items
-                        for path in "${selected_paths[@]}"; do
-                            if [[ "$path" != "0" && -n "$path" ]]; then
-                                # Append path followed by a real newline
-                                targets+="$path"$'\n'
-                                ((tagged_count++))
-                            fi
-                        done
-
-                        # 2. If nothing was tagged, use the single item under cursor
-                        if [[ $tagged_count -eq 0 ]]; then
-                            TUI_RESULT="$p"
-                        else
-                            # Trim the very last trailing newline to keep the list clean
-                            TUI_RESULT="${targets%$'\n'}"
-                        fi
-                        
-                        # Output for subshell capture and exit widget
-                        echo "$TUI_RESULT"
-                        return 0
-                    fi
+                    _handle_selection; [[ $? -eq 2 ]] && return 0
                 fi
                 ;;
             $'\t') # TAB: Toggle Tag by Path
@@ -4378,16 +4364,7 @@ EOF
                 rebuild=0; continue ;;
 
             "l"|"d") # Move Right (Enter directory or select file)
-                local node="${raw_list[$cur]}"
-                local p="${node%%|*}"
-                if [[ "${node##*|}" == "true" ]]; then
-                    # Navigate into directory
-                    root_dir=$(cd "$p" && pwd)
-                    cur=0; rebuild=1; _init_tui
-                else
-                    # Select file
-                    TUI_RESULT="$p"; return 0
-                fi ;;
+                _handle_selection; [[ $? -eq 2 ]] && return 0 ;;
 
             "g") # HOME: Jump to top
                 cur=0; rebuild=0; continue ;;
