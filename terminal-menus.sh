@@ -618,8 +618,8 @@ _draw_list() {
         
         # 4. CONTROLS & FOOTER
         row=$((list_top + display_count))
-        local hint=" [Arrows] Move | [Space] Toggle | [Enter] Select"
-        [[ $type == "menu" ]] && hint=" [Arrows] Move | [Enter] Select"
+        local hint=" ${SB}Arrows${SR} Move | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select"
+        [[ $type == "menu" ]] && hint=" ${SB}Arrows${SR} Move | ${SB}Enter${SR} Select"
         
         # Move down for the controls (if there's room)
         [[ $row -lt $((MAX_HEIGHT - 1)) ]] && ((row++))
@@ -1029,7 +1029,7 @@ textbox() {
             
             row=$((view_top + height))
             _draw_line "" 
-            _draw_controls " [Up/Down/j/k] Scroll | [Enter] Close"
+            _draw_controls " ${SB}Up/Down/j/k${SR} Scroll | ${SB}Enter${SR} Close"
             _draw_footer
             last_top=$top
         fi
@@ -1102,7 +1102,7 @@ tailbox() {
         _draw_at "$((row - 1))" 0
         printf "${BG_MAIN_ESC}%*s${RESET}" "$MAX_WIDTH" "" >&2
 
-        _draw_controls " Watching: ${src##*/} | [Enter] Close"
+        _draw_controls " Watching: ${src##*/} | ${SB}Enter${SR} Close"
         _draw_footer
 
         # 6. Non-blocking input (1s refresh)
@@ -1207,7 +1207,7 @@ form() {
         _draw_footer
         # Position controls at the bottom relative to MAX_HEIGHT
         row=$(( MAX_HEIGHT - 1 ))
-        _draw_controls " [TAB/Arrows] Nav | [Space] Toggle | [Enter] Submit"
+        _draw_controls " ${SB}TAB/Arrows${SR} Nav | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit"
 
         local key; IFS= read -rsn1 key < /dev/tty
         if [[ $key == $'\e' ]]; then
@@ -1388,7 +1388,7 @@ spreadsheet() {
         [[ "$mode" == "NAV" ]] && modetxt="NAV " || modetxt="EDIT"
 
         # 1. Header Fix: Use _draw_line or a clamped printf to stop the bleed
-        _draw_header "$title" "Mode: $modetxt | [Arrows] Move  [Enter] Confirm  [z/Z] Undo/Redo  [q] Quit  "
+        _draw_header "$title" "Mode: $modetxt | ${SB}Arrows${SR} Move  ${SB}Enter${SR} Confirm  ${SB}z/Z${SR} Undo/Redo  ${SB}q${SR} Quit  "
         # Wipe the subtitle row perfectly to the right edge
         _draw_at "$((row - 1))" 0; printf "${BG_MAIN_ESC}%*s" "$MAX_WIDTH" "" >&2
 
@@ -1788,7 +1788,7 @@ filtermenu() {
         _draw_spacer
 
         # Position controls on the very next line
-        _draw_controls " [Arrows/j/k] Move | [Enter] Select"
+        _draw_controls " ${SB}Arrows/j/k${SR} Move | ${SB}Enter${SR} Select"
 
         # Position footer on the last row of the widget area
         row=$((row + 1))
@@ -1992,7 +1992,7 @@ filepicker() {
         # 3. POSITION FOOTER
         row=$((list_top + height))
         _draw_spacer
-        _draw_controls " [TAB] Mark | [.] Toggle hidden | [Enter] Select | [q] Quit"
+        _draw_controls " ${SB}TAB${SR} Mark | ${SB}.${SR} Toggle hidden | ${SB}Enter${SR} Select | ${SB}q${SR} Quit"
         _draw_footer
 
         # 4. Handle inputs
@@ -2274,8 +2274,8 @@ _tree_core() {
 
         # --- FOOTER ANCHOR ---
         row=$(( MAX_HEIGHT - 2 ))
-        local hint=" [Arrows] Move/Expand | [Enter] Select"
-        [[ "$mode" == "config" ]] && hint=" [Arrows] Move/Expand | [Space] Toggle | [Enter] Confirm"
+        local hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Enter${SR} Select"
+        [[ "$mode" == "config" ]] && hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Confirm"
         
         _draw_line ""
         _draw_controls "$hint"
@@ -2596,7 +2596,7 @@ table() {
         # 5. Footer (Starts exactly after the last data row)
         row=$((data_start_row + data_height))
         _draw_line "" 
-        _draw_controls " [Arrows/jk] Scroll | [Enter] Select"
+        _draw_controls " ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
         _draw_footer
 
         # 6. Input Handling
@@ -2727,7 +2727,7 @@ filtertable() {
         row=$((data_top + data_height))
         _draw_footer
         _draw_spacer
-        _draw_controls " [Typing] Filter | [Arrows/jk] Scroll | [Enter] Select"
+        _draw_controls " ${SB}Typing${SR} Filter | ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
 
                 # 7. Input Handling
         local key; IFS= read -rsn1 key < /dev/tty
@@ -3016,7 +3016,7 @@ mainmenu() {
         done
 
         local footer_row=$((list_top + view_h + 1))
-        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  [Tab] Switch | [Arrows/jk] Nav | [Enter] Select | [q] Quit ${RESET}"
+        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Tab${SR} Switch | ${SB}Arrows/jk${SR} Nav | ${SB}Enter${SR} Select | ${SB}q${SR} Quit ${RESET}"
 
         LAST_FRAME="$frame"
         printf "%b" "$frame" >&2
