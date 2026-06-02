@@ -1733,7 +1733,8 @@ filtermenu() {
         fi
 
         # 2. Viewport Geometry
-        local max_vh=$(( MAX_HEIGHT - 8 )) 
+        local max_vh=$(( MAX_HEIGHT - 9 ))
+        [[ "$TUI_MODE" == "fullscreen" ]] && max_vh=$(( MAX_HEIGHT - 10 )) 
         [[ $max_vh -lt 3 ]] && max_vh=3
 
         # 3. Header & Search
@@ -1789,6 +1790,7 @@ filtermenu() {
 
         # Position controls on the very next line
         _draw_controls " ${SB}Arrows/j/k${SR} Move | ${SB}Enter${SR} Select"
+        _draw_spacer
 
         # Position footer on the last row of the widget area
         row=$((row + 1))
