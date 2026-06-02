@@ -674,8 +674,8 @@ _draw_list() {
                 return 0
             else 
                 local res=""
-                for ((i=0; i<count; i++)); do [[ ${selected[i]} -eq 1 ]] && res+="${options[i]} "; done
-                TUI_RESULT="${res% }"
+                for ((i=0; i<count; i++)); do [[ ${selected[i]} -eq 1 ]] && res+="${options[i]}"$'\n'; done
+                TUI_RESULT="${res%$'\n'}"
                 echo "$TUI_RESULT"
                 return 0
             fi
