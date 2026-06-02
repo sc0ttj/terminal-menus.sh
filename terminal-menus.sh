@@ -3155,15 +3155,13 @@ _execute_mode_action() {
 
             # 2. Check if the file is NOT empty
             if [[ -s "$out_tmp" ]]; then
-                # THE FIX: Display the result inside a themed textbox instead of raw terminal
-                # This ensures BG_MAIN background, themed header, and scrolling
+                local _saved_title="$title"
                 textbox "Command Output" "Executed: $final_cmd" "$out_tmp"
+                title="$_saved_title"
             fi
 
             # 3. Clean up and restore TUI
             rm -f "$out_tmp"
-            # No need for manual 'read' or 'stty' here; textbox handles the interaction
-            _init_tui
             _hide_cursor
             prompt_buffer=""; prompt_pos=0; ui_mode="NAV"; rebuild=1
             ;;
@@ -3506,6 +3504,7 @@ EOF
     local clipboard_op="" # "CUT" or "COPY"
     local search_query=""
     local selected_paths=()
+    local _saved_cur=0 _saved_top=0
     
     local dir_col="\e[1;34m" hid_col="\e[2m" exe_col="\e[1;32m"
     root_dir=$(cd "$root_dir" && pwd)
@@ -3927,6 +3926,7 @@ EOF
                     _init_tui
                 elif [[ "$ui_mode" != "NAV" ]]; then
                     # Handle other modes (CMD, RENAME, etc)
+                    cur=$_saved_cur; top=$_saved_top
                     ui_mode="NAV"; prompt_buffer=""; prompt_pos=0; rebuild=1
                 else 
                     return 1 # Exit filemanager if already in NAV mode
@@ -4032,7 +4032,9 @@ EOF
                     
                     elif [[ -z "$prompt_buffer" ]]; then
                         # Empty prompt: return to NAV
+                        cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"; prompt_pos=0; rebuild=1
+                        continue
                     
                     elif [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
                         # --- SAVE TO HISTORY ---
@@ -4124,15 +4126,11 @@ EOF
                         fi
                     else
                         # --- THE FIX: Close prompt if empty ---
+                        cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"
                         prompt_buffer=""
                         prompt_pos=0
                         rebuild=1
-                        # If it was a search, reset the view to normal
-                        if [[ "$ui_mode" == "SEARCH" ]]; then
-                            search_query=""
-                            _refresh_sidebar_only
-                        fi
                         continue
                     fi ;;
 
@@ -4286,23 +4284,28 @@ EOF
 
             "~") root_dir="$HOME"; rebuild=1; cur=0 ;;
 
-            "!") ui_mode="SUDO_CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
+            "!") _saved_cur=$cur; _saved_top=$top
+                 ui_mode="SUDO_CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
-                 
-            ":")
+                  
+            ":") _saved_cur=$cur; _saved_top=$top
                  ui_mode="CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
 
-            "/") ui_mode="SEARCH"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
+            "/") _saved_cur=$cur; _saved_top=$top
+                 ui_mode="SEARCH"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
 
-            "f") ui_mode="NEW_F"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
+            "f") _saved_cur=$cur; _saved_top=$top
+                 ui_mode="NEW_F"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
 
-            "F") ui_mode="NEW_D"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
+            "F") _saved_cur=$cur; _saved_top=$top
+                 ui_mode="NEW_D"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
             
             "r") # Rename
+                 _saved_cur=$cur; _saved_top=$top
                  ui_mode="RENAME"
                  local n="${raw_list[$cur]#*|}"
                  prompt_buffer="${n%|*}"
