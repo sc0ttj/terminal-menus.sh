@@ -1,39 +1,6 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-### Fix `file_navigator` multiple selection
-
-* Both widgets should use this fixed function called `_handle_selection`.
-* Currently there's a worse one inside `file_navigator`, which forgets selection lists when you `cd` to another dir.
-
-Quote:
-```
-Storage: When a user hits TAB, store the absolute path 
-(e.g., $(pwd)/$filename) in the `selected_paths` array.
-
-Joining: Use `results+="$path"$'\n'` to build the string.
-
-Return: Always echo -e "$TUI_RESULT" or printf "%b" "$TUI_RESULT" 
-at the end so the subshell RES=$(...) captures the vertical list 
-correctly.
-```
-
-
-For file_navigator:
-```
-        "") # ENTER
-          _handle_selection
-          [[ $? -eq 2 ]] && return 0
-          ;;
-            
-        "l") # Vim Right
-          _handle_selection
-          [[ $? -eq 2 ]] && return 0
-          ;;
-```
-
-------------------------------------------------------------------
-
 ## Make sure $TUI_RESULT is always sent to stdout and the contains correct data
 
 * $TUI_RESULT should always hold the return data of the widget after the widget has ended
