@@ -1,20 +1,6 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Fix cursor marker placement in `file_manager` command prompts
-
-It is one character too far to the right. Move it one character left.
-
-## Fix spreadsheet
-
-Only the currently focused cell should be bold text.
-
-## Rename `file_navigator` function to `filepicker`
-Make it more consistent with other widgets.
-
-## Rename `file_manager` function to `filemanager`
-Make it more consistent with other widgets.
-
 ### Fix `file_navigator` multiple selection
 
 * Both widgets should use this fixed function called `_handle_selection`.
@@ -45,17 +31,6 @@ For file_navigator:
           [[ $? -eq 2 ]] && return 0
           ;;
 ```
-
-## Improve `file_manager`
-
-### Fix fullscreen
-In fullscreen mode:
-* the help info should be indented one space more (keep same width, just move it to the right one space).
-
-### Use an external preview script
-
-Easier to upgrade if its external.
-
 
 ------------------------------------------------------------------
 
