@@ -2412,11 +2412,25 @@ _tree_core() {
                 _update_tree_cache ;;
             "") # Enter (Select/Confirm)
                 if [[ "$mode" == "select" ]]; then
-                    local selection=${all_nodes[${visible_indices[$cur]}]}
+                    local g_idx=${visible_indices[$cur]}
+                    local selection=${all_nodes[$g_idx]}
+                    local d="${selection%%|*}"
                     local id_part="${selection#*|}"
-                    # return
-                    TUI_RESULT="${id_part%%|*}"
-                    echo "${TUI_RESULT}"
+                    local path="${id_part%%|*}"
+                    local scan=$g_idx
+                    local check_d=$d
+                    while [[ $scan -gt 0 ]]; do
+                        ((scan--))
+                        local snode="${all_nodes[$scan]}"
+                        local sd="${snode%%|*}"
+                        if [[ $sd -lt $check_d ]]; then
+                            local srem="${snode#*|}"
+                            path="${srem%%|*}/$path"
+                            check_d=$sd
+                        fi
+                    done
+                    TUI_RESULT="$path"
+                    echo "$TUI_RESULT"
                     return 0
                 else
                     TUI_RESULT="${all_nodes[@]}"
