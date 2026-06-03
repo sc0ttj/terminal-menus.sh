@@ -1,23 +1,38 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Improve `mainmenu`
-
-In the `mainmenu` function, in @terminal-menus.sh:
-
-Support an environment variable that, if true, retains the filter input text when switching between menu items.
-
-------------------------------------------------------------------
-
 ## Fix: remove calls to `tput`
 
 Use raw ANSI/escape char calls instead. Makes it faster.
 
 ------------------------------------------------------------------
 
-## Re-instate dropdown menus
+## Re-instate dropdown menus in the `form` widget
 
 Dropdown menus (space to toggle expand/collapse, up/down to navigate, space to select) have gone missing from a previous version.
+
+Re-implement dropdown menus in the `form` widget so that the following syntax works:
+
+```sh
+FORM_OUT=$(form "Demo form" "Enter your details:" \
+    "> User:user=$(whoami)" \
+    ">* Password:password" \
+    "Country:" \
+    "{ } United Kingdom:uk,=USA:usa,South Africa:southafrica" \
+    "Enabled connections:" \
+    "[ ] Ethernet:eth0" \
+    "[x] Wifi:wlan0" \
+    "[ ] Fibre:eth1" \
+    "Deployment:" \
+    "(*) Production:prod" \
+    "( ) Staging:stage")
+```
+
+In the example above, the selected item of the form dropdown should be available as `$country` after running `eval "$FORM_OUT"`.
+
+The `=` represents the item which should be selected by default.
+
+Start by looking in the `form()` function, and the `_draw_form_field()` function.
 
 ## Two column forms
 
