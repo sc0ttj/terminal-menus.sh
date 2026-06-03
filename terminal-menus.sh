@@ -2858,6 +2858,7 @@ mainmenu() {
     local last_side=-2 
     local last_query="INIT"
     local filter_query="" table_top=0 force_refilter=0
+    local sort_col=-1 sort_asc=1 col_count=0 header_labels=() dw=()
 
     # 1. Parse DSL (Pure Bash)
     local side_labels=() side_msgs=() side_files=()
@@ -2885,23 +2886,53 @@ mainmenu() {
         # 3. DATA LOADER
         if [[ $cur_side -ne $last_side ]]; then
             local src="${side_files[$cur_side]}"
-            master_lines=(); master_cmds=()
-            
+            master_lines=(); master_cmds=(); master_row_data=()
+            sort_col=-1; sort_asc=1
+
             if [[ -f "$src" ]]; then
-                # Dynamic Width Calculation (Same as your optimized version)
-                local widths=$(awk -F',' '{for(i=1;i<=3;i++){len=length($i);if(len>max[i])max[i]=len}}END{print max[1],max[2],max[3]}' "$src")
-                read -r dw1 dw2 dw3 <<< "$widths"
-                dw1=$((dw1 + 2)); dw2=$((dw2 + 2)); dw3=$((dw3 + 2))
+                # Determine column count from header (last field is the command)
+                {
+                    read -r header_line
+                    IFS=',' read -ra hdr <<< "$header_line"
+                    col_count=${#hdr[@]}; ((col_count--))
+                    header_labels=("${hdr[@]:0:col_count}")
+                } < "$src"
+
+                # Calculate max widths per column
+                local widths=$(awk -F',' -v n=$col_count \
+                    '{for(i=1;i<=n;i++){len=length($i);if(len>max[i])max[i]=len}}
+                     END{for(i=1;i<=n;i++)printf "%d ",max[i]}' "$src")
+                dw=(); read -ra dw <<< "$widths"
+                for ((i=0; i<col_count; i++)); do
+                    [[ -z "${dw[i]}" ]] && dw[i]=0
+                    ((dw[i] += 2))
+                done
 
                 {
-                    read -r header_row_raw
-                    IFS=',' read -r c1 c2 c3 cmd <<< "$header_row_raw"
-                    printf -v table_header "%-${dw1}s %-${dw2}s %-${dw3}s" "$c1" "$c2" "$c3"
-                    while IFS=',' read -r c1 c2 c3 cmd; do
-                        printf -v fmt "%-${dw1}s %-${dw2}s %-${dw3}s" "$c1" "$c2" "$c3"
-                        master_lines[${#master_lines[@]}]="$fmt"
-                        master_cmds[${#master_cmds[@]}]="$cmd"
-                    done 
+                    read -r header_line  # skip header (already parsed)
+
+                    # Build table header from header_labels
+                    table_header=""
+                    for ((i=0; i<col_count; i++)); do
+                        printf -v part "%-${dw[i]}s" "${header_labels[i]}"
+                        table_header+="$part "
+                    done
+                    table_header="${table_header% }"
+
+                    while IFS=',' read -ra fields; do
+                        local cmd="${fields[col_count]}"
+                        local fmt=""
+                        for ((i=0; i<col_count; i++)); do
+                            printf -v part "%-${dw[i]}s" "${fields[i]}"
+                            fmt+="$part "
+                        done
+                        fmt="${fmt% }"
+                        master_lines+=("$fmt")
+                        master_cmds+=("$cmd")
+                        local rd=""
+                        for ((i=0; i<col_count; i++)); do rd+="${fields[i]}"$'\t'; done
+                        master_row_data+=("$rd")
+                    done
                 } < "$src"
             fi
             
@@ -3020,7 +3051,7 @@ mainmenu() {
         done
 
         local footer_row=$((list_top + view_h + 1))
-        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Tab${SR} Switch | ${SB}Arrows/jk${SR} Nav | ${SB}Enter${SR} Select | ${SB}q${SR} Quit ${RESET}"
+        frame+="\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Tab${SR} Switch | ${SB}1-9${SR} Sort | ${SB}Enter${SR} Select | ${SB}q${SR} Quit ${RESET}"
 
         LAST_FRAME="$frame"
         printf "%b" "$frame" >&2
@@ -3082,6 +3113,47 @@ mainmenu() {
                         return 0
                     fi
                 fi ;;
+            [1-9])  if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
+                        filter_query+="$key"; cur_table=-1
+                    elif [[ $col_count -gt 0 ]]; then
+                        local col=$((key - 1))
+                        if [[ $col -lt $col_count ]]; then
+                            [[ $col -eq $sort_col ]] && sort_asc=$((1 - sort_asc)) || { sort_col=$col; sort_asc=1; }
+                            local -a sort_keys
+                            for ((i=0; i<${#master_row_data[@]}; i++)); do
+                                IFS=$'\t' read -ra vals <<< "${master_row_data[i]}"
+                                sort_keys[i]="${vals[col]}"
+                            done
+                            local -a idx
+                            for ((i=0; i<${#master_row_data[@]}; i++)); do idx[i]=$i; done
+                            for ((a=0; a<${#idx[@]}; a++)); do
+                                for ((b=a+1; b<${#idx[@]}; b++)); do
+                                    if [[ $sort_asc -eq 1 && "${sort_keys[idx[a]]}" > "${sort_keys[idx[b]]}" ]] || \
+                                       [[ $sort_asc -eq 0 && "${sort_keys[idx[a]]}" < "${sort_keys[idx[b]]}" ]]; then
+                                        t=${idx[a]}; idx[a]=${idx[b]}; idx[b]=$t
+                                    fi
+                                done
+                            done
+                            local nl=() nc=() nd=()
+                            for ((i=0; i<${#idx[@]}; i++)); do
+                                nl+=("${master_lines[idx[i]]}")
+                                nc+=("${master_cmds[idx[i]]}")
+                                nd+=("${master_row_data[idx[i]]}")
+                            done
+                            master_lines=("${nl[@]}")
+                            master_cmds=("${nc[@]}")
+                            master_row_data=("${nd[@]}")
+                            table_header=""
+                            for ((i=0; i<col_count; i++)); do
+                                local lbl="${header_labels[i]}"
+                                [[ $i -eq $sort_col ]] && { [[ $sort_asc -eq 1 ]] && lbl="^$lbl" || lbl="v$lbl"; }
+                                printf -v part "%-${dw[i]}s" "$lbl"
+                                table_header+="$part "
+                            done
+                            table_header="${table_header% }"
+                            force_refilter=1
+                        fi
+                    fi ;;
             $'\177'|$'\b') [[ $focus -eq 1 ]] && { filter_query="${filter_query%?}"; cur_table=-1; } ;;
             *) [[ $focus -eq 1 && "$key" == [[:print:]] ]] && { filter_query+="$key"; cur_table=-1; } ;;
         esac
