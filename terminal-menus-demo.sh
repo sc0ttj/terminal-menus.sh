@@ -559,7 +559,8 @@ Settings:settings:./settings.csv"
 
 # --- 5. Launch ---
 # Note: Ensure your mainmenu logic handles the '&&' chain in the command string
-mainmenu "Media center" "" "$KODI_MENU" 3
+TUI_PERSISTENT_FILTERS=true mainmenu "Media center" "" "$KODI_MENU" 3
+
 if [[ $RESULT -eq 0 && -n "$TUI_RESULT" ]]; then
     msgbox "TUI_RESULT (last command you ran)" "$TUI_RESULT"
     msgbox "Your CONF_FILE:" "$(cat $CONF_FILE)"

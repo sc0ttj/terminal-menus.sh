@@ -2939,7 +2939,7 @@ mainmenu() {
             # --- STARTUP RESET LOGIC ---
             # We ONLY reset the table focus if this is NOT the very first boot
             if [[ $last_side -ne -2 ]]; then
-                filter_query=""
+                [[ "$TUI_PERSISTENT_FILTERS" != "true" ]] && filter_query=""
                 cur_table=-1
                 table_top=0
             fi
