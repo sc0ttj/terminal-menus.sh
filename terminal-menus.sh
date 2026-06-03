@@ -536,28 +536,21 @@ _draw_form_field() {
         IFS='|' read -r state sel_idx query opt_str <<< "$value"
         IFS=',' read -r -a all_opts <<< "$opt_str"
         
-        local filtered=()
-        local l_query=$(echo "$query" | tr '[:upper:]' '[:lower:]')
-        for o in "${all_opts[@]}"; do
-            local l_opt=$(echo "$o" | tr '[:upper:]' '[:lower:]')
-            [[ -z "$query" || "$l_opt" == *"$l_query"* ]] && filtered+=("$o")
-        done
-
         local arrow=$([[ "$state" == "OPEN" ]] && echo "▴" || echo "▾")
-        local header="${label#\{*\} }: "
-        [[ "$label" == "{>}"* && "$state" == "OPEN" ]] && header+="[ $query ] $arrow" || header+="${all_opts[$sel_idx]} $arrow"
+        local header=""
+        local label_text="${label#*\}}"
+        label_text="${label_text# }"
+        [[ -n "$label_text" ]] && header="$label_text: "
+        if [[ "$label" == "{>}"* && "$state" == "OPEN" ]]; then
+            header+="[ $query ] $arrow"
+        else
+            local opt_display="${all_opts[$sel_idx]%:*}"
+            header+="$opt_display $arrow"
+        fi
+        printf -v header "%-${width}s" "$header"
         
         style=$([[ $is_active -eq 1 ]] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
         _draw_line "  ${style}${header}${RESET}${BG_MAIN_ESC}"
-
-        if [[ "$state" == "OPEN" ]]; then
-            for ((j=0; j<${#filtered[@]}; j++)); do
-                _draw_at "$row"; printf "  " >&2 
-                # _draw_item was fixed to use fixed width, so it won't bleed out
-                _draw_item "menu" "$([[ $j -eq $sel_idx ]] && echo 1 || echo 0)" 0 "${filtered[$j]}" 44
-                ((row++))
-            done
-        fi
         _draw_spacer
 
     # --- 4. STATIC LABEL ---
@@ -1167,6 +1160,29 @@ form() {
             values[i]=$([[ "$line" == *"(*)"* ]] && echo "1" || echo "0")
             field_meta[i]="radio|$var"
 
+        # --- DROPDOWN ---
+        elif [[ "$line" == "{ "* ]]; then
+            local content="${line#\{ \} }"
+            local -a cleaned_opts=()
+            local default_idx=0 idx=0
+            IFS=',' read -ra raw_opts <<< "$content"
+            for opt in "${raw_opts[@]}"; do
+                local cleaned="$opt"
+                if [[ "$cleaned" == "="* ]]; then
+                    default_idx=$idx
+                    cleaned="${cleaned#=}"
+                fi
+                cleaned_opts+=("$cleaned")
+                ((idx++))
+            done
+            local joined=""
+            for ((o=0; o<${#cleaned_opts[@]}; o++)); do
+                joined+="${cleaned_opts[o]},"
+            done
+            joined="${joined%,}"
+            fields[i]="{ }"
+            values[i]="CLOSED|$default_idx||$joined"
+            field_meta[i]="dropdown"
         else
             fields[i]="$line"; values[i]=""; field_meta[i]="text"
         fi
@@ -1181,6 +1197,8 @@ form() {
     # 3. Alignment: Start at the left of the container
     local COL_START=0
 
+    local _dd_was_open=0
+
     while true; do
         _draw_header "$title" "$msg"
         
@@ -1188,8 +1206,10 @@ form() {
         # If your header takes 3 lines, we start at 4.
         #row=$(( _get_start_row + 3 ))
 
+        local -a field_rows
         for ((i=0; i<count; i++)); do
             local active=0; (( i == cur )) && active=1
+            field_rows[i]=$row
             
             if [[ "${fields[i]}" == "---" ]]; then
                  _draw_at "$row"
@@ -1205,6 +1225,47 @@ form() {
         done
         
         _draw_footer
+
+        # Draw any open dropdown as an overlay (does not shift subsequent fields)
+        if [[ $cur -lt $count && "${fields[$cur]}" == "{"* ]]; then
+            IFS='|' read -r state s_idx query opts <<< "${values[$cur]}"
+            if [[ "$state" == "OPEN" ]]; then
+                IFS=',' read -ra all_opts <<< "$opts"
+                local filtered=()
+                local l_q=$(echo "$query" | tr '[:upper:]' '[:lower:]')
+                for o in "${all_opts[@]}"; do
+                    local l_o=$(echo "$o" | tr '[:upper:]' '[:lower:]')
+                    [[ -z "$query" || "$l_o" == *"$l_q"* ]] && filtered+=("$o")
+                done
+                local drow=$((field_rows[cur] + 1))
+                for ((j=0; j<${#filtered[@]}; j++)); do
+                    _draw_at "$drow"
+                    printf "  " >&2
+                    local opt_display="${filtered[$j]%:*}"
+                    _draw_item "menu" "$([[ $j -eq $s_idx ]] && echo 1 || echo 0)" 0 "$opt_display" "$form_width"
+                    ((drow++))
+                done
+            elif [[ $_dd_was_open -eq 1 ]]; then
+                IFS=',' read -ra clear_opts <<< "$opts"
+                local r=$((field_rows[cur] + 1))
+                local last_clear=$((r + ${#clear_opts[@]}))
+                for ((oi=0; oi<${#clear_opts[@]}; oi++)); do
+                    local cr=$((r + oi))
+                    [[ $cr -lt $MAX_HEIGHT ]] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                done
+                local saved_row=$row
+                for ((i=cur+1; i<count; i++)); do
+                    local fr=${field_rows[i]}
+                    if [[ $fr -ge $r && $fr -lt $last_clear ]]; then
+                        row=$fr
+                        _draw_form_field "${fields[i]}" "${values[i]}" 0 "$i" "$form_width" "$COL_START"
+                    fi
+                done
+                row=$saved_row
+            fi
+            _dd_was_open=$([[ "$state" == "OPEN" ]] && echo 1 || echo 0)
+        fi
+
         # Position controls at the bottom relative to MAX_HEIGHT
         row=$(( MAX_HEIGHT - 1 ))
         _draw_controls " ${SB}TAB/Arrows${SR} Nav | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit"
@@ -1286,6 +1347,13 @@ form() {
                             if [[ "$val" == "1" ]]; then
                                 res="${res}${last_label}='${varname}'"$'\n'
                             fi
+                            ;;
+                        "dropdown")
+                            IFS='|' read -r _ sel_idx _ opts <<< "$val"
+                            IFS=',' read -ra all_opts <<< "$opts"
+                            local picked="${all_opts[$sel_idx]}"
+                            local opt_val="${picked##*:}"
+                            res="${res}${last_label}='${opt_val}'"$'\n'
                             ;;
                     esac
                 done

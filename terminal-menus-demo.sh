@@ -230,8 +230,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     REAL_LOG="/var/log/system.log"
 else
     # Linux
-    [[ -r "/var/log/syslog" ]] && REAL_LOG="/var/log/syslog"
-    [[ -z "$REAL_LOG" && -r "/var/log/messages" ]] && REAL_LOG="/var/log/messages"
+    REAL_LOG=/var/log/acpid.log
 fi
 
 tailbox "" "Monitoring file: $REAL_LOG" "$REAL_LOG"
@@ -301,9 +300,11 @@ msgbox "You chose" "$CONFIG_OUT"
 # 16. Form (Advanced DSL)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 16 of 23 - form"
-FORM_OUT=$(form "Demo form" "Enter your details:" \
+FORM_OUT=$(form "" "" \
     "> User:user=$(whoami)" \
     ">* Password:password" \
+    "Country:" \
+    "{ } United Kingdom:uk,=USA:usa,South Africa:southafrica" \
     "Enabled connections:" \
     "[ ] Ethernet:eth0" \
     "[x] Wifi:wlan0" \
@@ -320,6 +321,8 @@ msgbox "Data Received" "
  
 User: $user
 Password: $password
+ 
+Country: $country
  
 Enable connections:
 Ethernet: $eth0
