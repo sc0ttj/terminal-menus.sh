@@ -1,23 +1,11 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Analyse, check, verify and fix if needed, the return data of each widget.
-
-* Make sure $TUI_RESULT is set with the contains correct data before the widget exits
-* $TUI_RESULT should always hold the return data of the widget after the widget has ended
-* Use with the correct, appropriate return codes (0 is ok, 1 is error, etc)
-
-
-------------------------------------------------------------------
-
 ## Improve `mainmenu`
 
-Add an option to maintain the filter (and keep the filter input text), even when changing menu items.
+In the `mainmenu` function, in @terminal-menus.sh:
 
-Sort by column:
-- Press 1 to sort by column 1, asc. Press again to sort by column 1 desc.
-- Press 2 to sort by column 2, asc. Press again to sort by column 2 desc.
-- etc.
+Support an environment variable that, if true, retains the filter input text when switching between menu items.
 
 ------------------------------------------------------------------
 
