@@ -824,7 +824,7 @@ inputbox() {
             case "$next_chars" in
                 "[D") (( pos > 0 )) && ((pos--)) ;; # Left
                 "[C") (( pos < ${#val} )) && ((pos++)) ;; # Right
-                "") _hide_cursor; return 1 ;; # ESC (Nothing followed the \e)
+                "") _hide_cursor; TUI_RESULT=''; return 1 ;; # ESC (Nothing followed the \e)
                 *) : ;; # Ignore Up/Down
             esac
             continue
@@ -896,7 +896,7 @@ passwordbox() {
             stty icanon echo
             
             case "$next_chars" in
-                "") _hide_cursor; return 1 ;; # Standalone ESC - Cancel
+                "") _hide_cursor; TUI_RESULT=''; return 1 ;; # Standalone ESC - Cancel
                 *) : ;; # Ignore arrows/sequences - prevents "typing" them in
             esac
             continue
@@ -3052,7 +3052,7 @@ mainmenu() {
                     cur_table=-1
                 fi
                 ;;
-            "q") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || return 1 ;;
+            "q") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || { TUI_RESULT=''; return 1; } ;;
             "j") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || { [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && ((cur_side++)); } || { [[ $cur_table -lt $((f_count-1)) ]] && ((cur_table++)); }; } ;;
             "k") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query+="$key" || { [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && ((cur_side--)); } || { [[ $cur_table -gt -1 ]] && ((cur_table--)); }; } ;;
             "")  # Enter
@@ -3921,7 +3921,7 @@ EOF
         }
 
         # 6. INPUT HANDLING
-        IFS= read -rsn1 key < /dev/tty || break
+        IFS= read -rsn1 key < /dev/tty || { TUI_RESULT=''; break; }
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
         if [[ "$key" == $'\e' ]]; then
@@ -3960,7 +3960,7 @@ EOF
                     cur=$_saved_cur; top=$_saved_top
                     ui_mode="NAV"; prompt_buffer=""; prompt_pos=0; rebuild=1
                 else 
-                    return 1 # Exit filemanager if already in NAV mode
+                    TUI_RESULT=''; return 1 # Exit filemanager if already in NAV mode
                 fi
             else
                 case "$next_chars" in

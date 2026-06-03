@@ -1,10 +1,10 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Make sure $TUI_RESULT is always sent to stdout and the contains correct data
+## Analyse, check, verify and fix if needed, the return data of each widget.
 
+* Make sure $TUI_RESULT is set with the contains correct data before the widget exits
 * $TUI_RESULT should always hold the return data of the widget after the widget has ended
-* Use `echo -e` to send to stdout
 * Use with the correct, appropriate return codes (0 is ok, 1 is error, etc)
 
 
