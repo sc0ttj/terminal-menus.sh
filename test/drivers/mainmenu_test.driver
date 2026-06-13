@@ -1,0 +1,32 @@
+# mainmenu_test.driver - Keystrokes for mainmenu widget test
+# Sequence: Tab to filter -> Enter selects first row -> Enter opens modal -> type -> Enter submits -> q quits
+
+wait_s 2.0
+screenshot "mainmenu_initial"
+
+# Tab: switch focus from side panel to filter field
+tab
+wait_s 0.5
+
+# Enter: select first data row (Profile)
+enter
+wait_s 0.5
+
+# Enter: run Profile modal command (opens inputbox)
+enter
+wait_s 1.0
+screenshot "mainmenu_inputbox_modal"
+
+# Type username
+type_text "testuser"
+wait_s 0.3
+
+# Enter: submit inputbox, returns to mainmenu
+enter
+wait_s 1.5
+screenshot "mainmenu_after_modal"
+
+# q: quit mainmenu
+send_key q
+wait_s 0.5
+screenshot "mainmenu_quit"
