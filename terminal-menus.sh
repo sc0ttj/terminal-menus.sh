@@ -3355,6 +3355,7 @@ EOF
                         eval "$cmd"
                         [[ -n "$TUI_RESULT" && "$cmd" == *"form "* ]] && eval "$TUI_RESULT"
                         stty flush < /dev/tty 2>/dev/null || stty -echo echo
+                        TUI_MODE="fullscreen"
                         _init_tui
                     else
                         TUI_RESULT="$cmd"
