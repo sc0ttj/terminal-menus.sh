@@ -598,6 +598,47 @@ update_config "theme='dark'"
 
 ---
 
+## 🧪 Testing
+
+Tests live in `test/`. Two types available:
+
+### 1. Pty-based functional test (no X required)
+
+```bash
+python3 test/test_form_pty.sh
+```
+
+Validates form widget output — 7 assertions on checkbox states, radio selection, dropdown default, and password field.
+
+### 2. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
+
+All commands run from the project root:
+
+```bash
+# Form visual test — opens form, submits with Enter, captures 2 screenshots
+cd test && ash interactive_runner.sh wrappers/form_test.sh drivers/form_test.driver
+
+# Mainmenu visual test — Tab/Enter modal flow, types text, submits, quits (4 screenshots)
+cd test && ash interactive_runner.sh wrappers/mainmenu_test.sh drivers/mainmenu_test.driver
+
+# Full 23-widget demo — automates all widgets in terminal-menus-demo.sh (~24 screenshots)
+cd test && ash interactive_runner.sh wrappers/full_demo_wrapper.sh test_full_demo.sh
+```
+
+Screenshots are written to `/tmp/tui_tests/<timestamp>/`.
+
+### Test structure
+
+| Path | Purpose |
+|------|---------|
+| `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
+| `test/test_form_pty.sh` | Python pty-based form output test |
+| `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
+| `test/wrappers/` | Wrapper scripts run inside xterm (source the library, invoke widgets) |
+| `test/drivers/` | Keystroke command scripts sourced by the harness |
+
+---
+
 ## 📜 License
 
 Copyright (c) 2026 sc0ttj
