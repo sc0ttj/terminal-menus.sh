@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/ash
 # terminal-menus-test.sh - Comprehensive Demo of the terminal-menus.sh TUI Library
 
 # Source the library

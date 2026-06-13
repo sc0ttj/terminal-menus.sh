@@ -3430,7 +3430,7 @@ EOF
                         fi
                     fi ;;
             $'\177'|$'\b') [[ $focus -eq 1 ]] && { filter_query="${filter_query%?}"; cur_table=-1; } ;;
-            *) [[ $focus -eq 1 && "$key" == [[:print:]] ]] && { filter_query="${filter_query}${key}"; cur_table=-1; } ;;
+            *) if [ $focus -eq 1 ]; then case "$key" in [[:print:]]) filter_query="${filter_query}${key}"; cur_table=-1;; esac; fi ;;
         esac
     done
 }
@@ -4513,7 +4513,7 @@ EOF
                     fi ;;
 
                 *) # Character Input
-                    if [[ "$key" == [[:print:]] ]]; then
+                    if case "$key" in [[:print:]]) true;; *) false;; esac; then
                         if [[ "$ui_mode" == "SEARCH" ]]; then
                             # 1. Update query
                             search_query="${search_query:0:prompt_pos}${key}${search_query:prompt_pos}"
