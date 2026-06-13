@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # terminal-menus-test.sh - Comprehensive Demo of the terminal-menus.sh TUI Library
 
 # Source the library
@@ -29,8 +29,23 @@ msgbox \
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 3 of 23 - yesno (modes)"
 
-# Added "custom" to the array
-MODES=("centered" "classic" "fullscreen" "popup" "top" "bottom" "toast" "palette" "custom")
+# Newline-delimited string instead of array
+MODES="centered
+classic
+fullscreen
+popup
+top
+bottom
+toast
+palette
+custom"
+
+# Count modes
+_modes_c=0
+while IFS= read -r _m; do [ -n "$_m" ] && _modes_c=$((_modes_c + 1)); done <<EOF
+$MODES
+EOF
+
 current_idx=0
 
 OK_LABEL="Show me!"
@@ -49,7 +64,7 @@ You can also leave title (\$1) and msg (\$2) empty - the blank space
 they leave will be automaitcally removed."
 
 while true; do
-    TUI_MODE="${MODES[$current_idx]}"
+    TUI_MODE=$(printf "%s" "$MODES" | sed -n "$((current_idx + 1))p")
     
     # Reset labels for each loop
     YES_LABEL="Yes"; NO_LABEL="No"
@@ -73,7 +88,7 @@ while true; do
             ;;
     esac
 
-    if [[ $current_idx -eq 8 ]];then
+    if [ $current_idx -eq 8 ]; then
         OK_LABEL="Let's move on.."
         TUI_MODE=classic msgbox "Thats all the modes:" "
  
@@ -83,7 +98,7 @@ top, bottom, toast, palette, custom."
     else
         # Call yesno with the dynamically set title and msg
         if yesno "$title" "$msg" 1; then
-            ((current_idx = (current_idx + 1) % ${#MODES[@]}))
+            current_idx=$(((current_idx + 1) % _modes_c))
         else
             break
         fi
@@ -225,7 +240,7 @@ textbox "" "Read file: ./terminal-menus.sh" "./terminal-menus.sh"
 BACKTITLE="terminal-menus.sh demo 13 of 23 - tailbox"
 
 # Get a log file to check
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if _match "$OSTYPE" "darwin*"; then
     # macOS
     REAL_LOG="/var/log/system.log"
 else
@@ -238,62 +253,58 @@ tailbox "" "Monitoring file: $REAL_LOG" "$REAL_LOG"
 # 14. Tree (Deep Navigation)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 14 of 23 - tree"
-TREE_DATA=(
-    "0|usr|/usr|true"
-    "1|bin|bin/|true"
-    "2|bash|bash|false"
-    "2|grep|grep|false"
-    "2|sed|sed|false"
-    "1|local|local/|true"
-    "2|share|share/|true"
-    "3|doc|doc/|true"
-    "4|man|manual.txt|false"
-    "1|lib|lib/|true"
-    "2|python|python3/|true"
-    "3|site-packages|site-packages/|true"
-    "4|requests|requests/|false"
-    "4|cryptography|cryptography/|false"
-    "0|var|/var|true"
-    "1|log|log/|true"
-    "2|syslog|syslog|false"
-    "2|messages|messages|false"
-)
+set -- "0|usr|/usr|true" \
+       "1|bin|bin/|true" \
+       "2|bash|bash|false" \
+       "2|grep|grep|false" \
+       "2|sed|sed|false" \
+       "1|local|local/|true" \
+       "2|share|share/|true" \
+       "3|doc|doc/|true" \
+       "4|man|manual.txt|false" \
+       "1|lib|lib/|true" \
+       "2|python|python3/|true" \
+       "3|site-packages|site-packages/|true" \
+       "4|requests|requests/|false" \
+       "4|cryptography|cryptography/|false" \
+       "0|var|/var|true" \
+       "1|log|log/|true" \
+       "2|syslog|syslog|false" \
+       "2|messages|messages|false"
 
 # This will return only the ID (e.g., "requests") of the chosen node
-TREE_RES=$(ENABLE_FILTER=true tree "Choose a file from the tree" "Select a file or directory:" 2 "${TREE_DATA[@]}")
+TREE_RES=$(ENABLE_FILTER=true tree "Choose a file from the tree" "Select a file or directory:" 2 "$@")
 msgbox "You chose" "$TREE_RES"
 
 
 # 15. Configtree (Complex System Configuration)
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 15 of 23 - configtree"
-CONFIG_DATA=(
-    "0|system|System Settings|true"
-    "1|network|[x] Networking|true"
-    "2|interface|Interface Type|true"
-    "3|eth|(*) Ethernet|false"
-    "3|wlan|( ) Wireless|false"
-    "2|dhcp|[x] Use DHCP|false"
-    "1|security|[ ] Security Suite|true"
-    "2|firewall|[x] Enable Firewall|true"
-    "3|logging|[ ] Log dropped packets|false"
-    "3|stealth|[x] Stealth Mode|false"
-    "2|selinux|SELinux State|true"
-    "3|enforce|(*) Enforcing|false"
-    "3|permiss|( ) Permissive|false"
-    "0|apps|Applications|true"
-    "1|web|[x] Web Server|true"
-    "2|type|Server Engine|true"
-    "3|nginx|(*) Nginx|false"
-    "3|apache|( ) Apache|false"
-    "2|ssl|[x] Enable SSL/TLS|false"
-)
+set -- "0|system|System Settings|true" \
+       "1|network|[x] Networking|true" \
+       "2|interface|Interface Type|true" \
+       "3|eth|(*) Ethernet|false" \
+       "3|wlan|( ) Wireless|false" \
+       "2|dhcp|[x] Use DHCP|false" \
+       "1|security|[ ] Security Suite|true" \
+       "2|firewall|[x] Enable Firewall|true" \
+       "3|logging|[ ] Log dropped packets|false" \
+       "3|stealth|[x] Stealth Mode|false" \
+       "2|selinux|SELinux State|true" \
+       "3|enforce|(*) Enforcing|false" \
+       "3|permiss|( ) Permissive|false" \
+       "0|apps|Applications|true" \
+       "1|web|[x] Web Server|true" \
+       "2|type|Server Engine|true" \
+       "3|nginx|(*) Nginx|false" \
+       "3|apache|( ) Apache|false" \
+       "2|ssl|[x] Enable SSL/TLS|false"
 
 # This will return a list of variables like: 
 # system_network_interface_eth=true
 # system_network_dhcp=true
 # (Note: if 'security' is unchecked, its children won't be in the output)
-CONFIG_OUT=$(ENABLE_FILTER=true configtree "Configuration tree" "Choose your desired settings" 7 "${CONFIG_DATA[@]}")
+CONFIG_OUT=$(ENABLE_FILTER=true configtree "Configuration tree" "Choose your desired settings" 7 "$@")
 msgbox "You chose" "$CONFIG_OUT"
 
 
@@ -304,7 +315,7 @@ FORM_OUT=$(form "" "" \
     "> User:user=$(whoami)" \
     ">* Password:password" \
     "Country:" \
-    "{ } United Kingdom:uk,=USA:usa,South Africa:southafrica" \
+    "{ } France:france,Ireland:ireland,Thailand:thailand,Denmark:denmark,United Kingdom:uk,=USA:usa,South Africa:southafrica" \
     "Enabled connections:" \
     "[ ] Ethernet:eth0" \
     "[x] Wifi:wlan0" \
@@ -338,7 +349,7 @@ Deployment: $deployment
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 17 of 23 - filepicker"
 FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)
-[[ -n "$FILE_PICK" ]] && msgbox "You chose" "$FILE_PICK"
+[ -n "$FILE_PICK" ] && msgbox "You chose" "$FILE_PICK"
 
 
 # 18. Table-based System Launcher
@@ -370,7 +381,7 @@ EOF
 
 LAUNCH_CMD=$(table "Table" "Pick an item" "table_demo.csv" 3)
 rm table_demo.csv
-[[ -n "$LAUNCH_CMD" ]] && msgbox "" "You chose: $LAUNCH_CMD"
+[ -n "$LAUNCH_CMD" ] && msgbox "" "You chose: $LAUNCH_CMD"
 
 
 
@@ -403,7 +414,7 @@ EOF
 
 RESULT_CMD=$(filtertable "Filterable table" "Type to search, pick an item." "filter_demo.csv" 3)
 rm filter_demo.csv
-[[ -n "$RESULT_CMD" ]] && msgbox "Selection Result" "The table returned: $RESULT_CMD"
+[ -n "$RESULT_CMD" ] && msgbox "Selection Result" "The table returned: $RESULT_CMD"
 
 
 
@@ -419,9 +430,9 @@ filemanager "Advanced file manager" "." 3
 
 # 5. Capture and display the result after exiting
 RESULT=$?
-if [[ $RESULT -eq 0 && -n "$TUI_RESULT" ]]; then
+if [ $RESULT -eq 0 ] && [ -n "$TUI_RESULT" ]; then
     msgbox "You chose:" "$TUI_RESULT"
-elif [[ $RESULT -eq 1 ]]; then
+elif [ $RESULT -eq 1 ]; then
     msgbox "You quit the File Manager (Pressed 'q')."
 fi
 
@@ -447,7 +458,7 @@ EOF
 FINAL_DATA=$(spreadsheet "Spreadsheet editor" "budget.csv")
 
 # Capture the exit status
-if [[ $? -eq 0 ]]; then
+if [ $? -eq 0 ]; then
     # We show the first few lines of the returned CSV data
     # to prove the data was captured from STDOUT
     SUMMARY=$(echo "$FINAL_DATA" | head -n 8)
@@ -500,14 +511,14 @@ CONF_FILE="app.conf"
 # a helper function to write key=value pairs to a config, which removes duplicates
 update_config() {
     local input="$1"
-    [[ -z "$input" ]] && return
+    [ -z "$input" ] && return
 
     # Ensure the config file exists so grep doesn't error
     touch "$CONF_FILE"
 
     # Use a while loop to handle multiline input (key=val per line)
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
+    echo "$input" | while IFS= read -r line; do
+        [ -z "$line" ] && continue
         
         # Extract the key (everything before the first =)
         local key="${line%%=*}"
@@ -522,7 +533,7 @@ update_config() {
         # 3. Move it back immediately so the next iteration sees the update
         mv "${CONF_FILE}.tmp" "$CONF_FILE"
         
-    done <<< "$input"
+    done
 }
 
 # Initialize empty config if it doesn't exist
@@ -532,7 +543,7 @@ update_config() {
 {
     echo "Title,Genre,Year,Command"
     echo "The Matrix,Action,1999,echo 'Playing Matrix...'"
-    for i in {1..5}; do echo "Movie $i,Genre $i,202$i,echo 'Playing Movie $i...'"; done
+    for i in $(seq 1 5); do echo "Movie $i,Genre $i,202$i,echo 'Playing Movie $i...'"; done
 } > movies.csv
 
 # --- 2. Music CSV ---
@@ -564,7 +575,7 @@ Settings:settings:./settings.csv"
 # Note: Ensure your mainmenu logic handles the '&&' chain in the command string
 TUI_PERSISTENT_FILTERS=true mainmenu "Media center" "" "$KODI_MENU" 3
 
-if [[ $RESULT -eq 0 && -n "$TUI_RESULT" ]]; then
+if [ $RESULT -eq 0 ] && [ -n "$TUI_RESULT" ]; then
     msgbox "TUI_RESULT (last command you ran)" "$TUI_RESULT"
     msgbox "Your CONF_FILE:" "$(cat $CONF_FILE)"
 fi
