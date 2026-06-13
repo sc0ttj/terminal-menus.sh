@@ -70,6 +70,9 @@ _read_str_timeout() {
 
 # --- GLOBAL LAYOUT INITIALISATION ---
 # This runs once when the script starts
+: ${MAX_WIDTH:=80}
+: ${MAX_HEIGHT:=24}
+
 _TERM_W=$(tput cols)
 _TERM_H=$(tput lines)
 
@@ -386,9 +389,12 @@ _draw_line() {
     local target_row=$(( row + PADDING_TOP ))
     local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
     
-    # Combined: Move + Background Color + Text + Newline Logic
-    # This removes the separate call to _draw_at
-    printf "\e[%d;%dH${BG_MAIN_ESC}%b" "$target_row" "$target_col" "$1" >&2
+    if [ -n "$1" ]; then
+        # Clear full width first, then draw content (prevents stale text)
+        printf "\e[%d;%dH${BG_MAIN_ESC}%*s\e[%d;%dH${BG_MAIN_ESC}%b" \
+            "$target_row" "$target_col" "$MAX_WIDTH" "" \
+            "$target_row" "$target_col" "$1" >&2
+    fi
     row=$((row+1))
 }
 
@@ -509,11 +515,11 @@ _draw_form_field() {
         
         local box_w=$(( width - 6 ))
         
-        if _match "$label" ">\*"; then
+        case "$label" in ">*"*)
             display_val=$(printf '%*s' "${#value}" '' | tr ' ' '*')
             suffix=" 🔑 "
             box_w=$(( box_w - 4 ))
-        fi
+        ;; esac
 
         style=$([ "$is_active" -eq 1 ] && echo "${BG_INPUT_ESC}${FG_BLUE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
         
@@ -523,11 +529,11 @@ _draw_form_field() {
         _draw_spacer
 
     # --- 2. STANDALONE CHECKBOX OR RADIO ---
-    elif _match "$label" "[ ]*" || _match "$label" "(*"; then
+    elif _match "$label" "\[ \]*" || _match "$label" "(*"; then
         local marker="" indent="  "
         style=$([ "$is_active" -eq 1 ] && echo "${HL_WHITE_BOLD}" || echo "${BG_MAIN_ESC}${FG_TEXT_ESC}")
         
-        if _match "$label" "[ ]*"; then
+        if _match "$label" "\[ \]*"; then
             content="${label#\[ \] }"
             marker=$([ "$value" = "1" ] && echo "[x] " || echo "[ ] ")
         else
@@ -540,7 +546,7 @@ _draw_form_field() {
         
         local next_idx=$((i + 1))
         local _next_f=""; eval "_next_f=\"\$fields_$next_idx\""
-        if _match "$label" "[ ]*" && [ "$_next_f" != "[ ]"* ]; then
+        if _match "$label" "\[ \]*" && ! _match "$_next_f" "\[ \]*"; then
             _draw_spacer
         fi
 
@@ -1108,7 +1114,7 @@ form() {
         # --- INPUT & PASSWORD ---
         elif _match "$line" ">*"; then
             local prefix="> "
-            _match "$line" ">\*" && prefix=">* "
+            case "$line" in ">* "*) prefix=">* " ;; esac
 
             local content="${line#$prefix}"
             local label_var="${content%%=*}"
@@ -1130,7 +1136,7 @@ form() {
             local var="${content#*:}"
 
             eval "fields_$i='[ ] ${lbl}'"
-            _match "$line" "*[x]*" && eval "values_$i=1" || eval "values_$i=0"
+            _match "$line" "*\[x\]*" && eval "values_$i=1" || eval "values_$i=0"
             eval "field_meta_$i='check|$var'"
 
         # --- RADIO ---
@@ -1140,17 +1146,16 @@ form() {
             local var="${content#*:}"
 
             eval "fields_$i='( ) ${lbl}'"
-            _match "$line" "*(*)*" && eval "values_$i=1" || eval "values_$i=0"
+            _match "$line" "*\([*]\)*" && eval "values_$i=1" || eval "values_$i=0"
             eval "field_meta_$i='radio|$var'"
 
         # --- DROPDOWN ---
         elif _match "$line" "{ *"; then
             local content="${line#\{ \} }"
-            local default_idx=0 idx=0 joined="" opt
+            local default_idx=0 idx=0 joined=""
             local old_ifs="$IFS"; IFS=','
-            set -- $content
-            for opt do
-                local cleaned="$opt"
+            for _opt in $content; do
+                local cleaned="$_opt"
                 if _match "$cleaned" "=*"; then
                     default_idx=$idx
                     cleaned="${cleaned#=}"
@@ -1180,6 +1185,9 @@ form() {
     local COL_START=0
 
     local _dd_was_open=0
+    local _dd_field=0
+    local _dd_count=0
+    local _dd_open_row=0
 
     while true; do
         _draw_header "$title" "$msg"
@@ -1241,20 +1249,21 @@ form() {
                     j=$((j+1))
                 done
                 row=$((drow > row ? drow : row))
+                _dd_field=$cur
+                _dd_count=$f_idx
+                eval "_dd_open_row=\$((field_rows_$cur + 1))"
+                _dd_was_open=1
             elif [ "$_dd_was_open" -eq 1 ]; then
-                local old_ifs="$IFS"; IFS=','; set -- $opts; IFS="$old_ifs"
-                local clear_count=$#
-                eval "r=\$((field_rows_$cur + 1))"
-                local last_clear=$((r + clear_count))
-                oi=0; while [ "$oi" -lt "$clear_count" ]; do
-                    local cr=$((r + oi))
+                oi=0; while [ "$oi" -lt "$_dd_count" ]; do
+                    local cr=$((_dd_open_row + oi))
                     [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
                     oi=$((oi+1))
                 done
                 local saved_row=$row
-                i=$((cur+1)); while [ "$i" -lt "$count" ]; do
+                local last_clear=$((_dd_open_row + _dd_count))
+                i=$((_dd_field+1)); while [ "$i" -lt "$count" ]; do
                     eval "fr=\$field_rows_$i"
-                    if [ "$fr" -ge "$r" ] && [ "$fr" -lt "$last_clear" ]; then
+                    if [ "$fr" -ge "$_dd_open_row" ] && [ "$fr" -lt "$last_clear" ]; then
                         row=$fr
                         eval "fv=\"\$fields_$i\""
                         eval "vv=\"\$values_$i\""
@@ -1263,12 +1272,17 @@ form() {
                     i=$((i+1))
                 done
                 row=$saved_row
-            fi
-            if [ "$state" = "OPEN" ]; then
-                _dd_was_open=1
+                _dd_was_open=0
             else
                 _dd_was_open=0
             fi
+        elif [ "$_dd_was_open" -eq 1 ]; then
+            oi=0; while [ "$oi" -lt "$_dd_count" ]; do
+                local cr=$((_dd_open_row + oi))
+                [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                oi=$((oi+1))
+            done
+            _dd_was_open=0
         fi
 
         row=$(( MAX_HEIGHT - 1 ))
@@ -1397,6 +1411,29 @@ form() {
                     eval "v=\"\$values_$cur\""; eval "values_$cur=\"\${v%?}\""
                 fi ;;
             "")
+                eval "cf_enter=\"\$fields_$cur\""
+                if _match "$cf_enter" "{*"; then
+                    eval "cv_enter=\"\$values_$cur\""
+                    _r="$cv_enter"
+                    _st="${_r%%|*}"; _r="${_r#*|}"
+                    if [ "$_st" = "OPEN" ]; then
+                        _si="${_r%%|*}"; _r="${_r#*|}"
+                        _r="${_r#*|}"
+                        _opts="$_r"
+                        local _old_ifs="$IFS"; IFS=','; set -- $_opts; IFS="$_old_ifs"
+                        _pi=""; _ix=0
+                        for _o do
+                            [ "$_ix" -eq "$_si" ] && _pi="$_o" && break
+                            _ix=$((_ix+1))
+                        done
+                        _ix=0
+                        for _o do
+                            [ "$_o" = "$_pi" ] && { eval "values_$cur='CLOSED|$_ix||$_opts'"; break; }
+                            _ix=$((_ix+1))
+                        done
+                        continue
+                    fi
+                fi
                 local res=""
                 local last_label=""
 
@@ -1406,7 +1443,6 @@ form() {
                     varname="${meta#*|}"
                     eval "val=\"\$values_$i\""
                     eval "field_raw=\"\$fields_$i\""
-
                     case "$type" in
                         "text")
                             local clean=$(echo "${field_raw%%:*}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
