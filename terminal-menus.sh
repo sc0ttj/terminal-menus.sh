@@ -34,13 +34,33 @@ CLR_EOL="\e[K"   # Clear line from cursor to right edge
 CLR_DOWN="\e[J"  # Clear screen from cursor to bottom
 FAINT="${ESC}[2m"
 
-_esc() { echo -ne "\e[${1};2;${2}m"; }
+_esc() { printf "\e[%s;2;%sm" "$1" "$2"; }
 
 # --- POSIX helper functions (for ash/busybox compat) ---
 
 _match() { case $1 in $2) return 0;; esac; return 1; }
 
 _is_numeric() { case $1 in ''|*[!0-9]*) return 1;; esac; return 0; }
+
+# --- Shell compatibility guard ---
+# Verify this shell supports features terminal-menus.sh relies on.
+# Minimal Busybox builds may lack [[ ]], read -n, or $'...'.
+if ! [[ "" == "" ]] 2>/dev/null; then
+    echo "terminal-menus.sh: this shell lacks [[ ]] support. Use bash or a Busybox build with ASH_BASH_COMPAT enabled." >&2
+    exit 1
+fi
+if ! read -n1 _ 2>/dev/null <<'EOF'
+a
+EOF
+then
+    echo "terminal-menus.sh: this shell lacks read -n support. Use bash or a Busybox build with ASH_BASH_COMPAT enabled." >&2
+    exit 1
+fi
+a=$'\x41' 2>/dev/null
+if [ "$a" != "A" ]; then
+    echo "terminal-menus.sh: this shell lacks ANSI-C quoting (\$'...') support. Use bash or a Busybox build with ASH_BASH_COMPAT enabled." >&2
+    exit 1
+fi
 
 _arr_count() { echo "$1" | awk -v RS="\n" 'END{print NR}'; }
 
@@ -53,7 +73,7 @@ _read_key() {
 }
 
 _read_str_timeout() {
-    local _rk_ifs="$IFS"; IFS=; read -t 0.1 -r -n "$@" < /dev/tty 2>/dev/null; local _rk_rc=$?; IFS="$_rk_ifs"; return $_rk_rc
+    local _rk_ifs="$IFS"; IFS=; read -t 1 -r -n "$@" < /dev/tty 2>/dev/null; local _rk_rc=$?; IFS="$_rk_ifs"; return $_rk_rc
 }
 
 # --- UI Labels ---

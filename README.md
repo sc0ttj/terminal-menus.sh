@@ -600,17 +600,30 @@ update_config "theme='dark'"
 
 ## 🧪 Testing
 
-Tests live in `test/`. Two types available:
+Tests live in `test/`. Three types available:
 
-### 1. Pty-based functional test (no X required)
+### 1. Shell compatibility tests (no X required)
+
+```bash
+./test/test_shell_compat.sh
+```
+
+Checks syntax (`ash -n`, `bash -n`) on both scripts and runs the pty form test under each shell via `SHELL=ash` / `SHELL=bash` — 6 assertions total.
+
+### 2. Pty-based functional test (no X required)
 
 ```bash
 python3 test/test_form_pty.sh
 ```
 
-Validates form widget output — 7 assertions on checkbox states, radio selection, dropdown default, and password field.
+Validates form widget output — 7 assertions on checkbox states, radio selection, dropdown default, and password field. To run under a specific shell:
 
-### 2. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
+```bash
+SHELL=ash  python3 test/test_form_pty.sh
+SHELL=bash python3 test/test_form_pty.sh
+```
+
+### 3. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
 
 All commands run from the project root:
 
@@ -632,7 +645,8 @@ Screenshots are written to `/tmp/tui_tests/<timestamp>/`.
 | Path | Purpose |
 |------|---------|
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
-| `test/test_form_pty.sh` | Python pty-based form output test |
+| `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
+| `test/test_form_pty.sh` | Python pty-based form output test (supports `SHELL=ash` / `SHELL=bash`) |
 | `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
 | `test/wrappers/` | Wrapper scripts run inside xterm (source the library, invoke widgets) |
 | `test/drivers/` | Keystroke command scripts sourced by the harness |

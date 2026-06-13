@@ -11,9 +11,14 @@ if not os.path.exists(SCRIPT):
     sys.exit(1)
 
 def run_test():
+    shell = os.environ.get("SHELL")
+    if shell:
+        args = [shell, SCRIPT]
+    else:
+        args = [SCRIPT]
     pid, fd = pty.fork()
     if pid == 0:
-        os.execvp(SCRIPT, [SCRIPT])
+        os.execvp(args[0], args)
         sys.exit(1)
     
     output = b""
