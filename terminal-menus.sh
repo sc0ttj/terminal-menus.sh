@@ -519,9 +519,10 @@ _draw_item() {
 
 _draw_form_field() {
     local label=$1 value=$2 is_active=$3 i=$4 width=$5 col_start=$6
-    
+    local _cp="${7:-}" _cs="${8:-}"
+
     local COL_START=$col_start
-    
+
     _draw_at "$row"
     local style="" content=""
 
@@ -530,23 +531,45 @@ _draw_form_field() {
         local box_w=$(( width - 10 ))
         local clean_lbl="${label#\>* }"; [ "$clean_lbl" = "$label" ] && clean_lbl="${label#> }"; clean_lbl="${clean_lbl#* }"
         local prompt=" > "
-        
-        style=$([ "$is_active" -eq 1 ] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
-        _draw_line "  ${style}${clean_lbl}:${RESET}${BG_MAIN_ESC}"
 
-        local display_val="$value"
         local suffix=""
-        
         local box_w=$(( width - 6 ))
-        
+
+        # Check if password field (starts with ">*")
+        local _is_pw=0
         case "$label" in ">*"*)
-            display_val=$(printf '%*s' "${#value}" '' | tr ' ' '*')
+            _is_pw=1
             suffix=" 🔑 "
             box_w=$(( box_w - 4 ))
         ;; esac
 
+        local display_val="$value"
+        if [ "$is_active" -eq 1 ]; then
+            if [ "$_is_pw" -eq 1 ]; then
+                local _mp="${_cp//?/*}" _ms="${_cs//?/*}"
+                if [ -n "$_cs" ]; then
+                    local _cc="${_ms%"${_ms#?}"}" _cr="${_ms#?}"
+                    display_val="${_mp}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+                else
+                    display_val="${_mp}"$'\x1b[7m \x1b[27m'
+                fi
+            else
+                if [ -n "$_cs" ]; then
+                    local _cc="${_cs%"${_cs#?}"}" _cr="${_cs#?}"
+                    display_val="${_cp}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+                else
+                    display_val="${_cp}"$'\x1b[7m \x1b[27m'
+                fi
+            fi
+        elif [ "$_is_pw" -eq 1 ]; then
+            display_val=$(printf '%*s' "${#value}" '' | tr ' ' '*')
+        fi
+
+        style=$([ "$is_active" -eq 1 ] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
+        _draw_line "  ${style}${clean_lbl}:${RESET}${BG_MAIN_ESC}"
+
         style=$([ "$is_active" -eq 1 ] && echo "${BG_INPUT_ESC}${FG_BLUE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
-        
+
         _draw_at "$row"
         printf "  ${style}${prompt}%-${box_w}s${suffix}${RESET}${BG_MAIN_ESC}" "$display_val" >&2
         row=$((row+1))
@@ -847,13 +870,12 @@ inputbox() {
         _hide_cursor
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
-        _show_cursor
 
         _read_key char
 
         if [ "$char" = "$_escape" ]; then
-            local next_chars=""
-            _read_str_timeout 3 next_chars
+            local _del_c="" next_chars=""
+            _read_str_timeout 2 next_chars
 
             case "$next_chars" in
                 "[D"|"OD") [ -n "$cursor_prefix" ] && {
@@ -866,6 +888,9 @@ inputbox() {
                     cursor_suffix="${cursor_suffix#?}"
                     cursor_prefix="${cursor_prefix}${_c}"
                 } ;;
+                "[3") _read_str_timeout 1 _del_c
+                    [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
+                    ;;
                 "") _hide_cursor; TUI_RESULT=''; return 1 ;;
                 *)
                     read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
@@ -931,13 +956,12 @@ passwordbox() {
         _hide_cursor
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
-        _show_cursor
 
         _read_key char
 
         if [ "$char" = "$_escape" ]; then
-            local next_chars=""
-            _read_str_timeout 3 next_chars
+            local _del_c="" next_chars=""
+            _read_str_timeout 2 next_chars
 
             case "$next_chars" in
                 "[D"|"OD") [ -n "$cursor_prefix" ] && {
@@ -950,6 +974,9 @@ passwordbox() {
                     cursor_suffix="${cursor_suffix#?}"
                     cursor_prefix="${cursor_prefix}${_c}"
                 } ;;
+                "[3") _read_str_timeout 1 _del_c
+                    [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
+                    ;;
                 "") _hide_cursor; TUI_RESULT=''; return 1 ;;
                 *)
                     read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
@@ -1246,6 +1273,7 @@ form() {
     eval "cf=\"\$fields_0\""
     if _match "$cf" ">*"; then
         eval "_cursor_prefix=\"\$values_0\""
+        eval "_cursor_suffix=\"\$cur_sfx_0\""
     fi
 
     _init_tui
@@ -1280,7 +1308,7 @@ form() {
                  printf "  ${FG_HINT_ESC}%s${RESET}${BG_MAIN_ESC}" "$dashes" >&2
                  row=$((row+2))
             else
-                 _draw_form_field "$f" "$v" "$active" "$i" "$form_width" "$COL_START"
+                 _draw_form_field "$f" "$v" "$active" "$i" "$form_width" "$COL_START" "$_cursor_prefix" "$_cursor_suffix"
             fi
             i=$((i+1))
         done
@@ -1408,6 +1436,8 @@ form() {
                 elif [ "$key" = "[A" ] || [ "$key" = "OA" ]; then
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
+                        eval "cur_pfx_$cur=\"$_cursor_prefix\""
+                        eval "cur_sfx_$cur=\"$_cursor_suffix\""
                         eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                     fi
                     while [ "$cur" -gt 0 ]; do
@@ -1417,12 +1447,14 @@ form() {
                     done
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
-                        eval "_cursor_prefix=\"\$values_$cur\""
-                        _cursor_suffix=""
+                        eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                        eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
                 elif [ "$key" = "[B" ] || [ "$key" = "OB" ]; then
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
+                        eval "cur_pfx_$cur=\"$_cursor_prefix\""
+                        eval "cur_sfx_$cur=\"$_cursor_suffix\""
                         eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                     fi
                     while [ "$cur" -lt "$((count-1))" ]; do
@@ -1432,8 +1464,8 @@ form() {
                     done
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
-                        eval "_cursor_prefix=\"\$values_$cur\""
-                        _cursor_suffix=""
+                        eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                        eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
                 else
                     read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
@@ -1450,6 +1482,8 @@ form() {
             "$_tab")
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" ">*"; then
+                    eval "cur_pfx_$cur=\"$_cursor_prefix\""
+                    eval "cur_sfx_$cur=\"$_cursor_suffix\""
                     eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                 fi
                 while true; do
@@ -1460,8 +1494,8 @@ form() {
                 done
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" ">*"; then
-                    eval "_cursor_prefix=\"\$values_$cur\""
-                    _cursor_suffix=""
+                    eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                    eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                 fi ;;
             " ")
                 eval "v_cur=\"\$values_$cur\""
