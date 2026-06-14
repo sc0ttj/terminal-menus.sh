@@ -8,13 +8,15 @@ See the demos :)
 
 ## Screenshots
 
+Screenshots of each widget are included throughout this document, alongside their descriptions.
+
 The **`filemanager`** in fullscreen mode:
 
-![mainmenu](screenshots/file_manager.png)
+![filemanager](screenshots/file_manager.png)
 
 The **`mainmenu`** in fullscreen mode:
 
-![file_manager](screenshots/mainmenu.png)
+![mainmenu](screenshots/mainmenu.png)
 
 ---
 
@@ -41,6 +43,9 @@ source ./terminal-menus.sh
 ## 🛠 Basic Usage
 
 ### 1. Message Box (`msgbox`)
+
+![msgbox](screenshots/msgbox.png)
+
 Displays a standard modal with an OK button.
 
 **Environment Variables:**
@@ -57,6 +62,9 @@ msgbox "Welcome" "This is a standard message box.\nEnjoy!"
 ```
 
 ### 2. Info Box (`infobox`)
+
+![infobox](screenshots/infobox.png)
+
 A non-blocking message window without buttons. Ideal for background tasks.
 
 **Environment Variables:**
@@ -69,6 +77,9 @@ sleep 2
 ```
 
 ### 3. Yes/No Menu (`yesno`)
+
+![yesno](screenshots/yesno.png)
+
 Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No).
 
 **Environment Variables:**
@@ -89,6 +100,9 @@ fi
 ```
 
 ### 4. Input Box (`inputbox`)
+
+![inputbox](screenshots/inputbox.png)
+
 Captures a single line of text from the user.
 
 **Environment Variables:**
@@ -107,6 +121,9 @@ USER_NAME=$(inputbox "Identity" "Enter your username:" "foo")
 ```
 
 ### 5. Password Box (`passwordbox`)
+
+![passwordbox](screenshots/passwordbox.png)
+
 Masked input for sensitive tokens or passwords.
 
 **Environment Variables:**
@@ -123,6 +140,9 @@ PASS=$(passwordbox "Security" "Enter a secret token:" "ppp")
 ```
 
 ### 6. Menu (`menu`)
+
+![menu](screenshots/menu.png)
+
 A standard single-choice selection list. Also see `filtermenu`.
 
 **Environment Variables:**
@@ -138,6 +158,9 @@ CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
 ```
 
 ### 7. Checklist (`checklist`)
+
+![checklist](screenshots/checklist.png)
+
 Multiple-choice selection list. Returns each selected item on a new line.
 
 **Environment Variables:**
@@ -154,6 +177,9 @@ CHKS=$(checklist "Checklist" "Select multiple options:" 2 "Option 1" "Option 2" 
 ```
 
 ### 8. Radiolist (`radiolist`)
+
+![radiolist](screenshots/radiolist.png)
+
 Mutually exclusive selection list.
 
 **Environment Variables:**
@@ -170,6 +196,9 @@ RADIO=$(radiolist "Radiolist" "Choose exactly one:" 2 "Low" "Medium" "High")
 ```
 
 ### 9. Filtermenu (`filtermenu`)
+
+![filtermenu](screenshots/filtermenu.png)
+
 A searchable, real-time filtered list for large datasets.
 
 **Environment Variables:**
@@ -187,6 +216,9 @@ SEARCH=$(filtermenu "Search" "Type to filter:" 1 "$COUNTRIES")
 ```
 
 ### 10. Gauge (`gauge`)
+
+![gauge](screenshots/gauge.png)
+
 Visual progress bar tracking piped input (0-100).
 
 **Environment Variables:**
@@ -198,6 +230,9 @@ Visual progress bar tracking piped input (0-100).
 ```
 
 ### 11. Textbox (`textbox`)
+
+![textbox](screenshots/textbox.png)
+
 A read-only scrollable file viewer.
 
 **Environment Variables:**
@@ -213,6 +248,9 @@ textbox "Source view" "File: terminal-menus.sh" "./terminal-menus.sh"
 ```
 
 ### 12. Tailbox (`tailbox`)
+
+![tailbox](screenshots/tailbox.png)
+
 Live-monitoring of a file (similar to `tail -f`).
 
 **Environment Variables:**
@@ -227,6 +265,9 @@ tailbox "Log Monitor" "File: server.log" "server.log"
 ```
 
 ### 13. Tree (`tree`)
+
+![tree](screenshots/tree.png)
+
 Deep hierarchical navigation. Returns the full path from root of the selected node. Optional search/filter input.
 
 **Environment Variables:**
@@ -248,6 +289,9 @@ TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" 1 "${TREE_DATA[@]}")
 ```
 
 ### 14. Configtree (`configtree`)
+
+![configtree](screenshots/configtree.png)
+
 Hierarchical configuration toggle. Returns a list of variable assignments. Optional search/filter input. Children of unchecked parents are automatically excluded.
 
 **Environment Variables:**
@@ -267,6 +311,9 @@ CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" 1 "${CO
 ```
 
 ### 15. Form (`form`)
+
+![form](screenshots/form.png)
+
 Advanced form builder. Returns shell-evaluable assignments.
 
 **Field Types:**
@@ -306,6 +353,9 @@ eval "$FORM_OUT"
 ```
 
 ### 16. File Picker (`filepicker`)
+
+![filepicker](screenshots/filepicker.png)
+
 A lightweight file and directory picker, supports picking single or multiple items. Also see `filemanager`.
 
 **Environment Variables:**
@@ -326,6 +376,9 @@ FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)
 ```
 
 ### 17. Table (`table`)
+
+![table](screenshots/table.png)
+
 Navigable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 
 **Environment Variables:**
@@ -341,6 +394,9 @@ RESULT_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
 ```
 
 ### 18. Filtertable (`filtertable`)
+
+![filtertable](screenshots/filtertable.png)
+
 Filterable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 
 **Environment Variables:**
@@ -359,6 +415,9 @@ RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "servi
 ```
 
 ### 19. File Manager (`filemanager`)
+
+![filemanager](screenshots/file_manager.png)
+
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, and more.
 
 **Controls:**
@@ -391,6 +450,9 @@ filemanager "Home" "$HOME"
 You can highlight multiple items using **Tab**, and hit **`:`** to launch a command prompt (**`!`** for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
 ### 20. Spreadsheet (`spreadsheet`)
+
+![spreadsheet](screenshots/spreadsheet.png)
+
 An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCAT|IF), horizontal/vertical scrolling, and undo/redo.
 
 **Environment Variables:**
@@ -409,6 +471,9 @@ FINAL_DATA=$(spreadsheet "budget.csv")
 ```
 
 ### 21. Project Manager (`kanban`)
+
+![kanban](screenshots/kanban.png)
+
 A multi-column kanban board, with a searchable table view.
 
 **Environment Variables:**
@@ -433,6 +498,9 @@ kanban "Awesome Project" "Manage notes & tickets" ./some-folder
 ```
 
 ### 22. Main Menu (`mainmenu`)
+
+![mainmenu](screenshots/mainmenu.png)
+
 A sidebar menu on the left, where each menu item loads a navigable table, which can launch commands and other widgets.
 
 **Environment Variables:**
