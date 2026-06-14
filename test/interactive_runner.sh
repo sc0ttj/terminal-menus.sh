@@ -1,18 +1,19 @@
 #!/bin/sh
-# test/interactive_runner.sh - Run TUI scripts in xterm under Xvfb with xdotool control
+# test/interactive_runner.sh - Run TUI scripts in mlterm under Xvfb with xdotool control
 # Usage:
 #   ./test/interactive_runner.sh <script-to-test> [driver-script]
 #   ./test/interactive_runner.sh <script-to-test> < <key-commands>
 #   cat driver | ./test/interactive_runner.sh <script-to-test>
-# Note: mlterm is preferred but xterm is more reliable under Xvfb.
-# Set TERM=xterm to override default.
+# Terminal (default mlterm), geometry (default 80x24), and display are configurable:
+#   TERMINAL=xterm TERM_GEOMETRY=100x30 DISPLAY_NUM=99 ./interactive_runner.sh ...
 
 DISPLAY_NUM="${DISPLAY_NUM:-99}"
 export DISPLAY=":${DISPLAY_NUM}"
 SCREENSHOT_DIR="/tmp/tui_tests/$(date +%s)"
 SCRIPT="$1"
 DRIVER="${2:-}"
-TERMINAL="${TERMINAL:-xterm}"
+TERMINAL="${TERMINAL:-mlterm}"
+TERM_GEOMETRY="${TERM_GEOMETRY:-80x24}"
 
 [ -z "$SCRIPT" ] && {
     echo "Usage: $0 <script-to-test> [driver-script]"
@@ -29,7 +30,7 @@ echo "Screenshots: $SCREENSHOT_DIR"
 # ---- Helper functions for driver scripts ----
 
 _focus_win() {
-    [ -z "$_XDO_WIN" ] && _XDO_WIN=$(xdotool search --class "$TERMINAL" 2>/dev/null | tail -1)
+    [ -z "$_XDO_WIN" ] && _XDO_WIN=$(xdotool search --pid "$TERM_PID" 2>/dev/null | tail -1)
     xdotool windowfocus "$_XDO_WIN" 2>/dev/null
 }
 
@@ -48,7 +49,9 @@ type_text() {
 screenshot() {
     local name="$1"
     local file="${SCREENSHOT_DIR}/${name}.png"
-    scrot "$file" 2>/dev/null
+    _focus_win
+    sleep 0.1
+    scrot -u "$file" 2>/dev/null
     echo "[SS] $file"
 }
 
@@ -78,8 +81,8 @@ sleep 1
 
 # ---- Start terminal ----
 
-echo "Starting $TERMINAL with: $SCRIPT"
-$TERMINAL -e "$SCRIPT" 2>/dev/null &
+echo "Starting $TERMINAL ($TERM_GEOMETRY) with: $SCRIPT"
+$TERMINAL -geometry "$TERM_GEOMETRY" -e "$SCRIPT" 2>/dev/null &
 TERM_PID=$!
 sleep 2
 
@@ -87,7 +90,7 @@ sleep 2
 
 WIN_ID=""
 for i in 1 2 3 4 5; do
-    WIN_ID=$(xdotool search --class "$TERMINAL" 2>/dev/null | head -1)
+    WIN_ID=$(xdotool search --pid "$TERM_PID" 2>/dev/null | tail -1)
     [ -n "$WIN_ID" ] && break
     sleep 1
 done

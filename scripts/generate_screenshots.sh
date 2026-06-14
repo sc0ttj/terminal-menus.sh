@@ -3,8 +3,6 @@
 # Usage: bash scripts/generate_screenshots.sh
 # Requires: Xvfb, xterm, xdotool, scrot, ash
 
-set -e
-
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$PROJECT_ROOT/screenshots"
 WRAPPER_DIR="$PROJECT_ROOT/test/wrappers"
@@ -15,13 +13,15 @@ mkdir -p "$SCREENSHOT_DIR" "$TMP_DIR"
 
 RESULTS=()
 
+# Kill any leftover Xvfb from previous aborted runs
+pkill -f "Xvfb.*:$DISPLAY_NUM" 2>/dev/null || true
+
 generate_one() {
     local name="$1"
     local wrapper="$2"
     local driver="$3"
-    local skip_if_exists="${4:-yes}"
 
-    if [ "$skip_if_exists" = "yes" ] && [ -f "$SCREENSHOT_DIR/${name}.png" ]; then
+    if [ -f "$SCREENSHOT_DIR/${name}.png" ]; then
         echo "SKIP $name (already exists)"
         RESULTS+=("SKIP  $name")
         return 0
@@ -34,11 +34,14 @@ generate_one() {
 
     local display_num=$((99 + RANDOM % 100))
 
+    # Kill any leftover Xvfb on this display from a previous crash
+    pkill -f "Xvfb.*:$display_num" 2>/dev/null || true
+
     local output
     output=$(DISPLAY_NUM=$display_num ash "$PROJECT_ROOT/test/interactive_runner.sh" "$wrapper" "$driver" 2>&1) || true
 
     local ss_path
-    ss_path=$(echo "$output" | grep '^\[SS\]' | head -1 | sed 's/^\[SS\] //')
+    ss_path=$(echo "$output" | grep '\[SS\]' | head -1 | sed 's/^.*\[SS\] //')
 
     if [ -n "$ss_path" ] && [ -f "$ss_path" ]; then
         cp "$ss_path" "$SCREENSHOT_DIR/${name}.png"
@@ -50,6 +53,9 @@ generate_one() {
         echo "$output" | tail -5
         RESULTS+=("FAIL   $name")
     fi
+
+    # Small gap between runs to ensure cleanup
+    sleep 1
 }
 
 # ---- Generate temporary wrappers for widgets needing special env or timing ----
