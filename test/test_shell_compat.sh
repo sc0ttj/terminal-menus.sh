@@ -31,13 +31,24 @@ done
 
 echo ""
 echo "--- Functional (pty) tests ---"
-# --- Functional pty tests ---
 # Run form pty test under each shell
 for shell in ash bash; do
     if SHELL="$shell" python3 test/test_form_pty.sh 2>&1; then
-        pass "functional: SHELL=$shell python3 test/test_form_pty.sh"
+        pass "functional: SHELL=$shell test/test_form_pty.sh"
     else
-        fail "functional: SHELL=$shell python3 test/test_form_pty.sh"
+        fail "functional: SHELL=$shell test/test_form_pty.sh"
+    fi
+done
+
+echo ""
+echo "--- Widget integration tests ---"
+# Run all widget test modules via unittest under each shell
+for shell in ash bash; do
+    echo "  Widget tests (pty shell=ash)..."
+    if python3 -m unittest discover -s test -p "test_widget_*.py" -v 2>&1; then
+        pass "widget tests: python3 -m unittest discover"
+    else
+        fail "widget tests: python3 -m unittest discover"
     fi
 done
 

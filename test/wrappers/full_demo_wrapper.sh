@@ -1,4 +1,5 @@
 #!/bin/sh
+cd "$(dirname "$0")/../.."
 # test/wrappers/full_demo_wrapper.sh - Wrapper for full demo test
 # Changes to project root then runs the demo
 

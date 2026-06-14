@@ -1868,10 +1868,10 @@ spreadsheet() {
                 ;;
 
             # --- VIM and WASD NAVIGATION (NAV Mode Only) ---
-            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
-            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
-            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
-            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && edit_val+="$key"; } ;;
+            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
+            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
+            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
+            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
 
             $'\e')
                 _read_str_timeout 2 key
@@ -1894,7 +1894,7 @@ spreadsheet() {
             *)
                 # CRITICAL: Only append to edit_val if we are actually in EDIT mode
                 # This prevents "v" or "x" from being added to the buffer in NAV mode
-                [[ "$mode" == "EDIT" ]] && edit_val+="$key" 
+                [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}" 
                 ;;
         esac
     done
@@ -3339,18 +3339,17 @@ EOF
 
         # 6. INPUT HANDLING
         _read_key key
-        [[ $key == $'\t' ]] && focus=$((1 - focus)) && continue
-        
-        if [[ $key == $'\e' ]]; then
-            _read_str_timeout 2 key 
-            case "$key" in
-                "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
-                "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
-                "[C"|"OC") focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0 ;;
-                "[D"|"OD") focus=0 ;;
-            esac
-            continue
-        fi
+        case "$key" in
+            $'\t') focus=$((1 - focus)); continue ;;
+            $'\e') _read_str_timeout 2 key
+                case "$key" in
+                    "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
+                    "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
+                    "[C"|"OC") focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0 ;;
+                    "[D"|"OD") focus=0 ;;
+                esac
+                continue ;;
+        esac
 
         case "$key" in
             "/") 
@@ -4271,7 +4270,8 @@ EOF
         _read_key key || { TUI_RESULT=''; break; }
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
-        if [[ "$key" == $'\e' ]]; then
+        case "$key" in
+            $'\e')
         local next_chars; _read_str_timeout 3 next_chars
             
             if [[ -z "$next_chars" ]]; then
@@ -4357,7 +4357,8 @@ EOF
                 esac
             fi
             continue
-        fi
+            ;;
+        esac
 
         # --- B. PROMPT MODE (Search/Cmd/Sudo/Rename/New) ---
         if [[ "$ui_mode" != "NAV" ]]; then
@@ -5038,7 +5039,8 @@ ${SB}q${SR}           Quit"
         # 5. Input Handling
         _read_key key
         
-        if [[ "$key" == $'\e' ]]; then
+        case "$key" in
+            $'\e')
             local next_chars=""
             _read_str_timeout 3 next_chars
             
@@ -5048,7 +5050,8 @@ ${SB}q${SR}           Quit"
                 "[A"|"OA") key="k" ;; "[B"|"OB") key="j" ;; "[C"|"OC") key="l" ;; "[D"|"OD") key="h" ;;
                 *) : ;;
             esac
-        fi
+            ;;
+        esac
 
         local target="" cur_file=""
         if [[ "$key" != "q" ]]; then
