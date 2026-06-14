@@ -42,15 +42,13 @@ done
 
 echo ""
 echo "--- Widget integration tests ---"
-# Run all widget test modules via unittest under each shell
-for shell in ash bash; do
-    echo "  Widget tests (pty shell=ash)..."
-    if python3 -m unittest discover -s test -p "test_widget_*.py" -v 2>&1; then
-        pass "widget tests: python3 -m unittest discover"
-    else
-        fail "widget tests: python3 -m unittest discover"
-    fi
-done
+# Run all widget test modules via unittest
+echo "  Widget tests..."
+if python3 -m unittest discover -s test -p "test_widget_*.py" -v 2>&1; then
+    pass "widget tests: python3 -m unittest discover"
+else
+    fail "widget tests: python3 -m unittest discover"
+fi
 
 echo ""
 echo "=== Results ==="

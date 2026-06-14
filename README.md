@@ -608,9 +608,26 @@ Tests live in `test/`. Three types available:
 ./test/test_shell_compat.sh
 ```
 
-Checks syntax (`ash -n`, `bash -n`) on both scripts and runs the pty form test under each shell via `SHELL=ash` / `SHELL=bash` — 6 assertions total.
+Checks syntax (`ash -n`, `bash -n`) on both scripts, runs the pty form test under each shell, and executes all widget integration tests — 6 assertions total.
 
-### 2. Pty-based functional test (no X required)
+### 2. Widget integration tests (no X required)
+
+Run all 80+ tests across 22 widget test modules:
+
+```bash
+python3 -m unittest discover -s test -p "test_widget_*.py" -v
+```
+
+Run a single widget test module:
+
+```bash
+python3 -m unittest test.test_widget_menu
+python3 -m unittest test.test_widget_form.TestForm.test_form_submit_defaults
+```
+
+Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`.
+
+### 3. Pty-based functional test (no X required)
 
 ```bash
 python3 test/test_form_pty.sh
@@ -623,7 +640,7 @@ SHELL=ash  python3 test/test_form_pty.sh
 SHELL=bash python3 test/test_form_pty.sh
 ```
 
-### 3. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
+### 4. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
 
 All commands run from the project root:
 
@@ -640,15 +657,22 @@ cd test && ash interactive_runner.sh wrappers/full_demo_wrapper.sh test_full_dem
 
 Screenshots are written to `/tmp/tui_tests/<timestamp>/`.
 
+### CI
+
+The project ships with a GitHub Actions workflow (`.github/workflows/test.yml`) that runs
+syntax checks, form pty test, and all 80+ widget integration tests on every push/PR.
+
 ### Test structure
 
 | Path | Purpose |
 |------|---------|
+| `test/lib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
+| `test/test_widget_*.py` | 22 Python test modules covering all widgets (80+ tests) |
+| `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
 | `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
 | `test/test_form_pty.sh` | Python pty-based form output test (supports `SHELL=ash` / `SHELL=bash`) |
 | `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
-| `test/wrappers/` | Wrapper scripts run inside xterm (source the library, invoke widgets) |
 | `test/drivers/` | Keystroke command scripts sourced by the harness |
 
 ---

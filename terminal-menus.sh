@@ -1056,6 +1056,9 @@ textbox() {
             [ "$top" -gt 0 ] && top=$((top-1))
         elif [ "$key" = "j" ]; then
             [ "$((top + height))" -lt "$count" ] && top=$((top+1))
+        elif [ "$key" = "q" ]; then
+            rm -f "$tmpf"
+            return 0
         elif [ -z "$key" ]; then
             rm -f "$tmpf"
             return 0
