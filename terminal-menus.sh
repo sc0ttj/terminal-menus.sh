@@ -1924,9 +1924,12 @@ filtermenu() {
     local all_options
     all_options=$(echo "$input_string" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//')
 
+    local cursor_prefix=""
+    local cursor_suffix=""
     local filter_query=""
     local last_query="INIT_STATE"
     local cur=$d
+    local _saved_cur=1
     local scroll_offset=0
     local start_row=$(_get_start_row)
 
@@ -1934,6 +1937,7 @@ filtermenu() {
     local box_width=$(( MAX_WIDTH - 6 ))
     while true; do
         row=$start_row
+        filter_query="${cursor_prefix}${cursor_suffix}"
 
         if [ "$filter_query" != "$last_query" ]; then
             local f_idx=0
@@ -1961,7 +1965,21 @@ filtermenu() {
         local style="${BG_WID_ESC}${FG_TEXT_ESC}"
         [ "$cur" -eq 0 ] && style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
 
-        printf "  Filter: ${style} > %-25s ${RESET}${BG_MAIN_ESC}%$((MAX_WIDTH - 39))s" "$filter_query" "" >&2
+        local _display="$filter_query"
+        local _vis_len=${#filter_query}
+        if [ "$cur" -eq 0 ]; then
+            if [ -n "$cursor_suffix" ]; then
+                local _cc="${cursor_suffix%"${cursor_suffix#?}"}"
+                local _cr="${cursor_suffix#?}"
+                _display="${cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+            else
+                _display="${cursor_prefix}"$'\x1b[7m \x1b[27m'
+                _vis_len=$(( _vis_len + 1 ))
+            fi
+        fi
+        local _pad=$(( 25 - _vis_len ))
+        [ "$_pad" -lt 0 ] && _pad=0
+        printf "  Filter: ${style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}%$((MAX_WIDTH - 39))s" "$_display" "" "" >&2
         _draw_line "" "$row"
         _draw_line ""
 
@@ -2001,7 +2019,7 @@ filtermenu() {
         _draw_at "$row"
         _draw_spacer
 
-        _draw_controls " ${SB}Arrows/j/k${SR} Move | ${SB}Enter${SR} Select"
+        _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Enter${SR} Select"
         _draw_spacer
 
         row=$((row + 1))
@@ -2014,13 +2032,26 @@ filtermenu() {
             _read_str_timeout 2 key
             case "$key" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
-                "[B"|"OB") [ "$cur" -lt "$count" ] && cur=$((cur+1)) ;;
+                "[B"|"OB") [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ] && cur=$((cur+1)) ;;
+                "[C"|"OC")
+                    [ "$cur" -eq 0 ] && [ -n "$cursor_suffix" ] && {
+                        _c="${cursor_suffix%"${cursor_suffix#?}"}"
+                        cursor_suffix="${cursor_suffix#?}"
+                        cursor_prefix="${cursor_prefix}${_c}"
+                    } ;;
+                "[D"|"OD")
+                    [ "$cur" -eq 0 ] && [ -n "$cursor_prefix" ] && {
+                        _c="${cursor_prefix#"${cursor_prefix%?}"}"
+                        cursor_prefix="${cursor_prefix%?}"
+                        cursor_suffix="${_c}${cursor_suffix}"
+                    } ;;
+                "[3")
+                    _read_str_timeout 1 _del_c
+                    [ "$cur" -eq 0 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
+                    ;;
             esac
             continue
         fi
-
-        _bs=$(printf '\177')
-        _del=$(printf '\10')
 
         case "$key" in
             "")
@@ -2032,14 +2063,33 @@ filtermenu() {
                     return 0
                 fi ;;
             "k")
-                if [ "$cur" -gt 0 ]; then cur=$((cur-1)); else filter_query="${filter_query}${key}"; fi ;;
+                [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
             "j")
-                if [ "$cur" -gt 0 ]; then [ "$cur" -lt "$count" ] && cur=$((cur+1)); else filter_query="${filter_query}${key}"; fi ;;
-            "$_bs"|"$_del") filter_query="${filter_query%?}"; cur=0; scroll_offset=0 ;;
+                [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ] && cur=$((cur+1)) ;;
+            "$(printf '\177')"|"$(printf '\10')")
+                if [ "$cur" -eq 0 ]; then
+                    if [ -n "$cursor_prefix" ]; then
+                        cursor_prefix="${cursor_prefix%?}"
+                    else
+                        cur=${_saved_cur:-1}
+                        [ "$cur" -gt "$count" ] && cur=$count
+                    fi
+                fi ;;
+            "$(printf '\t')")
+                if [ "$cur" -eq 0 ]; then
+                    cur=${_saved_cur:-1}
+                    [ "$cur" -gt "$count" ] && cur=$count
+                else
+                    _saved_cur=$cur
+                    cur=0
+                fi ;;
             *)
                 if [ "$cur" -eq 0 ]; then
                     case "$key" in
-                        [[:print:]]) filter_query="${filter_query}${key}"; cur=0; scroll_offset=0 ;;
+                        [[:print:]])
+                            cursor_prefix="${cursor_prefix}${key}"
+                            scroll_offset=0
+                            ;;
                     esac
                 fi ;;
         esac
