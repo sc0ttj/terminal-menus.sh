@@ -42,6 +42,10 @@ _match() { case $1 in $2) return 0;; esac; return 1; }
 
 _is_numeric() { case $1 in ''|*[!0-9]*) return 1;; esac; return 0; }
 
+_tolower() { tr '[:upper:]' '[:lower:]'; }
+
+_is_interactive_field() { _match "$1" ">*" || _match "$1" "[*" || _match "$1" "(*" || _match "$1" "{*"; }
+
 # --- Shell compatibility guard ---
 # Verify this shell supports features terminal-menus.sh relies on.
 # Minimal Busybox builds may lack [[ ]], read -n, or $'...'.
@@ -1146,7 +1150,7 @@ form() {
 
             local lbl="${label_var%%:*}"
             local var="${label_var#*:}"
-            [ "$var" = "$lbl" ] && var=$(echo "$lbl" | tr '[:upper:]' '[:lower:]')
+            [ "$var" = "$lbl" ] && var=$(echo "$lbl" | _tolower)
 
             eval "fields_$i='${prefix}${lbl}'"
             eval "values_$i='$val'"
@@ -1248,12 +1252,12 @@ form() {
             opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
-                local l_q=$(echo "$query" | tr '[:upper:]' '[:lower:]')
+                local l_q=$(echo "$query" | _tolower)
                 local f_idx=0
                 local old_ifs="$IFS"; IFS=','
                 set -- $opts
                 for o do
-                    local l_o=$(echo "$o" | tr '[:upper:]' '[:lower:]')
+                    local l_o=$(echo "$o" | _tolower)
                     if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
                         eval "filtered_$f_idx='$o'"
                         f_idx=$((f_idx+1))
@@ -1324,12 +1328,12 @@ form() {
             query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
-                local l_q=$(echo "$query" | tr '[:upper:]' '[:lower:]')
+                local l_q=$(echo "$query" | _tolower)
                 local f_idx=0
                 local old_ifs="$IFS"; IFS=','
                 set -- $opts
                 for o do
-                    local l_o=$(echo "$o" | tr '[:upper:]' '[:lower:]')
+                    local l_o=$(echo "$o" | _tolower)
                     if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
                         eval "filtered_$f_idx='$o'"
                         f_idx=$((f_idx+1))
@@ -1344,13 +1348,13 @@ form() {
                     while [ "$cur" -gt 0 ]; do
                         cur=$((cur-1))
                         eval "cf=\"\$fields_$cur\""
-                        _match "$cf" ">*" || _match "$cf" "[*" || _match "$cf" "(*" || _match "$cf" "{*" && break
+                        _is_interactive_field "$cf" && break
                     done
                 elif [ "$key" = "[B" ] || [ "$key" = "OB" ]; then
                     while [ "$cur" -lt "$((count-1))" ]; do
                         cur=$((cur+1))
                         eval "cf=\"\$fields_$cur\""
-                        _match "$cf" ">*" || _match "$cf" "[*" || _match "$cf" "(*" || _match "$cf" "{*" && break
+                        _is_interactive_field "$cf" && break
                     done
                 fi
             fi
@@ -1379,12 +1383,12 @@ form() {
 
                 if _match "$cf" "{*"; then
                     if [ "$state" = "OPEN" ]; then
-                        local l_q=$(echo "$query" | tr '[:upper:]' '[:lower:]')
+                        local l_q=$(echo "$query" | _tolower)
                         local f_idx=0
                         local old_ifs="$IFS"; IFS=','
                         set -- $opts
                         for o do
-                            local l_o=$(echo "$o" | tr '[:upper:]' '[:lower:]')
+                            local l_o=$(echo "$o" | _tolower)
                             if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
                                 eval "filtered_$f_idx='$o'"
                                 f_idx=$((f_idx+1))
@@ -1468,7 +1472,7 @@ form() {
                     eval "field_raw=\"\$fields_$i\""
                     case "$type" in
                         "text")
-                            local clean=$(echo "${field_raw%%:*}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
+                            local clean=$(echo "${field_raw%%:*}" | _tolower | tr ' ' '_')
                             last_label="$clean"
                             ;;
                         "input")
@@ -1933,10 +1937,10 @@ filtermenu() {
 
         if [ "$filter_query" != "$last_query" ]; then
             local f_idx=0
-            local lq=$(echo "$filter_query" | tr '[:upper:]' '[:lower:]')
+            local lq=$(echo "$filter_query" | _tolower)
             local old_ifs="$IFS"; IFS=$'\n'
             for opt in $all_options; do
-                local lo=$(echo "$opt" | tr '[:upper:]' '[:lower:]')
+                local lo=$(echo "$opt" | _tolower)
                 if [ -z "$filter_query" ] || _match "$lo" "*${lq}*"; then
                     eval "filtered_$f_idx='$opt'"
                     f_idx=$((f_idx+1))
@@ -2354,9 +2358,9 @@ _tree_core() {
             # --- 1. FILTER CALCULATION ---
             local match=0
             if [ $is_filtering -eq 1 ]; then
-                _lab_lc=$(printf "%s" "$label" | tr '[:upper:]' '[:lower:]')
-                _id_lc=$(printf "%s" "$id" | tr '[:upper:]' '[:lower:]')
-                _fq_lc=$(printf "%s" "$filter_query" | tr '[:upper:]' '[:lower:]')
+                _lab_lc=$(printf "%s" "$label" | _tolower)
+                _id_lc=$(printf "%s" "$id" | _tolower)
+                _fq_lc=$(printf "%s" "$filter_query" | _tolower)
                 if _match "$_lab_lc" "*$_fq_lc*" || _match "$_id_lc" "*$_fq_lc*"; then
                     match=1
                 else
@@ -2366,8 +2370,8 @@ _tree_core() {
                         eval "p_node=\"\$node_$scan_p\""
                         if [ "${p_node%%|*}" -lt "$check_d" ]; then
                             local p_rem="${p_node#*|}"
-                            _p_lc=$(printf "%s" "${p_rem#*|}" | tr '[:upper:]' '[:lower:]')
-                            _p_id_lc=$(printf "%s" "${p_rem%%|*}" | tr '[:upper:]' '[:lower:]')
+                            _p_lc=$(printf "%s" "${p_rem#*|}" | _tolower)
+                            _p_id_lc=$(printf "%s" "${p_rem%%|*}" | _tolower)
                             if _match "$_p_lc" "*$_fq_lc*" || _match "$_p_id_lc" "*$_fq_lc*"; then
                                 match=1; break
                             fi
@@ -2380,8 +2384,8 @@ _tree_core() {
                             eval "d_node=\"\$node_$scan_d\""
                             [ "${d_node%%|*}" -le "$depth" ] && break
                             local d_rem="${d_node#*|}"
-                            _d_lc=$(printf "%s" "${d_rem#*|}" | tr '[:upper:]' '[:lower:]')
-                            _d_id_lc=$(printf "%s" "${d_rem%%|*}" | tr '[:upper:]' '[:lower:]')
+                            _d_lc=$(printf "%s" "${d_rem#*|}" | _tolower)
+                            _d_id_lc=$(printf "%s" "${d_rem%%|*}" | _tolower)
                             if _match "$_d_lc" "*$_fq_lc*" || _match "$_d_id_lc" "*$_fq_lc*"; then
                                 match=1; break
                             fi
@@ -2525,15 +2529,15 @@ _tree_core() {
                     "") # ENTER: JUMP TO MATCH
                         if [ $visible_count -gt 0 ]; then
                             cur=0
-                            _fq_lc=$(printf "%s" "$filter_query" | tr '[:upper:]' '[:lower:]')
+                            _fq_lc=$(printf "%s" "$filter_query" | _tolower)
                             idx=0; while [ "$idx" -lt "$visible_count" ]; do
                                 eval "g_idx=\"\$visible_$idx\""
                                 eval "g_node=\"\$node_$g_idx\""
                                 local rem="${g_node#*|}"
                                 local id_str="${rem%%|*}"
                                 local lab_str="${rem#*|}"; lab_str="${lab_str%%|*}"
-                                _ls_lc=$(printf "%s" "$lab_str" | tr '[:upper:]' '[:lower:]')
-                                _is_lc=$(printf "%s" "$id_str" | tr '[:upper:]' '[:lower:]')
+                                _ls_lc=$(printf "%s" "$lab_str" | _tolower)
+                                _is_lc=$(printf "%s" "$id_str" | _tolower)
                                 if _match "$_ls_lc" "*$_fq_lc*" || _match "$_is_lc" "*$_fq_lc*"; then
                                     cur=$idx
                                     break
@@ -2953,8 +2957,8 @@ filtertable() {
                     _match=1
                 else
                     eval "search=\"\$master_search_$i\""
-                    _slow=$(echo "$search" | tr '[:upper:]' '[:lower:]')
-                    _flow=$(echo "$filter_query" | tr '[:upper:]' '[:lower:]')
+                    _slow=$(echo "$search" | _tolower)
+                    _flow=$(echo "$filter_query" | _tolower)
                     case "$_slow" in
                         *$_flow*) _match=1 ;;
                     esac
@@ -3241,7 +3245,7 @@ EOF
         if [[ "$filter_query" != "$last_query" || $force_refilter -gt 0 ]]; then
             filtered_count=0; filtered_cmd_count=0
             search_pattern="*${filter_query}*"
-            q_lower=$(echo "$filter_query" | tr '[:upper:]' '[:lower:]')
+            q_lower=$(echo "$filter_query" | _tolower)
             i=0; while [ "$i" -lt "$master_count" ]; do
                 eval "ml=\$master_line_$i"
                 if [ -z "$filter_query" ]; then
@@ -3250,7 +3254,7 @@ EOF
                     filtered_count=$((filtered_count+1))
                     filtered_cmd_count=$((filtered_cmd_count+1))
                 else
-                    ml_lower=$(echo "$ml" | tr '[:upper:]' '[:lower:]')
+                    ml_lower=$(echo "$ml" | _tolower)
                     case "$ml_lower" in
                         $search_pattern)
                             eval "filtered_line_$filtered_count=\$master_line_$i"
@@ -3639,8 +3643,8 @@ _refresh_sidebar_only() {
             eval "raw_$f_idx='$item'"
             f_idx=$((f_idx+1))
         else
-            lc_name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
-            lc_query=$(echo "$clean_query" | tr '[:upper:]' '[:lower:]')
+            lc_name=$(echo "$name" | _tolower)
+            lc_query=$(echo "$clean_query" | _tolower)
             case "$lc_name" in
                 *"$lc_query"*)
                     eval "raw_$f_idx='$item'"
@@ -3888,7 +3892,7 @@ EOF
         # 2. DATA REBUILD
         if [[ "$root_dir" != "$last_dir" || $rebuild -eq 1 ]]; then
             raw_count=0; detail_count=0
-            local l_query=$(echo "$search_query" | tr '[:upper:]' '[:lower:]')
+            local l_query=$(echo "$search_query" | _tolower)
 
             # --- THE FINAL SURGICAL FIX: IGNORE CACHE ---
             local ignored_cache="|"
@@ -3953,7 +3957,7 @@ EOF
                 fi
 
                 if [[ -n "$search_query" ]]; then
-                    local l_name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+                    local l_name=$(echo "$name" | _tolower)
                     [[ ! "$l_name" == *"$l_query"* ]] && continue
                 fi
                 
