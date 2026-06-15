@@ -3683,7 +3683,7 @@ EOF
 }
 
 _execute_mode_action() {
-    eval "current_node=\$raw_list_$cur"
+    eval "current_node=\$raw_$cur"
     local current_path="${current_node%%|*}"
     local targets=""
 
@@ -3726,7 +3726,7 @@ _execute_mode_action() {
 
     # --- Standard Command Handling ---
     local tagged_count=0
-    local si=0; while [ "$si" -lt "$selected_count" ]; do
+    local si=0; while [ "$si" -lt "$sel_path_count" ]; do
         eval "item=\$selpath_$si"
         if [[ "$item" != "0" && -n "$item" ]]; then
             targets="${targets}'${item}' "
