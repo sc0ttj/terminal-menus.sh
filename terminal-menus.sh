@@ -1732,7 +1732,7 @@ spreadsheet() {
     }
 
     local cur_r=1 cur_c=1 top_r=1 top_c=1
-    local mode="NAV" edit_val=""
+    local mode="NAV" _cursor_prefix="" _cursor_suffix=""
 
     # handle shifting viewport up a line if $title is empty
     local shift=0
@@ -1905,7 +1905,14 @@ spreadsheet() {
         if [[ "$mode" == "EDIT" ]]; then
             local label=" EDIT: "
             local val_limit=$(( bar_limit - ${#label} ))
-            printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$edit_val" >&2
+            if [ -n "$_cursor_suffix" ]; then
+                local _cc="${_cursor_suffix%"${_cursor_suffix#?}"}"
+                local _cr="${_cursor_suffix#?}"
+                local _display="${_cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+            else
+                local _display="${_cursor_prefix}"$'\x1b[7m \x1b[27m'
+            fi
+            printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$_display" >&2
         else
             local raw=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
             local label=" [$(printf \\$(printf '%03o' $((cur_c+64))))${cur_r}] Raw: "
@@ -1921,7 +1928,7 @@ spreadsheet() {
         if [[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]; then
             if [[ "$mode" == "NAV" ]]; then
                 mode="EDIT"
-                edit_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
+                _cursor_prefix=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv"); _cursor_suffix=""
             else
                 _push_undo
                 local row_count=$(wc -l < "$tmp_csv")
@@ -1931,7 +1938,7 @@ spreadsheet() {
                 done
 
                 # REBUILDER: The only way to prevent the "Shift to Column A" in BusyBox
-                awk -F, -v r="$cur_r" -v c="$cur_c" -v nv="$edit_val" -v mc="$MAX_COLS" '
+                awk -F, -v r="$cur_r" -v c="$cur_c" -v nv="${_cursor_prefix}${_cursor_suffix}" -v mc="$MAX_COLS" '
                     BEGIN { OFS="," }
                     NR == r {
                         # 1. Force the line into a clean array using the comma separator
@@ -2027,19 +2034,37 @@ spreadsheet() {
                 ;;
 
             # --- VIM and WASD NAVIGATION (NAV Mode Only) ---
-            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
-            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
-            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
-            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
+            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
 
             $'\033')
                 _read_str_timeout 2 key
-                [[ "$mode" == "NAV" ]] && case "$key" in
-                    "[A"|"OA") [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) ;;
-                    "[B"|"OB") cur_r=$((cur_r+1)) ;;
-                    "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
-                    "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
-                esac
+                if [[ "$mode" == "NAV" ]]; then
+                    case "$key" in
+                        "[A"|"OA") [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) ;;
+                        "[B"|"OB") cur_r=$((cur_r+1)) ;;
+                        "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
+                        "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
+                    esac
+                elif [[ "$mode" == "EDIT" ]]; then
+                    case "$key" in
+                        "[C"|"OC") [ -n "$_cursor_suffix" ] && {
+                            local _c="${_cursor_suffix%"${_cursor_suffix#?}"}"
+                            _cursor_suffix="${_cursor_suffix#?}"
+                            _cursor_prefix="${_cursor_prefix}${_c}"
+                        } ;;
+                        "[D"|"OD") [ -n "$_cursor_prefix" ] && {
+                            local _c="${_cursor_prefix#"${_cursor_prefix%?}"}"
+                            _cursor_prefix="${_cursor_prefix%?}"
+                            _cursor_suffix="${_c}${_cursor_suffix}"
+                        } ;;
+                        "[3") _read_str_timeout 1 _del_c
+                            [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ] && _cursor_suffix="${_cursor_suffix#?}"
+                            ;;
+                    esac
+                fi
                 ;;
 
             "q"|"Q") 
@@ -2047,13 +2072,13 @@ spreadsheet() {
                 ;;
 
             $'\177'|$'\010')
-                [[ "$mode" == "EDIT" ]] && edit_val="${edit_val%?}"
+                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix%?}"
                 ;;
 
             *)
                 # CRITICAL: Only append to edit_val if we are actually in EDIT mode
                 # This prevents "v" or "x" from being added to the buffer in NAV mode
-                [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}" 
+                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}" 
                 ;;
         esac
     done
@@ -5332,7 +5357,7 @@ ${SB}q${SR}           Quit"
         case "$key" in
             $'\033')
             local next_chars=""
-            _read_str_timeout 3 next_chars
+            _read_str_timeout 2 next_chars
             
             if [[ -z "$next_chars" ]]; then return 0; fi
             
