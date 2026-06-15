@@ -313,7 +313,7 @@ msgbox "You chose" "$CONFIG_OUT"
 BACKTITLE="terminal-menus.sh demo 16 of 23 - form"
 FORM_OUT=$(form "" "" \
     "> User:user=$(whoami)" \
-    ">* Password:password" \
+    ">* Password:password=pass" \
     "Country:" \
     "{ } France:france,Ireland:ireland,Thailand:thailand,Denmark:denmark,United Kingdom:uk,=USA:usa,South Africa:southafrica" \
     "Enabled connections:" \

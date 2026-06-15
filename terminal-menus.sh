@@ -938,7 +938,8 @@ inputbox() {
 }
 
 passwordbox() {
-    local title=$1 msg=$2 val="${3:-}" char key _escape cursor_prefix="$val" cursor_suffix=""
+    local title=$1 msg=$2 val="${3:-}" char key _escape
+    local cursor_prefix="$val" cursor_suffix=""
     _init_tui
     _draw_header "$title" "$msg"
 
@@ -1467,6 +1468,7 @@ form() {
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
                         eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                        [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$cur\""
                         eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
                 elif [ "$key" = "[B" ] || [ "$key" = "OB" ]; then
@@ -1484,6 +1486,7 @@ form() {
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
                         eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                        [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$cur\""
                         eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
                 else
@@ -1514,6 +1517,7 @@ form() {
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" ">*"; then
                     eval "_cursor_prefix=\"\$cur_pfx_$cur\""
+                    [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$cur\""
                     eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                 fi ;;
             " ")
