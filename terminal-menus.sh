@@ -4604,30 +4604,9 @@ EOF
             
             if [[ -z "$next_chars" ]]; then
                 if [[ "$ui_mode" == "SEARCH" ]]; then
-                    eval "last_p=\$raw_$cur"
-                    local last_p="${last_p%%|*}"
-                    
-                    search_query=""
-                    prompt_pos=0
-                    ui_mode="NAV"
-
-                    si=0; while [ "$si" -lt "$master_raw_count" ]; do
-                        eval "raw_$si=\$master_raw_$si"
-                        si=$((si+1))
-                    done
-                    raw_count=$master_raw_count
-
-                    local idx=0; while [ "$idx" -lt "$raw_count" ]; do
-                        eval "rval=\$raw_$idx"
-                        if [[ "${rval%%|*}" == "$last_p" ]]; then
-                            cur=$idx
-                            break
-                        fi
-                        idx=$((idx+1))
-                    done
-                    
-                    rebuild=1
-                    _init_tui
+                    cur=$_saved_cur; top=$_saved_top
+                    search_query=""; prompt_pos=0; ui_mode="NAV"
+                    rebuild=1; _init_tui
                 elif [[ "$ui_mode" != "NAV" ]]; then
                     # Handle other modes (CMD, RENAME, etc)
                     cur=$_saved_cur; top=$_saved_top
@@ -4699,23 +4678,8 @@ EOF
                         
                         if [[ -z "$check_q" ]]; then
                             # EMPTY PROMPT: Behave exactly like ESCAPE
-                            eval "last_p=\$raw_$cur"
-                            local last_p="${last_p%%|*}"
-                            search_query=""
-                            prompt_pos=1
-                            ui_mode="NAV"
-                            si=0; while [ "$si" -lt "$master_raw_count" ]; do
-                                eval "raw_$si=\$master_raw_$si"
-                                si=$((si+1))
-                            done
-                            raw_count=$master_raw_count
-                            
-                            local idx=0; while [ "$idx" -lt "$raw_count" ]; do
-                                eval "rval=\$raw_$idx"
-                                [[ "${rval%%|*}" == "$last_p" ]] && cur=$idx && break
-                                idx=$((idx+1))
-                            done
-                            
+                            cur=$_saved_cur; top=$_saved_top
+                            search_query=""; prompt_pos=0; ui_mode="NAV"
                             rebuild=1
                             _init_tui
                             continue
@@ -4779,7 +4743,7 @@ EOF
                     ;;
                 $'\t') # TAB
                     if [[ "$ui_mode" == "SEARCH" ]]; then
-                        # 1. Existing Search Logic: Always exit to NAV
+                        cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"; prompt_pos=0; rebuild=1
                         continue
                     elif [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
