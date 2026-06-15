@@ -4753,6 +4753,7 @@ EOF
                             [[ $cmd_hist_count -gt 50 ]] && cmd_hist_count=50
                         fi
                         _execute_mode_action
+                        cur=$_saved_cur; top=$_saved_top
                         prompt_buffer=""; prompt_pos=0; hist_ptr=-1 # Reset pointer
                         _init_tui
                         continue 
