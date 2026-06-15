@@ -5127,18 +5127,14 @@ EOF
 _get_fm() {
     local key="$2" val=""
     while IFS= read -r line; do
-        [[ "$line" == "$key:"* ]] && { val="${line#*: }"; echo "${val//\"/}"; return; }
+        case "$line" in "$key:"*) val="${line#*: }"; echo "${val//\"/}"; return ;; esac
     done < "$1"
 }
 
 _set_fm() {
     local file="$1" key="$2" new_v="$3" tmp="$1.tmp"
     while IFS= read -r line; do
-        if [[ "$line" == "$key:"* ]]; then
-            echo "$key: $new_v"
-        else
-            echo "$line"
-        fi
+        case "$line" in "$key:"*) echo "$key: $new_v" ;; *) echo "$line" ;; esac
     done < "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
