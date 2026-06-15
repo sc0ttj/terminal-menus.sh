@@ -3447,7 +3447,7 @@ EOF
                             i=$((i+1))
                         done
                         fmt="${fmt% }"
-                        eval "master_line_$master_count='$fmt'"
+                        eval "master_line_$master_count=\"\$fmt\""
                         _cmd_safe="$cmd"; eval "master_cmd_$master_cmd_count=\"\$_cmd_safe\""
                         rd=""
                         i=0; while [ "$i" -lt "$col_count" ]; do
@@ -3455,7 +3455,7 @@ EOF
                             rd="${rd}${fv}"$'\t'
                             i=$((i+1))
                         done
-                        eval "master_rd_$master_rd_count='$rd'"
+                        eval "master_rd_$master_rd_count=\"\$rd\""
                         master_count=$((master_count+1))
                         master_cmd_count=$((master_cmd_count+1))
                         master_rd_count=$((master_rd_count+1))
@@ -3624,8 +3624,8 @@ EOF
                     esac
                 fi ;;
             [1-9])  if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
-                        filter_query="${filter_query}${key}"; cur_table=-1
-                    elif [[ $col_count -gt 0 ]]; then
+                        filter_query="${filter_query}${key}"
+                    elif [[ $focus -eq 1 && $col_count -gt 0 ]]; then
                         local col=$((key - 1))
                         if [[ $col -lt $col_count ]]; then
                             [[ $col -eq $sort_col ]] && sort_asc=$((1 - sort_asc)) || { sort_col=$col; sort_asc=1; }
@@ -3645,13 +3645,16 @@ EOF
                             rm -f "$tmp_sort"
                             new_count=0
                             for si in $sorted; do
-                                eval "ml=\$master_line_$si"
-                                eval "mc=\$master_cmd_$si"
-                                eval "mr=\$master_rd_$si"
-                                eval "master_line_$new_count='$ml'"
-                                eval "master_cmd_$new_count='$mc'"
-                                eval "master_rd_$new_count='$mr'"
+                                eval "tmp_ml_$new_count=\"\$master_line_$si\""
+                                eval "tmp_mc_$new_count=\"\$master_cmd_$si\""
+                                eval "tmp_mr_$new_count=\"\$master_rd_$si\""
                                 new_count=$((new_count+1))
+                            done
+                            i=0; while [ "$i" -lt "$new_count" ]; do
+                                eval "master_line_$i=\"\$tmp_ml_$i\""
+                                eval "master_cmd_$i=\"\$tmp_mc_$i\""
+                                eval "master_rd_$i=\"\$tmp_mr_$i\""
+                                i=$((i+1))
                             done
                             master_count=$new_count
                             master_cmd_count=$new_count
