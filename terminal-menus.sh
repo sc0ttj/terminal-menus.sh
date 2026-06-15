@@ -533,7 +533,7 @@ _draw_form_field() {
         local prompt=" > "
 
         local suffix=""
-        local box_w=$(( width - 6 ))
+        local box_w=$(( width - 5 ))
 
         # Check if password field (starts with ">*")
         local _is_pw=0
@@ -570,8 +570,20 @@ _draw_form_field() {
 
         style=$([ "$is_active" -eq 1 ] && echo "${BG_INPUT_ESC}${FG_BLUE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
 
-        _draw_at "$row"
-        printf "  ${style}${prompt}%-${box_w}s${suffix}${RESET}${BG_MAIN_ESC}" "$display_val" >&2
+        local _vlen=${#display_val}
+        if [ "$is_active" -eq 1 ]; then
+            _e=$(printf '\x1b')
+            _vlen=$(printf "%s" "$display_val" | sed "s/${_e}\[[0-9;]*m//g" 2>/dev/null)
+            _vlen=${#_vlen}
+        fi
+        local _pad=$(( box_w - _vlen ))
+        [ "$_pad" -lt 0 ] && _pad=0
+
+        local _tr=$(( row + PADDING_TOP ))
+        local _tc=$(( PADDING_LEFT + COL_START ))
+        printf "\e[%d;%dH${style}%*s\e[%d;%dH${BG_MAIN_ESC}  ${style}${prompt}%s%${_pad}s${suffix}${RESET}${BG_MAIN_ESC}" \
+            "$_tr" "$(( _tc + 2 ))" "$(( width - 2 ))" "" \
+            "$_tr" "$_tc" "$display_val" "" >&2
         row=$((row+1))
         _draw_spacer
 
@@ -1431,6 +1443,13 @@ form() {
                         _c="${_cursor_prefix#"${_cursor_prefix%?}"}"
                         _cursor_prefix="${_cursor_prefix%?}"
                         _cursor_suffix="${_c}${_cursor_suffix}"
+                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+                    fi
+                elif [ "$key" = "[3" ]; then
+                    _read_str_timeout 1 _del_c
+                    eval "cf=\"\$fields_$cur\""
+                    if _match "$cf" ">*" && [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ]; then
+                        _cursor_suffix="${_cursor_suffix#?}"
                         eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                     fi
                 elif [ "$key" = "[A" ] || [ "$key" = "OA" ]; then
