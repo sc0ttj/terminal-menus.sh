@@ -3609,17 +3609,19 @@ EOF
                     [[ $f_count -gt 0 ]] && cur_table=0
                 elif [[ $cur_table -ge 0 ]]; then
                     eval "cmd=\$filtered_cmd_$cur_table"
-                    if [[ "$cmd" == *"modal "* ]]; then
+                    case "$cmd" in *"modal "*)
                         eval "$cmd"
-                        [[ -n "$TUI_RESULT" && "$cmd" == *"form "* ]] && eval "$TUI_RESULT"
+                        if [[ -n "$TUI_RESULT" ]]; then
+                            case "$cmd" in *"form "*) eval "$TUI_RESULT" ;; esac
+                        fi
                         stty flush < /dev/tty 2>/dev/null || stty -echo echo
                         TUI_MODE="fullscreen"
-                        _init_tui
-                    else
+                        _init_tui ;;
+                    *)
                         TUI_RESULT="$cmd"
                         echo "$TUI_RESULT"
-                        return 0
-                    fi
+                        return 0 ;;
+                    esac
                 fi ;;
             [1-9])  if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
                         filter_query="${filter_query}${key}"; cur_table=-1
@@ -3683,7 +3685,7 @@ _execute_mode_action() {
     
     #msgbox "DEBUG" "Buffer was: [$cmd]"
     
-    if [[ "$cmd" == cd\ * || "$cmd" == "cd.." ]]; then
+    case "$cmd" in cd\ *|"cd..")
         local target_dir="${cmd#cd }"
         [[ "$cmd" == "cd.." ]] && target_dir=".."
 
@@ -3695,7 +3697,7 @@ _execute_mode_action() {
         # 3. ROBUST PATH RESOLUTION
         # Resolve against the TUI's root_dir, not the script's launch dir
         local resolved="$target_dir"
-        [[ ! "$target_dir" == /* ]] && resolved="$root_dir/$target_dir"
+        [[ "${target_dir:0:1}" != "/" ]] && resolved="$root_dir/$target_dir"
 
         if [[ -d "$resolved" ]]; then
             # Update the global root_dir
@@ -3712,8 +3714,8 @@ _execute_mode_action() {
         else
             msgbox "Error" "Directory not found: $target_dir"
             return 1
-        fi
-    fi
+        fi ;;
+    esac
 
     # --- Standard Command Handling ---
     local tagged_count=0
@@ -3934,7 +3936,7 @@ _refresh_sidebar_only() {
 _update_display_path() {
     display_path="$root_dir"
     # Home replacement
-    [[ "$display_path" == "$HOME"* ]] && display_path="~${display_path#$HOME}"
+    case "$display_path" in "$HOME"*) display_path="~${display_path#$HOME}" ;; esac
 
     local filter_suffix=""
     # Use the search_query variable. 
@@ -3962,13 +3964,13 @@ _get_tab_completion() {
     local prefix="" last_word=""
     
     # 1. Split command into prefix (cd ) and the word being completed (dir/foo)
-    if [[ "$current_input" == *" "* ]]; then
+    case "$current_input" in *" "*)
         prefix="${current_input% *} "
-        last_word="${current_input##* }"
-    else
+        last_word="${current_input##* }" ;;
+    *)
         prefix=""
-        last_word="$current_input"
-    fi
+        last_word="$current_input" ;;
+    esac
 
     # --- THE FIX FOR #3: FORCE RESET ON NEW PATH INPUT ---
     # If the user typed anything after the last completion (like a '/' or 'f')
@@ -3979,12 +3981,11 @@ _get_tab_completion() {
 
     # --- RESET CYCLE ON NEW DEPTH ---
     # If the user just added a "/", reset cycling to scan the new subfolder
-    if [[ "$current_input" == */ ]]; then
-        completion_idx=-1
-    fi
+    case "$current_input" in */) completion_idx=-1 ;; esac
 
     # --- CYCLING LOGIC ---
-    if [[ $completion_idx -ge 0 && "$current_input" == "$last_completion_base"* ]]; then
+    if [[ $completion_idx -ge 0 ]]; then
+        case "$current_input" in "$last_completion_base"*) ;; *) return ;; esac
         completion_idx=$((completion_idx+1))
         [[ $completion_idx -ge $comp_match_count ]] && completion_idx=0
         
@@ -3999,19 +4000,17 @@ _get_tab_completion() {
     completion_idx=-1
     
     local dir_part="" partial=""
-    if [[ "$last_word" == *"/"* ]]; then
-        # Capture everything up to and including the LAST slash
+    case "$last_word" in *"/"*)
         dir_part="${last_word%/*}/"
-        # Capture everything AFTER the last slash
-        partial="${last_word##*/}"
-    else
+        partial="${last_word##*/}" ;;
+    *)
         dir_part=""
-        partial="$last_word"
-    fi
+        partial="$last_word" ;;
+    esac
 
     # Resolve scan directory
     local scan_root="$root_dir"
-    [[ "$dir_part" == /* ]] && scan_root="" 
+    [[ "${dir_part:0:1}" == "/" ]] && scan_root="" 
     local real_scan_dir=$(cd "${scan_root}/${dir_part}" 2>/dev/null && pwd)
     
     if [[ -d "$real_scan_dir" ]]; then
@@ -4184,12 +4183,12 @@ EOF
                 [[ "${name:0:1}" == "." ]] && continue
                 
                 if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
-                    [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                    case "$ignored_cache" in *"|$name|"*) continue ;; esac
                 fi
 
                 if [[ -n "$search_query" ]]; then
                     local l_name=$(echo "$name" | _tolower)
-                    [[ ! "$l_name" == *"$l_query"* ]] && continue
+                    case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
                 
                 eval "raw_$raw_count='$path|$name|true'"
@@ -4212,12 +4211,12 @@ EOF
                     [[ "$name" == "." || "$name" == ".." ]] && continue
                     
                     if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
-                        [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                        case "$ignored_cache" in *"|$name|"*) continue ;; esac
                     fi
 
                     if [[ -n "$search_query" ]]; then
                         local l_name=$(echo "$name" | _tolower)
-                        [[ ! "$l_name" == *"$l_query"* ]] && continue
+                        case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
                     
                     eval "raw_$raw_count='$path|$name|true'"
@@ -4240,12 +4239,12 @@ EOF
                 [[ "${name:0:1}" == "." ]] && continue
                 
                 if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
-                    [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                    case "$ignored_cache" in *"|$name|"*) continue ;; esac
                 fi
 
                 if [[ -n "$search_query" ]]; then
                     local l_name=$(echo "$name" | _tolower)
-                    [[ ! "$l_name" == *"$l_query"* ]] && continue
+                    case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
                 
                 eval "raw_$raw_count='$path|$name|false'"
@@ -4268,12 +4267,12 @@ EOF
                     [[ "$name" == "." || "$name" == ".." ]] && continue
                     
                     if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
-                        [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                        case "$ignored_cache" in *"|$name|"*) continue ;; esac
                     fi
 
                     if [[ -n "$search_query" ]]; then
                         local l_name=$(echo "$name" | _tolower)
-                        [[ ! "$l_name" == *"$l_query"* ]] && continue
+                        case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
                     
                     eval "raw_$raw_count='$path|$name|false'"

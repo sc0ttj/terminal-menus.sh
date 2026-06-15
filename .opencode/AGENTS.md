@@ -72,21 +72,32 @@ You are an expert Bash developer following the "Bash Bible" philosophy by dylana
     - Double-buffer output by building strings in variables and printing once using `printf`.
     - Hide the cursor during draws (`\e[?25l`) and show it after (`\e[?25h`).
 
-### 2. Coding Practices & Rules
+### 2. BusyBox Ash v1.31.0 Limitations
+This project targets BusyBox Ash. Critical incompatibilities with Bash:
+
+| `[[ "$a" == "b"* ]]` glob match | ❌ Use `case "$a" in "b"*)` instead |
+| `[[ "$a" == *"b"* ]]` contains | ❌ Use `case "$a" in *"b"*)` instead |
+| `[[ "$a" =~ regex ]]` | ❌ Use `case` with glob, or external tool |
+| Arrays `a=(x y z)` | ❌ Use `eval`-based numbered vars or `awk` |
+| `[[ == literal ]]`, `[[ -z/-n/-d/-f ]]`, `local`, `${var#}`, `$(( ))` | ✅ All work |
+
+**Rule**: Always use `case` for pattern matching, never `[[ ... == ...* ]]`.
+
+### 3. Coding Practices & Rules
 - **String Manipulation**: Use Parameter Expansion instead of `sed` or `echo | cut`.
     - *Bad*: `name=$(echo "$file" | cut -d. -f1)`
     - *Good*: `name="${file%.*}"`
-- **Regex/Matching**: Use `[[ $var =~ regex ]]` or `case` statements instead of `grep`.
-- **Reading Files**: Use `mapfile -t` or `read -r` loops; never use `cat`.
-- **Calculations**: Use `(( var = a + b ))` for integer math; do not use `bc` or `expr`.
-- **Arrays**: Use indexed and associative arrays for state management to avoid temp files.
+- **Regex/Matching**: Use `case` statements with glob patterns instead of `grep` or `[[ == pattern ]]`.
+- **Reading Files**: Use `read -r` loops; never use `cat` (also `mapfile` is not available in BusyBox Ash).
+- **Calculations**: Use `$(( var = a + b ))` for integer math; do not use `bc` or `expr`.
+- **Arrays**: Use `eval`-based numbered variables (e.g. `eval "arr_$i='$val'"; eval "v=\$arr_$i"`) since arrays are unavailable.
 
-### 3. TUI Rendering Logic
+### 4. TUI Rendering Logic
 - **Batch Printing**: Group UI updates into a single `printf` call to prevent partial screen updates.
 - **Static Positioning**: Use `\e[H` to return to home and `\e[J` to clear only what is necessary.
 - **Colors**: Use variables for ANSI codes: `readonly RED=$'\e[31m'`, `readonly RESET=$'\e[0m'`.
 
-### 4. Operational Instructions
+### 5. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.
 - If a task requires a complex external tool (like `curl`), isolate it and ensure its output is parsed using built-in string manipulation.
 - Always check scripts with `shellcheck` (integrated in OpenCode).
