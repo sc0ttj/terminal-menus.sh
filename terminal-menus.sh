@@ -4076,6 +4076,7 @@ filemanager() {
     local completion_idx=-1
     local last_completion_base=""
     local show_ignored=0  # 0 = hide, 1 = show
+    local show_hidden=0   # 0 = hide, 1 = show
 
     local help_file="/tmp/tui_help_$$.txt"
     cat << EOF > "$help_file"
@@ -4367,7 +4368,7 @@ EOF
                         color="\e[1;34m"
                     elif [[ -x "$path" ]]; then
                         color="\e[1;32m"
-                    elif [[ "$label" == .* ]]; then
+                    elif _match "$label" ".*"; then
                         color="\e[2m"
                     else
                         color="$FG_TEXT_ESC"
