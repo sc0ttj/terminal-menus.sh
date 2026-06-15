@@ -127,7 +127,7 @@ preview() {
     local clear_block=""
     local spaces=$(printf "%*s" "$width" "")
     i=0; while [ "$i" -lt "$height" ]; do
-        clear_block="${clear_block}"$'\e'"[$((row_start + i + PADDING_TOP));${absolute_col}H${BG_MAIN_ESC}${spaces}"
+        clear_block="${clear_block}"$'\033'"[$((row_start + i + PADDING_TOP));${absolute_col}H${BG_MAIN_ESC}${spaces}"
         i=$((i+1))
     done
     printf "%b" "$clear_block" >&2
@@ -252,7 +252,7 @@ _init_tui() {
     i=0; while [ "$i" -lt "$MAX_HEIGHT" ]; do
         local r=$((PADDING_TOP + i + 1))
         # This will now use the updated BG_MAIN_ESC
-        wall="${wall}"$'\e'"[${r};${PADDING_LEFT}H${BG_MAIN_ESC}${line_fill}"
+        wall="${wall}"$'\033'"[${r};${PADDING_LEFT}H${BG_MAIN_ESC}${line_fill}"
         i=$((i+1))
     done
     printf "%b\e[0m" "$wall" >&2
@@ -2028,7 +2028,7 @@ spreadsheet() {
             "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
             "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && edit_val="${edit_val}${key}"; } ;;
 
-            $'\e')
+            $'\033')
                 _read_str_timeout 2 key
                 [[ "$mode" == "NAV" ]] && case "$key" in
                     "[A"|"OA") [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) ;;
@@ -2494,7 +2494,7 @@ filepicker() {
             "l"|"d"|"")
                 _handle_selection; [ $? -eq 2 ] && return 0 ;;
 
-            $'\e')
+            $'\033')
                 _read_str_timeout 2 key
                 case "$key" in
                     "[A"|"OA") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
@@ -3580,7 +3580,7 @@ EOF
         _read_key key
         case "$key" in
             $'\t') focus=$((1 - focus)); continue ;;
-            $'\e') _read_str_timeout 2 key
+            $'\033') _read_str_timeout 2 key
                 case "$key" in
                     "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
                     "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
@@ -4177,16 +4177,14 @@ EOF
                 sel_path_count=0
             fi
 
-            for path in "$root_dir"/* "$root_dir"/.*; do
-                [[ ! -e "$path" ]] && continue
+            # 2. Visible directories
+            for path in "$root_dir"/*; do
+                [[ ! -d "$path" ]] && continue
                 local name="${path##*/}"
-                [[ "$name" == "." || "$name" == ".." ]] && continue
-                [[ $show_hidden -eq 0 && "${name:0:1}" == "." ]] && continue
+                [[ "${name:0:1}" == "." ]] && continue
                 
                 if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
-                    if [[ "$ignored_cache" == *"|$name|"* ]]; then
-                        continue
-                    fi
+                    [[ "$ignored_cache" == *"|$name|"* ]] && continue
                 fi
 
                 if [[ -n "$search_query" ]]; then
@@ -4194,8 +4192,7 @@ EOF
                     [[ ! "$l_name" == *"$l_query"* ]] && continue
                 fi
                 
-                local is_dir="false"; [[ -d "$path" ]] && is_dir="true"
-                eval "raw_$raw_count='$path|$name|$is_dir'"
+                eval "raw_$raw_count='$path|$name|true'"
                 eval "selpath_$sel_path_count=0"
                 raw_count=$((raw_count+1))
                 sel_path_count=$((sel_path_count+1))
@@ -4206,6 +4203,91 @@ EOF
                     eval "detail_$((raw_count-1))=\${$varname}"
                 fi
             done
+
+            # 3. Hidden directories
+            if [[ $show_hidden -eq 1 ]]; then
+                for path in "$root_dir"/.*; do
+                    [[ ! -d "$path" ]] && continue
+                    local name="${path##*/}"
+                    [[ "$name" == "." || "$name" == ".." ]] && continue
+                    
+                    if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
+                        [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                    fi
+
+                    if [[ -n "$search_query" ]]; then
+                        local l_name=$(echo "$name" | _tolower)
+                        [[ ! "$l_name" == *"$l_query"* ]] && continue
+                    fi
+                    
+                    eval "raw_$raw_count='$path|$name|true'"
+                    eval "selpath_$sel_path_count=0"
+                    raw_count=$((raw_count+1))
+                    sel_path_count=$((sel_path_count+1))
+                    
+                    if [[ $show_details -eq 1 ]]; then
+                        local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
+                        local varname="META_F_$safe_lookup"
+                        eval "detail_$((raw_count-1))=\${$varname}"
+                    fi
+                done
+            fi
+
+            # 4. Visible files
+            for path in "$root_dir"/*; do
+                [[ ! -f "$path" ]] && continue
+                local name="${path##*/}"
+                [[ "${name:0:1}" == "." ]] && continue
+                
+                if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
+                    [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                fi
+
+                if [[ -n "$search_query" ]]; then
+                    local l_name=$(echo "$name" | _tolower)
+                    [[ ! "$l_name" == *"$l_query"* ]] && continue
+                fi
+                
+                eval "raw_$raw_count='$path|$name|false'"
+                eval "selpath_$sel_path_count=0"
+                raw_count=$((raw_count+1))
+                sel_path_count=$((sel_path_count+1))
+                
+                if [[ $show_details -eq 1 ]]; then
+                    local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
+                    local varname="META_F_$safe_lookup"
+                    eval "detail_$((raw_count-1))=\${$varname}"
+                fi
+            done
+
+            # 5. Hidden files
+            if [[ $show_hidden -eq 1 ]]; then
+                for path in "$root_dir"/.*; do
+                    [[ ! -f "$path" ]] && continue
+                    local name="${path##*/}"
+                    [[ "$name" == "." || "$name" == ".." ]] && continue
+                    
+                    if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
+                        [[ "$ignored_cache" == *"|$name|"* ]] && continue
+                    fi
+
+                    if [[ -n "$search_query" ]]; then
+                        local l_name=$(echo "$name" | _tolower)
+                        [[ ! "$l_name" == *"$l_query"* ]] && continue
+                    fi
+                    
+                    eval "raw_$raw_count='$path|$name|false'"
+                    eval "selpath_$sel_path_count=0"
+                    raw_count=$((raw_count+1))
+                    sel_path_count=$((sel_path_count+1))
+                    
+                    if [[ $show_details -eq 1 ]]; then
+                        local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
+                        local varname="META_F_$safe_lookup"
+                        eval "detail_$((raw_count-1))=\${$varname}"
+                    fi
+                done
+            fi
 
             if [[ $show_details -eq 1 ]]; then :; fi
             
@@ -4511,8 +4593,8 @@ EOF
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
         case "$key" in
-            $'\e')
-        local next_chars; _read_str_timeout 3 next_chars
+            $'\033')
+        local next_chars; _read_str_timeout 2 next_chars
             
             if [[ -z "$next_chars" ]]; then
                 if [[ "$ui_mode" == "SEARCH" ]]; then
@@ -4674,6 +4756,7 @@ EOF
                         _execute_mode_action
                         
                         # 2. RESET STATE (Don't exit the script!)
+                        cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"
                         prompt_buffer=""
                         prompt_pos=0
@@ -4709,7 +4792,7 @@ EOF
                     fi
                     ;;
 
-                $'\e') # Arrows
+                $'\033') # Arrows
                     case "$next_chars" in
                         "[D"|"OD") [[ $prompt_pos -gt 0 ]] && prompt_pos=$((prompt_pos-1)) ;;
                         "[C"|"OC") 
@@ -5280,7 +5363,7 @@ ${SB}q${SR}           Quit"
         _read_key key
         
         case "$key" in
-            $'\e')
+            $'\033')
             local next_chars=""
             _read_str_timeout 3 next_chars
             

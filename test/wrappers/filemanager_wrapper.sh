@@ -6,7 +6,7 @@ echo "file1" > /tmp/tui_test_fm/file1.txt
 echo "file2" > /tmp/tui_test_fm/file2.txt
 mkdir -p /tmp/tui_test_fm/subdir
 echo "subfile" > /tmp/tui_test_fm/subdir/sub.txt
-filemanager "FM" "/tmp/tui_test_fm" 3
+filemanager "FM" "/tmp/tui_test_fm" 0
 FM_EXIT=$?
 echo "EXIT=$FM_EXIT"
 echo "RESULT=$TUI_RESULT"
