@@ -416,7 +416,7 @@ RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "servi
 
 ### 19. File Manager (`filemanager`)
 
-![filemanager](screenshots/file_manager.png)
+![filemanager](screenshots/filemanager.png)
 
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, and more.
 
