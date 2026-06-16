@@ -1,66 +1,104 @@
 #!/bin/ash
 cd "$(dirname "$0")/../.."
 . ./terminal-menus.sh
-mkdir -p ~/tui_test_project
-echo "Todo,In Progress,Done" > ~/tui_test_project/.project-config
+export TUI_MODE=fullscreen
+export BACKTITLE="terminal-menus.sh - kanban"
 
-cat <<'TIX' > ~/tui_test_project/implement_search.md
-title: Implement full-text search
-status: Todo
-rank: 30
-created: 2026-06-10-09:00:00
-modified: 2026-06-10-09:00:00
+# Setup a project (same as demo)
+mkdir -p ~/my_project
+echo "Backlog,In Progress,Testing,Done" > ~/my_project/.project-config
+
+NOW=$(date +"%Y-%m-%d-%H:%M:%S")
+
+# Create realistic tickets (from demo)
+cat <<EOF > ~/my_project/api_rate_limiting.md
+title: Implement API rate limiting
+status: Backlog
+created: $NOW
+modified: $NOW
 completed:
-author: alice
-owner: bob
-tags: @project +frontend +search
+rank: 10
+author: $(whoami)
+owner: $(whoami)
+tags: @feature +backend +security
 ---
-Build a full-text search feature using an inverted index.
-TIX
+Add token-bucket rate limiting to all public API endpoints.
+EOF
 
-cat <<'TIX' > ~/tui_test_project/fix_auth_timeout.md
-title: Fix auth token refresh timeout
+cat <<EOF > ~/my_project/login_oauth.md
+title: Add OAuth2 login support
 status: In Progress
-rank: 60
-created: 2026-06-08-14:30:00
-modified: 2026-06-14-11:15:00
+created: $(date -d "3 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+modified: $NOW
 completed:
-author: bob
-owner: alice
-tags: @bug +backend +auth
+rank: 40
+author: $(whoami)
+owner: $(whoami)
+tags: @feature +auth +frontend
 ---
-The OAuth token refresh handler silently fails after 30s.
-TIX
+Integrate Google and GitHub OAuth2 providers. Wire up the callback flow and JWT session tokens.
+EOF
 
-cat <<'TIX' > ~/tui_test_project/add_unit_tests.md
-title: Add unit tests for API module
+cat <<EOF > ~/my_project/ci_pipeline.md
+title: Set up CI/CD pipeline
 status: In Progress
+created: $(date -d "5 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+modified: $NOW
+completed:
 rank: 50
-created: 2026-06-05-10:00:00
-modified: 2026-06-13-16:45:00
+author: $(whoami)
+owner: $(whoami)
+tags: @ops +infra
+---
+Configure GitHub Actions for lint, test, build, and deploy to staging.
+EOF
+
+cat <<EOF > ~/my_project/search_index_fix.md
+title: Fix search index corruption bug
+status: Testing
+created: $(date -d "7 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+modified: $(date -d "1 day ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
 completed:
-author: alice
-owner: alice
-tags: @test +api
+rank: 80
+author: $(whoami)
+owner: $(whoami)
+tags: @bug +search +backend
 ---
-Reach 80% coverage on the REST API endpoints.
-TIX
+Rare race condition corrupts the inverted index under concurrent writes. Fix applied, needs QA sign-off.
+EOF
 
-cat <<'TIX' > ~/tui_test_project/setup_logging.md
-title: Set up structured logging
+cat <<EOF > ~/my_project/db_migration.md
+title: Migrate database to PostgreSQL
 status: Done
-rank: 90
-created: 2026-06-01-08:00:00
-modified: 2026-06-12-12:00:00
-completed: 2026-06-12-12:00:00
-author: bob
-owner: bob
-tags: @ops +observability
+created: $(date -d "14 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+modified: $(date -d "2 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+completed: $(date -d "2 days ago" +"%Y-%m-%d-%H:%M:%S" 2>/dev/null || echo "$NOW")
+rank: 95
+author: $(whoami)
+owner: $(whoami)
+tags: @ops +database
 ---
-Replaced plain syslog with JSON-structured logging via fluentd.
-TIX
+Migrated from SQLite to PostgreSQL 16 with zero-downtime replication. All data verified.
+EOF
 
-kanban "Kanban" "Test board" ~/tui_test_project
+cat <<EOF > ~/my_project/readme_update.md
+title: Update project README
+status: Backlog
+created: $NOW
+modified: $NOW
+completed:
+rank: 20
+author: $(whoami)
+owner: $(whoami)
+tags: @docs +meta
+---
+Document the new API endpoints, setup instructions, and contribution guide.
+EOF
+
+# Launch the manager
+TUI_MODE=fullscreen kanban "Project" "Manage your tickets and notes" ~/my_project
 echo "EXIT=$?"
 echo "RESULT=$TUI_RESULT"
-rm -rf ~/tui_test_project
+
+# Cleanup
+rm -rf ~/my_project

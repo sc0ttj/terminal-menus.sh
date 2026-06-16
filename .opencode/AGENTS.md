@@ -97,7 +97,75 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 - **Static Positioning**: Use `\e[H` to return to home and `\e[J` to clear only what is necessary.
 - **Colors**: Use variables for ANSI codes: `readonly RED=$'\e[31m'`, `readonly RESET=$'\e[0m'`.
 
-### 5. Operational Instructions
+### 5. Color Rendering Rules (CRITICAL)
+- **Every visible text element MUST have an explicit foreground color.** Never rely on the terminal's default foreground (which may be black in xterm/Xvfb).
+- Use `$FG_TEXT_ESC` (off-white `239;239;239`) as the default foreground for all text unless a specific color is intended.
+- When using `$BG_WID_ESC`, `$BG_MAIN_ESC`, or `$BG_INPUT_ESC` (background-only escapes), always pair with a foreground escape like `$FG_TEXT_ESC` or `$FG_BLUE_BOLD`.
+- The safe rendering pattern is: `"${BG_XYZ_ESC}${FG_TEXT_ESC} text ${RESET}${BG_MAIN_ESC}"`.
+- Escape sequences that are NOT foreground colors: `\e[1m` (bold), `\e[2m` (faint), `\e[22m` (normal intensity). These only modify the existing foreground — they do not set one.
+- If adding a new `printf` call that renders visible text, always include a foreground escape BEFORE the text content. The `_draw_line()` and `_draw_at()` helpers now set `$FG_TEXT_ESC` by default, but raw `printf` calls elsewhere must set it explicitly.
+- When a text element appears black in screenshots, it means a `printf` somewhere is missing a foreground color. Search for `${BG_WID_ESC}`, `${BG_MAIN_ESC}`, `${BG_INPUT_ESC}`, `${BG_BLUE_ESC}` that are used without a following `${FG_TEXT_ESC}` or other FG escape.
+
+### 6. Screenshot Generation System
+
+#### How screenshots work
+Screenshots are generated in isolated Xvfb sessions using `test/interactive_runner.sh` and `scripts/generate_readme_screenshots.sh`.
+
+**Architecture:**
+1. `scripts/generate_readme_screenshots.sh` iterates 23 widgets, each wrapped in a `test/wrappers/*_wrapper.sh` script
+2. For each widget, it launches `test/interactive_runner.sh` which:
+   - Starts Xvfb on a random display (`:99` to `:199`)
+   - Launches xterm (DejaVu Sans Mono 12pt, 100x30 geometry) running the wrapper script
+   - Finds the xterm window via `xdotool search --pid` (fallback: `--classname`)
+   - Moves xterm to (0,0) so it fills the top-left corner
+   - Runs keystroke instructions from `test/drivers/*.driver` to set the widget state
+   - Captures the focused window via `scrot -u` (fallback: `xwd -id` → `convert`, then full-screen scrot)
+   - Outputs `[SS] <path>` for the generation script to pick up
+
+**Key components:**
+- `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + scrot
+- `test/wrappers/*_wrapper.sh` — 23 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data
+- `test/drivers/*.driver` — 23 per-widget keystroke scripts (send_key, type_text, screenshot, wait_s)
+- `scripts/generate_readme_screenshots.sh` — Master generation script that loops all widgets
+
+#### Terminal choice
+- **xterm** (not mlterm): chosen for reliable TrueType font support via `-fa`/`-fs` flags
+- **Font**: DejaVu Sans Mono 12pt (`xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30`)
+- **Why not mlterm**: mlterm's default foreground is white (text without explicit FG renders OK), but xterm's default is black (text without explicit FG renders as BLACK on dark backgrounds — must pair every BG escape with a FG escape)
+
+#### How to regenerate all screenshots
+```bash
+rm -f screenshots/*.png
+bash scripts/generate_readme_screenshots.sh
+```
+
+#### How to regenerate a single screenshot
+```bash
+# Delete just that one:
+rm -f screenshots/mainmenu.png
+# Then run the generation script (SKIPs existing ones):
+bash scripts/generate_readme_screenshots.sh
+```
+
+#### Requirements
+- `Xvfb`, `xterm`, `xdotool`, `scrot`, `ImageMagick` (convert), `ash`, `fonts-dejavu-core`
+
+#### Fallback chain for screenshot capture
+1. `scrot -u` (focused window) — captures xterm with decorations
+2. `xwd -id` + `convert` — captures parent window if scrot fails
+3. `scrot` (full screen) — last resort
+
+### 7. Troubleshooting Screenshots
+
+**Black text in screenshots:** Missing explicit foreground color in a `printf` call. Fix: add `$FG_TEXT_ESC` before the text content, or use `$HL_WHITE_BOLD` for active/highlighted elements.
+
+**scrot -u fails (no file created):** The xterm window may not be properly focused. The screenshot function has a fallback to `xwd -id` on the parent window. If scrot consistently fails for a specific widget, check the driver timing (widget may have already closed before screenshot is taken).
+
+**Window not found error:** `xdotool search --pid` may fail because xterm forks. The runner falls back to `--classname "xterm"`. If both fail, increase the sleep after starting xterm, or try running with DEBUG output visible (remove `2>/dev/null`).
+
+**Persistent color issues after fixes:** Search for `printf` calls that use background-only escapes (`$BG_WID_ESC`, `$BG_MAIN_ESC`, etc.) on visible text without a paired foreground escape. Common locations: `_draw_btn()`, tailbox, mainmenu sidemenu, mainmenu table rows, kanban ticket names, filepicker hidden files, filemanager hidden files.
+
+### 8. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.
 - If a task requires a complex external tool (like `curl`), isolate it and ensure its output is parsed using built-in string manipulation.
 - Always check scripts with `shellcheck` (integrated in OpenCode).

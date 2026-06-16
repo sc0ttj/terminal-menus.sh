@@ -1,6 +1,8 @@
 #!/bin/ash
 cd "$(dirname "$0")/../.."
 . ./terminal-menus.sh
-RESULT=$(passwordbox "Password" "Enter secret:" "secret123")
+export TUI_MODE=fullscreen
+export BACKTITLE="terminal-menus.sh - passwordbox"
+PASS=$(passwordbox "Enter you details" "password:" "ppp")
 echo "EXIT=$?"
-echo "RESULT=$RESULT"
+echo "RESULT=$PASS"

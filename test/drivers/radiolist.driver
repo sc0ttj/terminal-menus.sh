@@ -1,5 +1,4 @@
 wait_s 1.5
-down
 screenshot radiolist
 enter
 wait_s 0.5

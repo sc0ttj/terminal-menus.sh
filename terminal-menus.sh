@@ -14,6 +14,7 @@
 : ${HL_BLUE:="$BG_ACTIVE"}          # Map highlight blue to active focus
 : ${FG_HINT:="150;150;150"}         # Dimmed grey for control hints
 : ${FG_BACKTITLE:="95;175;215"}     # Light blue for desktop background text
+: ${BG_BACKTITLE:="50;50;50"}      # Grey background for BACKTITLE bar
 : ${BG_INPUT:="20;20;20"}           # Near black for input backgrounds
 : ${FG_INPUT:="95;175;215"}         # Light blue for active input text
 : ${FG_INPUT_ROOT:="255;60;60"}     # Red for Root prompt
@@ -224,6 +225,7 @@ _init_static_colors() {
     FG_INPUT_ESC="\e[38;2;${FG_INPUT}m"
     BG_INPUT_ESC="\e[48;2;${BG_INPUT}m"
     FG_BACKTITLE_ESC="\e[38;2;${FG_BACKTITLE}m"
+    BG_BACKTITLE_ESC="\e[48;2;${BG_BACKTITLE}m"
     BG_TABLE_HEADER_ESC="\e[48;2;100;100;100m${FG_TEXT_ESC}"
     
     # Pre-calculate bolds based on the current active/highlight colors
@@ -263,7 +265,7 @@ _init_tui() {
         [ "$title_row" -lt 1 ] && title_row=1
         local clr=""
         [ "$TUI_MODAL" != "true" ] && clr="\e[K"
-        printf "\e[${title_row};${PADDING_LEFT}H\e[0m${FG_BACKTITLE_ESC}${BOLD}%s${clr}\e[0m" "$BACKTITLE" >&2
+        printf "\e[${title_row};${PADDING_LEFT}H\e[0m${BG_BACKTITLE_ESC}${FG_BACKTITLE_ESC}${BOLD}%s${clr}\e[0m" "$BACKTITLE" >&2
     fi
 
     # 4. PARK CURSOR
@@ -398,7 +400,7 @@ _draw_at() {
     local target_row=$(( $1 + PADDING_TOP ))
     local target_col=$(( PADDING_LEFT + ${2:-${COL_START:-0}} ))
 
-    printf "\e[%d;%dH${BG_MAIN_ESC}" "$target_row" "$target_col" >&2
+    printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}" "$target_row" "$target_col" >&2
 }
 
 # _draw_clear_line() {
@@ -415,7 +417,7 @@ _draw_line() {
     
     if [ -n "$1" ]; then
         # Clear full width first, then draw content (prevents stale text)
-        printf "\e[%d;%dH${BG_MAIN_ESC}%*s\e[%d;%dH${BG_MAIN_ESC}%b" \
+        printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}%*s\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}%b" \
             "$target_row" "$target_col" "$MAX_WIDTH" "" \
             "$target_row" "$target_col" "$1" >&2
     fi
@@ -450,7 +452,7 @@ _draw_header() {
             # Using your existing target_row/target_col logic
             local target_row=$(( row + PADDING_TOP ))
             local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-            printf "\e[%d;%dH${BG_MAIN_ESC}  %s" "$target_row" "$target_col" "$line" >&2
+            printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}  %s" "$target_row" "$target_col" "$line" >&2
             _draw_line ""
         done
         IFS="$old_ifs"
@@ -494,10 +496,10 @@ _draw_btn() {
     
     if [ "$is_active" -eq 1 ]; then
         # Active: Blue BG + Bold
-        printf "${BG_BLUE_ESC}${BOLD} $label ${RESET}${BG_MAIN_ESC}" >&2
+        printf "${HL_WHITE_BOLD} $label ${RESET}${BG_MAIN_ESC}" >&2
     else
         # Inactive: Widget Grey
-        printf "${BG_WID_ESC} $label ${RESET}${BG_MAIN_ESC}" >&2
+        printf "${BG_WID_ESC}${FG_TEXT_ESC} $label ${RESET}${BG_MAIN_ESC}" >&2
     fi
 }
 
@@ -1177,7 +1179,7 @@ tailbox() {
 
             if [ "$idx" -lt "$count" ]; then
                 local raw_content=$(sed -n "$((idx + 1))p" "$tmpf" 2>/dev/null | expand -t 4 | cut -c 1-"$box_width")
-                printf "${BG_WID_ESC}%-${box_width}.${box_width}s${RESET}" "$raw_content" >&2
+                printf "${BG_WID_ESC}${FG_TEXT_ESC}%-${box_width}.${box_width}s${RESET}" "$raw_content" >&2
             else
                 printf "${BG_WID_ESC}%${box_width}s${RESET}" "" >&2
             fi
@@ -3556,9 +3558,9 @@ EOF
             local row_content="\e[${draw_row};${PADDING_LEFT}H${BG_MAIN_ESC} "
             
             if [[ $i -lt $side_count ]]; then
-                local style=$BG_WID_ESC
+                local style="${BG_WID_ESC}${FG_TEXT_ESC}"
                 if [[ $i -eq $cur_side ]]; then
-                    [[ $focus -eq 0 ]] && style=$HL_WHITE_BOLD || style="${BG_WID_ESC}${BOLD}"
+                    [[ $focus -eq 0 ]] && style=$HL_WHITE_BOLD || style="${BG_WID_ESC}${FG_TEXT_ESC}${BOLD}"
                 fi
                 eval "sl=\$side_label_$i"
                 item=$(printf "${BG_MAIN_ESC} ${style} %-$((side_w - 2))s ${RESET}${BG_MAIN_ESC}" "$sl")
@@ -3587,7 +3589,7 @@ EOF
                         row_content="${row_content}${BG_MAIN_ESC}${CLR_EOL}"
                     fi
                 elif [[ $data_idx -lt $f_count ]]; then
-                    local style=$BG_WID_ESC; [[ $data_idx -eq $cur_table && $focus -eq 1 ]] && style=$HL_WHITE_BOLD
+                    local style="${BG_WID_ESC}${FG_TEXT_ESC}"; [[ $data_idx -eq $cur_table && $focus -eq 1 ]] && style=$HL_WHITE_BOLD
                     eval "fl=\$filtered_line_$data_idx"
                     item=$(printf "${style} %-${table_w}s ${RESET}${BG_MAIN_ESC}${CLR_EOL}" "$fl")
                     row_content="$row_content$item"
@@ -3954,7 +3956,7 @@ _refresh_sidebar_only() {
             elif [[ -x "$path" ]]; then
                 color="\e[1;32m"
             elif [[ "${label:0:1}" == "." ]]; then
-                color="\e[2m"
+                        color="${FG_TEXT_ESC}\e[2m"
             fi
 
             printf "${style}${color} %-${menu_w}s ${RESET}${BG_MAIN_ESC}" "${label:0:$menu_w}" >&2
@@ -4482,7 +4484,7 @@ EOF
                     elif [[ -x "$path" ]]; then
                         color="\e[1;32m"
                     elif _match "$label" ".*"; then
-                        color="\e[2m"
+                color="${FG_TEXT_ESC}\e[2m"
                     else
                         color="$FG_TEXT_ESC"
                     fi
@@ -5326,7 +5328,7 @@ ${SB}q${SR}           Quit"
                 _draw_at "$r" "$x"
                 
                 if [[ $idx -lt $c_len ]]; then
-                    local style=$([[ $sel_c -eq $c && $sel_r -eq $idx ]] && echo "${HL_WHITE_BOLD}" || echo "${BG_WID_ESC}")
+                    local style=$([[ $sel_c -eq $c && $sel_r -eq $idx ]] && echo "${HL_WHITE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
                     
                     eval "d_name=\$titles_${c}_${idx}"
                     [[ -z "$d_name" ]] && eval "d_name=\$files_${c}_${idx}"

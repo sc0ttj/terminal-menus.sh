@@ -1,19 +1,20 @@
 #!/bin/sh
-# test/interactive_runner.sh - Run TUI scripts in mlterm under Xvfb with xdotool control
+# test/interactive_runner.sh - Run TUI scripts in xterm under Xvfb with xdotool control
 # Usage:
 #   ./test/interactive_runner.sh <script-to-test> [driver-script]
 #   ./test/interactive_runner.sh <script-to-test> < <key-commands>
 #   cat driver | ./test/interactive_runner.sh <script-to-test>
-# Terminal (default mlterm), geometry (default 80x24), and display are configurable:
-#   TERMINAL=xterm TERM_GEOMETRY=100x30 DISPLAY_NUM=99 ./interactive_runner.sh ...
+# Terminal (default xterm with DejaVu Sans Mono 12pt), geometry (default 100x30), and display are configurable:
+#   TERMINAL_CMD="xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30" TERM_GEOMETRY=100x30 DISPLAY_NUM=99 ./interactive_runner.sh ...
 
 DISPLAY_NUM="${DISPLAY_NUM:-99}"
 export DISPLAY=":${DISPLAY_NUM}"
 SCREENSHOT_DIR="/tmp/tui_tests/$(date +%s)"
 SCRIPT="$1"
 DRIVER="${2:-}"
-TERMINAL="${TERMINAL:-mlterm}"
-TERM_GEOMETRY="${TERM_GEOMETRY:-80x24}"
+TERMINAL_CMD="${TERMINAL_CMD:-xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30}"
+TERM_GEOMETRY="${TERM_GEOMETRY:-100x30}"
+export TERM="xterm-256color"
 
 [ -z "$SCRIPT" ] && {
     echo "Usage: $0 <script-to-test> [driver-script]"
@@ -30,7 +31,7 @@ echo "Screenshots: $SCREENSHOT_DIR"
 # ---- Helper functions for driver scripts ----
 
 _focus_win() {
-    [ -z "$_XDO_WIN" ] && _XDO_WIN=$(xdotool search --pid "$TERM_PID" 2>/dev/null | tail -1)
+    [ -z "$_XDO_WIN" ] && _XDO_WIN=$(xdotool search --classname "xterm" 2>/dev/null | tail -1)
     xdotool windowfocus "$_XDO_WIN" 2>/dev/null
 }
 
@@ -50,8 +51,19 @@ screenshot() {
     local name="$1"
     local file="${SCREENSHOT_DIR}/${name}.png"
     _focus_win
-    sleep 0.1
+    sleep 0.5
+    # Try scrot -u first (focused window)
     scrot -u "$file" 2>/dev/null
+    # Fallback: xwd on parent window if scrot didn't create a file
+    if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+        xwd -id "$_XDO_WIN" -out "/tmp/xwd_fallback_$$.xwd" 2>/dev/null
+        convert "/tmp/xwd_fallback_$$.xwd" "$file" 2>/dev/null
+        rm -f "/tmp/xwd_fallback_$$.xwd"
+    fi
+    # Fallback: full-screen scrot if nothing else worked
+    if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+        scrot "$file" 2>/dev/null
+    fi
     echo "[SS] $file"
 }
 
@@ -75,14 +87,17 @@ trap cleanup EXIT INT TERM
 # ---- Start Xvfb ----
 
 echo "Starting Xvfb on $DISPLAY_NUM..."
-Xvfb ":$DISPLAY_NUM" -screen 0 1280x960x24 2>/dev/null &
+# 100x30 at ~19px/char, ~36px/line with 12pt DejaVu Sans Mono = ~1920x1080
+Xvfb ":$DISPLAY_NUM" -screen 0 1920x1080x24 2>/dev/null &
 XVFB_PID=$!
 sleep 1
 
 # ---- Start terminal ----
 
-echo "Starting $TERMINAL ($TERM_GEOMETRY) with: $SCRIPT"
-$TERMINAL -geometry "$TERM_GEOMETRY" -e "$SCRIPT" 2>/dev/null &
+echo "Starting terminal with: $SCRIPT"
+echo "Terminal command: $TERMINAL_CMD"
+# Use sh -c to avoid eval issues with command substitution
+sh -c "$TERMINAL_CMD -e \"$SCRIPT\"" 2>/dev/null &
 TERM_PID=$!
 sleep 2
 
@@ -90,18 +105,26 @@ sleep 2
 
 WIN_ID=""
 for i in 1 2 3 4 5; do
+    # Search by PID to ensure we get the right xterm
     WIN_ID=$(xdotool search --pid "$TERM_PID" 2>/dev/null | tail -1)
+    echo "[DEBUG] xdotool search --pid returned: $WIN_ID" >&2
+    if [ -z "$WIN_ID" ]; then
+        # Fallback to classname search
+        WIN_ID=$(xdotool search --classname "xterm" 2>/dev/null | tail -1)
+        echo "[DEBUG] xdotool search --classname returned: $WIN_ID" >&2
+    fi
     [ -n "$WIN_ID" ] && break
     sleep 1
 done
 
 if [ -z "$WIN_ID" ]; then
-    echo "ERROR: $TERMINAL window not found"
+    echo "ERROR: xterm window not found"
     kill $TERM_PID $XVFB_PID 2>/dev/null
     exit 1
 fi
 
 _XDO_WIN="$WIN_ID"
+xdotool windowmove "$WIN_ID" 0 0 2>/dev/null
 echo "$TERMINAL window active (id=$WIN_ID)"
 
 # ---- Run driver ----
@@ -118,7 +141,20 @@ fi
 
 # ---- Wait for completion ----
 
-wait $TERM_PID 2>/dev/null
-TERM_EXIT=$?
+# Wait for terminal process - use polling instead of wait to avoid subshell issues
+TERM_EXIT=0
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    if ! kill -0 $TERM_PID 2>/dev/null; then
+        TERM_EXIT=0
+        break
+    fi
+    sleep 1
+done
+# If still running, force kill
+if kill -0 $TERM_PID 2>/dev/null; then
+    kill $TERM_PID 2>/dev/null
+    sleep 1
+    TERM_EXIT=1
+fi
 kill $XVFB_PID 2>/dev/null
 exit $TERM_EXIT

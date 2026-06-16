@@ -1,0 +1,17 @@
+wait_s 2.0
+screenshot mainmenu_initial
+tab
+wait_s 0.5
+enter
+wait_s 0.5
+enter
+wait_s 1.0
+screenshot mainmenu_modal
+type_text "testuser"
+wait_s 0.3
+enter
+wait_s 1.5
+screenshot mainmenu_after_modal
+send_key q
+wait_s 0.5
+screenshot mainmenu_quit
