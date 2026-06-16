@@ -1918,7 +1918,7 @@ spreadsheet() {
             else
                 local _display="${_cursor_prefix}"$'\x1b[7m \x1b[27m'
             fi
-            printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC}${label}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$_display" >&2
+            printf "${label}${BG_INPUT_ESC}${FG_INPUT_ESC}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$_display" >&2
         else
             local raw=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
             local label=" [$(printf \\$(printf '%03o' $((cur_c+64))))${cur_r}] Raw: "
