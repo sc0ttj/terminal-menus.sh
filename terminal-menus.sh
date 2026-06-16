@@ -2733,7 +2733,7 @@ _tree_core() {
                     _draw_item "menu" "$is_cur" 0 "$content_line" "$item_w"
                 fi
             else
-                printf "%*s" "$MAX_WIDTH" "" >&2
+                printf "%*s" "$(($MAX_WIDTH - 2))" "" >&2
             fi
             
             row=$current_view_row
