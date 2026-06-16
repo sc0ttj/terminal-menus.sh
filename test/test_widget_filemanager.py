@@ -30,3 +30,42 @@ class TestFilemanager(TuiTestCase):
             KEY.char("."), KEY.char("q"),
         ], timeout=10)
         self.assert_exit(1, stdout)
+
+    def test_filemanager_escape_quit(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [KEY.ESCAPE, KEY.ESCAPE], timeout=10)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filemanager_detail_toggle(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [
+            KEY.char(","), KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filemanager_goto_home(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [
+            KEY.char("~"), KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filemanager_gitignore_toggle(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [
+            KEY.char("i"), KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filemanager_page_keys(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [
+            KEY.char("J"), KEY.char("K"), KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filemanager_top_bottom(self):
+        stdout, rc = self.runner("wrappers/filemanager_wrapper.sh", [
+            KEY.char("g"), KEY.char("G"), KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)

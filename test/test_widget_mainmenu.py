@@ -85,7 +85,17 @@ class TestMainmenu(TuiTestCase):
         self.assert_in_output("echo zed", stdout)
         self._assert_no_shell_errors(stdout)
 
+    def test_mainmenu_q_quit_no_errors(self):
+        stdout, rc = self.runner("wrappers/mainmenu_wrapper.sh", [KEY.char("q")], timeout=10)
+        self.assert_no_shell_errors(stdout)
+
+    def test_mainmenu_left_right_focus(self):
+        stdout, rc = self.runner("wrappers/mainmenu_wrapper.sh", [
+            KEY.RIGHT, KEY.LEFT, KEY.char("q"),
+        ], timeout=10)
+        self.assert_exit(1, stdout)
+        self._assert_no_shell_errors(stdout)
+
     def _assert_no_shell_errors(self, stdout):
-        """Check that stdout contains no shell error patterns."""
         for pattern in ["Syntax error", "not found", "unexpected", "Bad substitution"]:
             self.assertNotIn(pattern, stdout, f"shell error pattern found: {pattern!r}")

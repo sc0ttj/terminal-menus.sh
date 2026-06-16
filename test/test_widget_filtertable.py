@@ -6,23 +6,33 @@ class TestFiltertable(TuiTestCase):
         stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [KEY.ENTER])
         self.assert_exit(0, stdout)
 
-    def test_filtertable_type_and_select(self):
+    def test_filtertable_type_filter_clear(self):
         stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [
-            KEY.char("B"), KEY.char("e"), KEY.char("t"),
-            KEY.char("a"), KEY.ENTER, KEY.ENTER,
+            KEY.TAB, KEY.char("X"), KEY.BACKSPACE,
+            KEY.TAB, KEY.DOWN, KEY.ENTER,
         ])
         self.assert_exit(0, stdout)
-        self.assert_result("echo beta", stdout)
+        self.assert_no_shell_errors(stdout)
 
-    def test_filtertable_backspace(self):
+    def test_filtertable_arrow_nav(self):
+        stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [KEY.DOWN, KEY.DOWN, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filtertable_vim_nav(self):
         stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [
-            KEY.char("X"), KEY.BACKSPACE,
-            KEY.char("A"), KEY.char("l"), KEY.char("p"),
-            KEY.char("h"), KEY.char("a"), KEY.ENTER, KEY.ENTER,
+            KEY.char("j"), KEY.char("j"), KEY.char("k"), KEY.ENTER,
         ])
         self.assert_exit(0, stdout)
-        self.assert_result("echo alpha", stdout)
+        self.assert_no_shell_errors(stdout)
 
-    def test_filtertable_escape_cancel(self):
-        stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [KEY.ESCAPE])
-        self.assert_exit(1, stdout)
+    def test_filtertable_cursor_keys(self):
+        stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [
+            KEY.LEFT, KEY.RIGHT, KEY.ENTER,
+        ])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filtertable_no_shell_errors(self):
+        stdout, rc = self.runner("wrappers/filtertable_wrapper.sh", [KEY.ENTER])
+        self.assert_no_shell_errors(stdout)

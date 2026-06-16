@@ -176,3 +176,8 @@ class TuiTestCase(unittest.TestCase):
 
     def assert_in_output(self, pattern, stdout, msg=""):
         self.assertIn(pattern, stdout, msg)
+
+    def assert_no_shell_errors(self, stdout, msg=""):
+        for err in ("Syntax error", "not found", "unexpected", "Bad substitution"):
+            self.assertNotIn(err, stdout,
+                f"{msg} -- shell error {err!r} found in output")

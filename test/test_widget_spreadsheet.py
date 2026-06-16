@@ -31,3 +31,29 @@ class TestSpreadsheet(TuiTestCase):
             KEY.ENTER, KEY.char("X"), KEY.ENTER, KEY.char("z"), KEY.char("q"),
         ], timeout=8)
         self.assert_exit(0, stdout)
+
+    def test_spreadsheet_q_quit_no_errors(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_wrapper.sh", [KEY.char("q")], timeout=8)
+        self.assert_no_shell_errors(stdout)
+
+    def test_spreadsheet_arrow_nav(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_extra_wrapper.sh", [
+            KEY.DOWN, KEY.RIGHT, KEY.UP, KEY.LEFT, KEY.char("q"),
+        ], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_spreadsheet_cut(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_wrapper.sh", [
+            KEY.char("x"), KEY.char("j"), KEY.char("v"), KEY.char("q"),
+        ], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_spreadsheet_redo(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_wrapper.sh", [
+            KEY.ENTER, KEY.char("X"), KEY.ENTER, KEY.char("z"),
+            KEY.char("Z"), KEY.char("q"),
+        ], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
