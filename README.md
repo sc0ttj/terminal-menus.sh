@@ -12,7 +12,7 @@ Screenshots of each widget are included throughout this document, alongside thei
 
 The **`filemanager`** in fullscreen mode:
 
-![filemanager](screenshots/file_manager.png)
+![filemanager](screenshots/filemanager.png)
 
 The **`mainmenu`** in fullscreen mode:
 
