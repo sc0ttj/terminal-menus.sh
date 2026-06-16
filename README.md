@@ -1,6 +1,6 @@
 # terminal-menus.sh
 
-A high-performance, dependency-free TUI (Terminal User Interface) library written entirely in **Pure Bash 3.2+**, with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
+A high-performance, dependency-free TUI (Terminal User Interface) library written in **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
 
 Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern alternative to `whiptail` and `dialog` with support for TrueColor and modular layouts.
 
@@ -22,20 +22,25 @@ The **`mainmenu`** in fullscreen mode:
 
 ## 🚀 Features
 
-- **Pure Bash 3.2**: Works out of the box on macOS and legacy Linux systems.
+- **Bash 3.2+ & BusyBox Ash**: Works on modern systems and embedded environments alike.
 - **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
 - **TrueColor (24-bit)**: Customisable RGB themes.
 - **Adaptive Layouts**: Modal popups, full-screen dashboards, toast notifications, and command palettes.
-- **High Performance**: Minimal use of subshells; uses internal bash built-ins for all logic.
+- **High Performance**: Minimal use of subshells; uses internal built-ins for all logic.
+
+> **Shell requirements**: The library requires `[[ ]]`, `read -n`, and `$'...'` support.  
+> Bash 3.2+ works natively. BusyBox Ash needs `ASH_BASH_COMPAT` enabled at build time.  
+> The library checks these on startup and exits with a clear error if any are missing.
 
 ---
 
 ## 📦 Installation
 
-Simply source the script in your bash project:
+Simply source the script:
 
 ```bash
-source ./terminal-menus.sh
+. ./terminal-menus.sh     # Portable (ash, bash)
+source ./terminal-menus.sh  # Bash-specific
 ```
 
 ---
@@ -678,6 +683,13 @@ Tests live in `test/`. Three types available:
 
 Checks syntax (`ash -n`, `bash -n`) on both scripts, runs the pty form test under each shell, and executes all widget integration tests — 6 assertions total.
 
+Widget integration tests use `ash` by default. To run under a specific shell:
+
+```bash
+SHELL=bash python3 -m unittest discover -s test -p "test_widget_*.py"
+SHELL=ash  python3 -m unittest discover -s test -p "test_widget_*.py"
+```
+
 ### 2. Widget integration tests (no X required)
 
 Run all 80+ tests across 22 widget test modules:
@@ -734,7 +746,7 @@ syntax checks, form pty test, and all 80+ widget integration tests on every push
 
 | Path | Purpose |
 |------|---------|
-| `test/lib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
+| `test/testlib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
 | `test/test_widget_*.py` | 22 Python test modules covering all widgets (80+ tests) |
 | `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
