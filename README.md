@@ -78,7 +78,7 @@ sleep 2
 
 ### 3. Yes/No Menu (`yesno`)
 
-![yesno](screenshots/yesno.png)
+![yesno](screenshots/yesno_theme.png)
 
 Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No).
 
