@@ -52,13 +52,16 @@ screenshot() {
     local file="${SCREENSHOT_DIR}/${name}.png"
     _focus_win
     sleep 0.5
-    # Try scrot -u first (focused window)
-    scrot -u "$file" 2>/dev/null
-    # Fallback: xwd on parent window if scrot didn't create a file
+    # Find xterm child window (terminal text area, no window borders)
+    local child_win=$(xwininfo -id "$_XDO_WIN" -tree 2>/dev/null | grep -E "^\s+0x" | head -1 | awk '{print $1}')
+    if [ -n "$child_win" ]; then
+        xwd -id "$child_win" -out "/tmp/xwd_capture_$$.xwd" 2>/dev/null
+        convert "/tmp/xwd_capture_$$.xwd" "$file" 2>/dev/null
+        rm -f "/tmp/xwd_capture_$$.xwd"
+    fi
+    # Fallback: scrot -u on parent window if child capture failed
     if [ ! -f "$file" ] || [ ! -s "$file" ]; then
-        xwd -id "$_XDO_WIN" -out "/tmp/xwd_fallback_$$.xwd" 2>/dev/null
-        convert "/tmp/xwd_fallback_$$.xwd" "$file" 2>/dev/null
-        rm -f "/tmp/xwd_fallback_$$.xwd"
+        scrot -u "$file" 2>/dev/null
     fi
     # Fallback: full-screen scrot if nothing else worked
     if [ ! -f "$file" ] || [ ! -s "$file" ]; then
