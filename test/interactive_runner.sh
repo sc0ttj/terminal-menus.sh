@@ -12,7 +12,7 @@ export DISPLAY=":${DISPLAY_NUM}"
 SCREENSHOT_DIR="/tmp/tui_tests/$(date +%s)"
 SCRIPT="$1"
 DRIVER="${2:-}"
-TERMINAL_CMD="${TERMINAL_CMD:-xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30}"
+TERMINAL_CMD="${TERMINAL_CMD:-xterm -bw 0 -bg '#222222' -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30}"
 TERM_GEOMETRY="${TERM_GEOMETRY:-100x30}"
 export TERM="xterm-256color"
 

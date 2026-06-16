@@ -114,13 +114,14 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
 **Architecture:**
 1. `scripts/generate_readme_screenshots.sh` iterates 23 widgets, each wrapped in a `test/wrappers/*_wrapper.sh` script
 2. For each widget, it launches `test/interactive_runner.sh` which:
-   - Starts Xvfb on a random display (`:99` to `:199`)
-   - Launches xterm (DejaVu Sans Mono 12pt, 100x30 geometry) running the wrapper script
-   - Finds the xterm window via `xdotool search --pid` (fallback: `--classname`)
-   - Moves xterm to (0,0) so it fills the top-left corner
-   - Runs keystroke instructions from `test/drivers/*.driver` to set the widget state
-   - Captures the focused window via `scrot -u` (fallback: `xwd -id` → `convert`, then full-screen scrot)
-   - Outputs `[SS] <path>` for the generation script to pick up
+    - Starts Xvfb on a random display (`:99` to `:199`)
+    - Launches xterm (`-bw 0 -bg '#222222'` DejaVu Sans Mono 12pt, 100x30) running the wrapper script
+    - Finds the xterm window via `xdotool search --classname "xterm"` (--pid fails because xterm forks)
+    - Moves xterm to (0,0) so it fills the top-left corner
+    - Runs keystroke instructions from `test/drivers/*.driver` to set the widget state
+    - Captures the xterm child window (VT100 widget, the pure text area) via `xwd -id` → `convert`
+    - Fallbacks: `xwd -id` parent window → full-screen scrot
+    - Outputs `[SS] <path>` for the generation script to pick up
 
 **Key components:**
 - `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + scrot
@@ -131,6 +132,10 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
 #### Terminal choice
 - **xterm** (not mlterm): chosen for reliable TrueType font support via `-fa`/`-fs` flags
 - **Font**: DejaVu Sans Mono 12pt (`xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30`)
+- **Border removal**: `-bw 0` removes the 1px xterm window border; with this, the child window (VT100 widget) offset changes from `+1+1` to `+0+0`
+- **Background**: `-bg '#222222'` sets dark grey background matching BG_MAIN (`34;34;34`). Fixes white edges from xterm's default white (#FFFFFF) showing at unpainted areas
+- **Do NOT use `-internalBorder 0`**: crashes xterm in Xvfb with BadWindow error
+- **Xvfb root window** (`xsetroot -solid`): **not needed** — xterm's own `-bg` handles the background, no white shows around edges
 - **Why not mlterm**: mlterm's default foreground is white (text without explicit FG renders OK), but xterm's default is black (text without explicit FG renders as BLACK on dark backgrounds — must pair every BG escape with a FG escape)
 
 #### How to regenerate all screenshots
@@ -151,9 +156,9 @@ bash scripts/generate_readme_screenshots.sh
 - `Xvfb`, `xterm`, `xdotool`, `scrot`, `ImageMagick` (convert), `ash`, `fonts-dejavu-core`
 
 #### Fallback chain for screenshot capture
-1. `scrot -u` (focused window) — captures xterm with decorations
-2. `xwd -id` + `convert` — captures parent window if scrot fails
-3. `scrot` (full screen) — last resort
+1. `xwd -id $child_window` + `convert` — captures xterm's VT100 child widget (pure text area, no borders)
+2. `xwd -id $parent_window` + `convert` — captures parent window (includes window decorations) if child fails
+3. `scrot` (full screen) — last resort if xwd fails
 
 ### 7. Troubleshooting Screenshots
 
@@ -164,6 +169,8 @@ bash scripts/generate_readme_screenshots.sh
 **Window not found error:** `xdotool search --pid` may fail because xterm forks. The runner falls back to `--classname "xterm"`. If both fail, increase the sleep after starting xterm, or try running with DEBUG output visible (remove `2>/dev/null`).
 
 **Persistent color issues after fixes:** Search for `printf` calls that use background-only escapes (`$BG_WID_ESC`, `$BG_MAIN_ESC`, etc.) on visible text without a paired foreground escape. Common locations: `_draw_btn()`, tailbox, mainmenu sidemenu, mainmenu table rows, kanban ticket names, filepicker hidden files, filemanager hidden files.
+
+**White edges around screenshots:** Caused by xterm's default white background (#FFFFFF) at unpainted areas of the terminal. Fix: add `-bg '#222222'` to xterm (matching BG_MAIN `34;34;34`). If re-capturing, delete the old PNG first so the generation script doesn't skip it.
 
 ### 8. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.

@@ -15,7 +15,7 @@ RUNNER="$PROJECT_ROOT/test/interactive_runner.sh"
 mkdir -p "$SCREENSHOT_DIR"
 
 # Terminal configuration
-export TERMINAL_CMD="xterm -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30"
+export TERMINAL_CMD="xterm -bw 0 -bg '#222222' -fa 'DejaVu Sans Mono' -fs 12 -geometry 100x30"
 export TERM_GEOMETRY="100x30"
 
 # Widget list in demo order (23 widgets + yesno variations = 24)
