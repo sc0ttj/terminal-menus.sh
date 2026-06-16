@@ -263,9 +263,13 @@ _init_tui() {
     if [ -n "$BACKTITLE" ]; then
         local title_row=$(( PADDING_TOP ))
         [ "$title_row" -lt 1 ] && title_row=1
-        local clr=""
-        [ "$TUI_MODAL" != "true" ] && clr="\e[K"
-        printf "\e[${title_row};${PADDING_LEFT}H\e[0m${BG_BACKTITLE_ESC}${FG_BACKTITLE_ESC}${BOLD}%s${clr}\e[0m" "$BACKTITLE" >&2
+        local _bt_fill=""
+        if [ "$TUI_MODAL" != "true" ]; then
+            local _bt_rem=$(( MAX_WIDTH - ${#BACKTITLE} ))
+            [ "$_bt_rem" -lt 0 ] && _bt_rem=0
+            _bt_fill=$(printf "%*s" "$_bt_rem" "")
+        fi
+        printf "\e[${title_row};${PADDING_LEFT}H\e[0m${BG_BACKTITLE_ESC}${FG_BACKTITLE_ESC}${BOLD}%s${_bt_fill}\e[0m" "$BACKTITLE" >&2
     fi
 
     # 4. PARK CURSOR
