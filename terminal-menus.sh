@@ -1126,7 +1126,7 @@ textbox() {
             
             row=$((view_top + height))
             _draw_line "" 
-            _draw_controls " ${SB}Up/Down/j/k${SR} Scroll | ${SB}Enter${SR} Close"
+            _draw_controls " ${SB}Up/Down/j/k${SR} Scroll | ${SB}PgUp/PgDn${SR} Page | ${SB}Enter${SR} Close"
             _draw_footer
             last_top=$top
         fi
@@ -1139,6 +1139,8 @@ textbox() {
             case "$key" in
                 "[A"|"OA") [ "$top" -gt 0 ] && top=$((top-1)) ;;
                 "[B"|"OB") [ "$((top + height))" -lt "$count" ] && top=$((top+1)) ;;
+                "[5"|"[5~"|"5~") [ "$top" -gt 0 ] && top=$((top - height + 1)); [ "$top" -lt 0 ] && top=0 ;;
+                "[6"|"[6~"|"6~") [ "$((top + height))" -lt "$count" ] && top=$((top + height - 1)); [ "$top" -gt "$((count - height))" ] && top=$((count - height)) ;;
             esac
         elif [ "$key" = "k" ]; then
             [ "$top" -gt 0 ] && top=$((top-1))
@@ -1720,6 +1722,21 @@ spreadsheet() {
     local src="$2"
     local tmp_csv=$(mktemp)
     
+    local CONTROLS_TXT="
+${SB}Arrows${SR} or ${SB}wasd${SR}    Navigate cells
+${SB}Enter${SR}           Enter edit mode for current cell
+${SB}Right/Left${SR}      Move cursor in edit mode
+${SB}q${SR}               Quit
+${SB}?${SR}               Toggle this help
+
+Supported Expressions in cells:
+  =A1+B2         Basic math: +, -, *, /
+  =SUM(A1:B10)   Range functions: SUM, AVG, MIN, MAX, COUNT, COUNTA
+  =ROUND(A1,2)   Round to decimal places
+  =IF(A1>=50,Y,N) Conditional logic (supports >=, <=, >, <, =)
+  =A1&B1         String concatenation
+  =A1            Cell reference (returns A1 value)"
+
     # 1. Setup Stacks and Clipboard
     local clipboard_val=""
     local undo_idx=0 redo_idx=0
@@ -1771,7 +1788,7 @@ spreadsheet() {
         [[ "$mode" == "NAV" ]] && modetxt="NAV " || modetxt="EDIT"
 
         # 1. Header Fix: Use _draw_line or a clamped printf to stop the bleed
-        _draw_header "$title" "Mode: $modetxt | ${SB}Arrows${SR} Move  ${SB}Enter${SR} Confirm  ${SB}z/Z${SR} Undo/Redo  ${SB}q${SR} Quit  "
+        _draw_header "$title" "Mode: $modetxt | ${SB}Arrows${SR} Move  ${SB}Enter${SR} Confirm  ${SB}?${SR} Help  ${SB}q${SR} Quit  "
         # Wipe the subtitle row perfectly to the right edge
         _draw_at "$((row - 1))" 0; printf "${BG_MAIN_ESC}%*s" "$MAX_WIDTH" "" >&2
 
@@ -2039,6 +2056,12 @@ spreadsheet() {
                 fi
                 ;;
 
+            "?") # Help
+                _bg=""; [ "$TUI_MODE" != "fullscreen" ] && _bg="$BG_MAIN"
+                BG_MODAL="$_bg" modal "infobox 'Spreadsheet Help' \"$CONTROLS_TXT\""
+                _init_tui
+                ;;
+
             # --- VIM and WASD NAVIGATION (NAV Mode Only) ---
             "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
             "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
@@ -2215,7 +2238,12 @@ filtermenu() {
             _read_str_timeout 2 key
             case "$key" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
-                "[B"|"OB") [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ] && cur=$((cur+1)) ;;
+                "[B"|"OB")
+                    if [ "$cur" -eq 0 ] && [ "$count" -gt 0 ]; then
+                        cur=1
+                    elif [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ]; then
+                        cur=$((cur+1))
+                    fi ;;
                 "[C"|"OC")
                     [ "$cur" -eq 0 ] && [ -n "$cursor_suffix" ] && {
                         _c="${cursor_suffix%"${cursor_suffix#?}"}"
@@ -2246,9 +2274,19 @@ filtermenu() {
                     return 0
                 fi ;;
             "k")
-                [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
+                if [ "$cur" -gt 0 ]; then
+                    cur=$((cur-1))
+                elif [ "$cur" -eq 0 ]; then
+                    cursor_prefix="${cursor_prefix}${key}"
+                fi ;;
             "j")
-                [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ] && cur=$((cur+1)) ;;
+                if [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ]; then
+                    cur=$((cur+1))
+                elif [ "$cur" -eq 0 ]; then
+                    cursor_prefix="${cursor_prefix}${key}"
+                fi ;;
+            "/")
+                [ "$cur" -gt 0 ] && cur=0 ;;
             "$(printf '\177')"|"$(printf '\10')")
                 if [ "$cur" -eq 0 ]; then
                     if [ -n "$cursor_prefix" ]; then
@@ -2257,6 +2295,8 @@ filtermenu() {
                         cur=${_saved_cur:-1}
                         [ "$cur" -gt "$count" ] && cur=$count
                     fi
+                elif [ "$cur" -gt 0 ]; then
+                    cur=0
                 fi ;;
             "$(printf '\t')")
                 if [ "$cur" -eq 0 ]; then
@@ -2435,7 +2475,9 @@ filepicker() {
             if [ "$is_d" = "false" ]; then
                 preview "$p" "$list_top" "$height" "$preview_x" "$preview_offset"
             else
-                preview "" "$list_top" "$height" "$preview_x" "$preview_offset"
+                local preview_file="/tmp/tui_pv_fp_$$.txt"
+                { ls -1Ap "$p" 2>/dev/null | grep '/$'; ls -1Ap "$p" 2>/dev/null | grep -v '/$'; } 2>/dev/null | head -"$height" > "$preview_file"
+                [ -s "$preview_file" ] && preview "$preview_file" "$list_top" "$height" "$preview_x" 0 || preview "" "$list_top" "$height" "$preview_x" "$preview_offset"
             fi
             last_cur=$cur
         fi
@@ -2516,6 +2558,8 @@ filepicker() {
 
             "k"|"w") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
             "j"|"s") [ $cur -lt $((count - 1)) ] && cur=$((cur+1)) ;;
+            "[") local pu_off=$((preview_offset - height)); [ $pu_off -lt 0 ] && pu_off=0; preview_offset=$pu_off ;;
+            "]") local pd_off=$((preview_offset + height)); [ $pd_off -gt 0 ] && preview_offset=$pd_off ;;
             "h"|"a")
                 local old_name="${root_dir##*/}"
                 local parent_dir="${root_dir%/*}"
@@ -2842,6 +2886,14 @@ _tree_core() {
         fi
 
         case "$key" in
+            $(printf '\t')) # TAB toggle filter
+                if [ "$ENABLE_FILTER" = "true" ]; then
+                    if [ $cur -eq -1 ]; then
+                        [ $v_count -gt 0 ] && cur=0
+                    else
+                        cur=-1
+                    fi
+                fi ;;
             $(printf '\177')|$(printf '\b')) # Backspace Jump
                 [ "$ENABLE_FILTER" = "true" ] && cur=-1 ;;
             " ") # Space Toggle
@@ -2915,8 +2967,16 @@ _tree_core() {
                     eval "g_idx=\"\$visible_$cur\""
                     eval "selection=\"\$node_$g_idx\""
                     local d="${selection%%|*}"
-                    local id_part="${selection#*|}"
-                    local path="${id_part%%|*}"
+                    local rest="${selection#*|}"
+                    local id="${rest%%|*}"
+                    rest="${rest#*|}"
+                    local label="${rest%%|*}"
+                    local path="$id"
+                    if [ "$TREE_RETURN_VALUES" = "true" ]; then
+                        path="$label"
+                    else
+                        path="$id"
+                    fi
                     local scan=$g_idx
                     local check_d=$d
                     while [ $scan -gt 0 ]; do
@@ -2925,7 +2985,14 @@ _tree_core() {
                         local sd="${snode%%|*}"
                         if [ $sd -lt $check_d ]; then
                             local srem="${snode#*|}"
-                            path="${srem%%|*}/$path"
+                            local sid="${srem%%|*}"
+                            srem="${srem#*|}"
+                            local slabel="${srem%%|*}"
+                            if [ "$TREE_RETURN_VALUES" = "true" ]; then
+                                path="${slabel}/$path"
+                            else
+                                path="${sid}/$path"
+                            fi
                             check_d=$sd
                         fi
                     done
@@ -2949,6 +3016,8 @@ _tree_core() {
 
 
 # Returns a single ID (Dialog style)
+# When TREE_RETURN_VALUES=true, returns label paths instead of ID paths.
+: ${TREE_RETURN_VALUES:=false}
 tree() {
     local t=$1 m=$2 d=0
     
@@ -3310,6 +3379,8 @@ filtertable() {
                 if [ "$cur" -ge 0 ]; then
                     [ "$key" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
                     [ "$key" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${key}"
                 fi ;;
             "") # Enter
                 if [ $cur -ge 0 ]; then
@@ -4109,12 +4180,19 @@ filemanager() {
     local show_details=0
     local cmd_hist_count=0
     local hist_ptr=-1
+    # Load persistent command history
+    if [ -f "$hist_file" ]; then
+        while IFS= read -r line; do
+            [ -n "$line" ] && eval "cmd_hist_${cmd_hist_count}='$line'" && cmd_hist_count=$((cmd_hist_count+1))
+        done < "$hist_file"
+    fi
     local comp_match_count=0
     local completion_idx=-1
     local last_completion_base=""
     local show_ignored=0  # 0 = hide, 1 = show
     local show_hidden=0   # 0 = hide, 1 = show
 
+    local hist_file="/tmp/tui_fm_history.txt"
     local help_file="/tmp/tui_help_$$.txt"
     cat << EOF > "$help_file"
 [Arrows]  Navigate (and [w/a/s/d])
@@ -4604,6 +4682,7 @@ EOF
 
             if [[ "$is_d" == "true" ]]; then
                 root_dir=$(cd "$p" && pwd); cur=0; rebuild=1; _init_tui
+                [ -n "$TUI_CD_FILE" ] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
                 return 0
             fi
 
@@ -4746,6 +4825,12 @@ EOF
                             cmd_hist_count=$((cmd_hist_count+1))
                             # Limit history size to 50 items
                             [[ $cmd_hist_count -gt 50 ]] && cmd_hist_count=50
+                            # Save to persistent history file
+                            : > "$hist_file"
+                            local hi=0; while [ "$hi" -lt "$cmd_hist_count" ]; do
+                                eval "echo \"\$cmd_hist_$hi\"" >> "$hist_file"
+                                hi=$((hi+1))
+                            done
                         fi
                         _execute_mode_action
                         cur=$_saved_cur; top=$_saved_top

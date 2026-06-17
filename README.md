@@ -213,6 +213,10 @@ A searchable, real-time filtered list for large datasets.
 **Controls:**
 - **Type** — Filter list in real-time
 - **Up** / **Down** or **k** / **j** — Navigate filtered results
+- **Left** / **Right** — Move cursor within filter input
+- **/** — Focus filter input (from list)
+- **Backspace** — Delete last filter character; when empty, focuses filter
+- **Down** — Focus first list item (from filter)
 - **Enter** — Select highlighted item
 
 ```bash
@@ -246,6 +250,7 @@ A read-only scrollable file viewer.
 
 **Controls:**
 - **Up** / **Down** or **j** / **k** — Scroll vertically
+- **Page Up** / **Page Down** or **[** / **]** — Scroll by page
 - **Enter** — Close viewer
 
 ```bash
@@ -286,6 +291,7 @@ Deep hierarchical navigation. Returns the full path from root of the selected no
 - **Enter** — Select node (returns full path from root)
 - **Space** — Toggle selection (config mode only)
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
+- **Tab** — Toggle focus between filter and tree (when `ENABLE_FILTER=true`)
 - **q** — Quit
 
 ```bash
@@ -310,6 +316,7 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 - **Space** — Toggle checkbox value
 - **Enter** — Confirm and return variable assignments
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
+- **Tab** — Toggle focus between filter and tree (when `ENABLE_FILTER=true`)
 
 ```bash
 CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
@@ -372,6 +379,7 @@ A lightweight file and directory picker, supports picking single or multiple ite
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
 - **Enter** or **Right** or **l** / **d** — Open directory / Select file
 - **Left** or **h** / **a** — Go to parent directory
+- **[** / **]** — Page up / Page down
 - **Tab** — Toggle mark on current item (for multiple selection)
 - **.** — Toggle hidden files
 - **q** — Cancel / Exit
@@ -454,6 +462,16 @@ filemanager "Home" "$HOME"
 
 You can highlight multiple items using **Tab**, and hit **`:`** to launch a command prompt (**`!`** for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
+**`TUI_CD_FILE` integration** — Use `filemanager` as a "cd on exit" directory picker:
+
+```bash
+export TUI_CD_FILE=/tmp/tui_cd.txt
+filemanager "Browse" "$HOME"
+if [ -f "$TUI_CD_FILE" ]; then
+    cd "$(cat "$TUI_CD_FILE")"
+fi
+```
+
 ### 20. Spreadsheet (`spreadsheet`)
 
 ![spreadsheet](screenshots/spreadsheet.png)
@@ -466,9 +484,9 @@ An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCA
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate cells
-- **Enter** — Select / confirm
-- **z** — Undo
-- **Z** — Redo
+- **Enter** — Enter edit mode for current cell
+- **Right** / **Left** — Move cursor in edit mode
+- **?** — Toggle help popup (lists all expressions)
 - **q** — Quit
 
 ```bash
@@ -659,6 +677,7 @@ update_config "theme='dark'"
 |----------|--------|---------|
 | `TUI_PERSISTENT_FILTERS=true` | `mainmenu` | Keep filter text when switching sidebar items |
 | `ENABLE_FILTER=true` | `tree`, `configtree` | Enable search/filter input |
+| `TREE_RETURN_VALUES=true` | `tree` | Return label paths instead of ID paths |
 | `TUI_CD_FILE` | `filepicker` | Write `cd` commands to a file for shell integration |
 | `TUI_MODE` | All | Layout mode (centered, fullscreen, classic, popup, top, bottom, toast, palette) |
 | `TUI_WIDTH` / `TUI_HEIGHT` | `custom` mode | Custom widget dimensions |

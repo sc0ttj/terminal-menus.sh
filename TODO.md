@@ -42,22 +42,22 @@ Fix `spreadsheet` demo:
 
 ## New: custom keybindings
 
-For some widgets, custom key bindings that popup command pallete style popup modal widgets will be very useful.
+For some widgets, custom key bindings that popup modal widgets will be very useful, particularly for command palette style popups.
 
-The user should be bale to set `EXTRA_KEYS` env var like so:
+The user should be able to set `TUI_EXTRA_KEYS` env var like so:
 
 ```
-EXTRA_KEYS="
+TUI_EXTRA_KEYS="
 a=modal \"menu '' '' 1 'foo bar' 'second' 'third'\"
 b=modal \"checklist '' '' 1 'foo bar' 'second' 'third'\"
 B=modal \"checklist '' '' 1 'other' 'more' 'third'\"
-ctrl_f=modal "inputbox '' '' \"
+ctrl_f=modal "inputbox '' '' '' \"
+shift_f=modal "infobox '' '' 'foo'\"
 "
 filemanager ...
 ```
 
 The widgets should run the commands when the user presses the defined key binding (before the = sign).
-
 
 
 ------------------------------------------------------------------
@@ -79,7 +79,7 @@ Use raw ANSI/escape char calls instead. Makes it faster.
 
 Make sure "dropdowns" have:
 - a max height of 6
-- a scrollable viewport if items exceed 6
+- scrollable items area, if items exceed 6
 
 
 ------------------------------------------------------------------
