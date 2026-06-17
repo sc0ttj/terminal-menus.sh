@@ -24,16 +24,12 @@
 # Define a "Soft Reset" that returns to Hint color while keeping BG_MAIN
 : ${SR:="\e[22m${FG_HINT_ESC}"}
 
-# : ${FG_BLUE_BOLD:="\e[1;38;2;${FG_INPUT}m"}
-# : ${HL_WHITE_BOLD:="\e[48;2;${BG_ACTIVE}m\e[38;2;255;255;255;1m"}
-
 # --- ANSI helpers ---
  
 RESET="\e[0m"    # Reset all formatting and colours
 BOLD="\e[1m"     # Set text to bold weight
 CLR_EOL="\e[K"   # Clear line from cursor to right edge
 CLR_DOWN="\e[J"  # Clear screen from cursor to bottom
-FAINT="${ESC}[2m"
 
 _esc() { printf "\e[%s;2;%sm" "$1" "$2"; }
 
@@ -67,10 +63,6 @@ if [ "$a" != "A" ]; then
     exit 1
 fi
 
-_arr_count() { echo "$1" | awk -v RS="\n" 'END{print NR}'; }
-
-_arr_get() { echo "$1" | awk -v RS="\n" "NR==$2{print;exit}"; }
-
 # --- Key reading helpers (IFS-safe for ash compat) ---
 
 _read_key() {
@@ -79,6 +71,34 @@ _read_key() {
 
 _read_str_timeout() {
     local _rk_ifs="$IFS"; IFS=; read -t 1 -r -n "$@" < /dev/tty 2>/dev/null; local _rk_rc=$?; IFS="$_rk_ifs"; return $_rk_rc
+}
+
+# --- Cursor text editing helpers ---
+# Move cursor right: pop first char of $2, push it onto $1
+_cursor_right() { local _cs; eval "_cs=\"\${$2}\""; [ -z "$_cs" ] && return; local _c="${_cs%"${_cs#?}"}"; eval "$2=\"\${_cs#?}\""; eval "$1=\"\${$1}\${_c}\""; }
+
+# Move cursor left: pop last char of $1, push it onto $2
+_cursor_left() { local _cp; eval "_cp=\"\${$1}\""; [ -z "$_cp" ] && return; local _c="${_cp#"${_cp%?}"}"; eval "$1=\"\${_cp%?}\""; eval "$2=\"\${_c}\${$2}\""; }
+
+# Render text with cursor highlight, sets _DISPLAY and _VIS_LEN globals
+_render_cursor_display() {
+    local _p="$1" _s="$2"
+    if [ -n "$_s" ]; then
+        local _cc="${_s%"${_s#?}"}" _cr="${_s#?}"
+        _DISPLAY="${_p}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+        _VIS_LEN=$(( ${#_p} + ${#_s} ))
+    else
+        _DISPLAY="${_p}"$'\x1b[7m \x1b[27m'
+        _VIS_LEN=$(( ${#_p} + 1 ))
+    fi
+}
+
+# --- Key + Escape sequence reader ---
+# Reads one key into KEY; if it's ESC, reads trailing sequence into ESC_SEQ
+_read_key_esc() {
+    ESC_SEQ=""; KEY=""
+    _read_key KEY
+    [ "$KEY" = "$(printf '\e')" ] && _read_str_timeout 2 ESC_SEQ
 }
 
 # --- UI Labels ---
@@ -283,14 +303,6 @@ _init_tui() {
     fi
 }
 
-_draw_background_widget_faint() {
-    # We force the FAINT code and tell the widget to draw
-    # This requires the widget to support a 'no-clear' mode
-    printf "${FAINT}" >&2
-    # Call your last background render logic here
-    # (This is why keeping state in variables like you did is so important!)
-}
-
 # --- GLOBAL LAYOUT INITIALISATION ---
 # Run once at startup to set initial state
 _TERM_W=$(tput cols)
@@ -406,13 +418,6 @@ _draw_at() {
 
     printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}" "$target_row" "$target_col" >&2
 }
-
-# _draw_clear_line() {
-#     # Combine the move and the clear into ONE printf call
-#     local target_row=$(( row + PADDING_TOP ))
-#     local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-#     printf "\e[%d;%dH${BG_MAIN_ESC}%*s" "$target_row" "$target_col" "$MAX_WIDTH" "" >&2
-# }
 
 _draw_line() {
     [[ -n "$2" ]] && row=$2
@@ -707,12 +712,10 @@ _draw_list() {
         _draw_footer
 
         # --- INPUT HANDLING ---
-        local key
-        _read_key key
-        
-        if [ "$key" = "$(printf '\e')" ]; then
-            _read_str_timeout 2 key
-            case "$key" in
+        _read_key_esc
+
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB") [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1)) ;;
                 "[M"|"<0"|"<3"|"[<")
@@ -730,24 +733,24 @@ _draw_list() {
                                     echo "$TUI_RESULT"
                                     return 0
                                 else
-                                    key=" "
+                                    KEY=" "
                                 fi
                                 ;;
                         esac
                     fi
                     ;;
             esac
-            [ "$key" != " " ] && continue
+            [ "$ESC_SEQ" != " " ] && continue
         fi
 
-        if [ "$key" = " " ]; then
+        if [ "$KEY" = " " ]; then
             if [ "$type" = "check" ]; then
                 eval "v=\$sel_$cur"; eval "sel_$cur=$((1 - v))"
             elif [ "$type" = "radio" ]; then
                 j=0; while [ "$j" -lt "$count" ]; do eval "sel_$j=0"; j=$((j+1)); done
                 eval "sel_$cur=1"
             fi
-        elif [ -z "$key" ]; then
+        elif [ -z "$KEY" ]; then
             if [ "$type" = "menu" ]; then
                 eval "TUI_RESULT=\${$((cur+1))}"
                 echo "$TUI_RESULT"
@@ -858,92 +861,14 @@ yesno() {
     done
 }
 
-inputbox() {
-    local title=$1 msg=$2 val="${3:-}" char key
-    local cursor_prefix="$val" cursor_suffix=""
-    _init_tui
-    _draw_header "$title" "$msg"
+inputbox() { _input_core text "$@"; }
 
-    local input_row=$row
-    local phys_row=$((input_row + PADDING_TOP))
+passwordbox() { _input_core password "$@"; }
 
-    _escape=$(printf '\e')
-
-    while true; do
-        local _display="${cursor_prefix}${cursor_suffix}"
-        local _vis_len=$(( ${#cursor_prefix} + ${#cursor_suffix} ))
-
-        if [ -n "$cursor_suffix" ]; then
-            local _cc="${cursor_suffix%"${cursor_suffix#?}"}"
-            local _cr="${cursor_suffix#?}"
-            _display="${cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
-        else
-            _display="${cursor_prefix}"$'\x1b[7m \x1b[27m'
-            _vis_len=$(( _vis_len + 1 ))
-        fi
-
-        local _pad=$(( 34 - _vis_len ))
-        [ "$_pad" -lt 0 ] && _pad=0
-
-        _hide_cursor
-        _draw_at "$input_row"
-        printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
-
-        _read_key char
-
-        if [ "$char" = "$_escape" ]; then
-            local _del_c="" next_chars=""
-            _read_str_timeout 2 next_chars
-
-            case "$next_chars" in
-                "[D"|"OD") [ -n "$cursor_prefix" ] && {
-                    _c="${cursor_prefix#"${cursor_prefix%?}"}"
-                    cursor_prefix="${cursor_prefix%?}"
-                    cursor_suffix="${_c}${cursor_suffix}"
-                } ;;
-                "[C"|"OC") [ -n "$cursor_suffix" ] && {
-                    _c="${cursor_suffix%"${cursor_suffix#?}"}"
-                    cursor_suffix="${cursor_suffix#?}"
-                    cursor_prefix="${cursor_prefix}${_c}"
-                } ;;
-                "[3") _read_str_timeout 1 _del_c
-                    [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
-                    ;;
-                "") _hide_cursor; TUI_RESULT=''; return 1 ;;
-                *)
-                    read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
-                    ;;
-            esac
-            continue
-        elif [ -z "$char" ]; then
-            break
-        elif [ "$char" = "$(printf '\t')" ]; then
-            continue
-        elif [ "$char" = "$(printf '\177')" ] || [ "$char" = "$(printf '\10')" ]; then
-            cursor_prefix="${cursor_prefix%?}"
-        else
-            cursor_prefix="${cursor_prefix}${char}"
-        fi
-
-        # Clamp length
-        local _combined="${cursor_prefix}${cursor_suffix}"
-        if [ "${#_combined}" -gt 34 ]; then
-            local _suffix_room=$(( 34 - ${#cursor_prefix} ))
-            [ "$_suffix_room" -lt 0 ] && _suffix_room=0
-            cursor_suffix="${cursor_suffix:0:$_suffix_room}"
-        fi
-    done
-
-    _hide_cursor
-    snap_line=$(printf "%*s" "$MAX_WIDTH" "")
-    printf "\e[${phys_row};${PADDING_LEFT}H${BG_MAIN_ESC}%s" "$snap_line" >&2
-    val="${cursor_prefix}${cursor_suffix}"
-    TUI_RESULT="$val"
-    echo "$val"
-    return 0
-}
-
-passwordbox() {
+_input_core() {
+    local _is_pw=0
+    [ "$1" = "password" ] && _is_pw=1
+    shift
     local title=$1 msg=$2 val="${3:-}" char key _escape
     local cursor_prefix="$val" cursor_suffix=""
     _init_tui
@@ -951,30 +876,25 @@ passwordbox() {
 
     local input_row=$row
     local phys_row=$((input_row + PADDING_TOP))
+    local _dp _ds
 
     _escape=$(printf '\e')
 
     while true; do
-        local _masked_prefix="${cursor_prefix//?/*}"
-        local _masked_suffix="${cursor_suffix//?/*}"
-        local _display="${_masked_prefix}${_masked_suffix}"
-        local _vis_len=$(( ${#cursor_prefix} + ${#cursor_suffix} ))
-
-        if [ -n "$cursor_suffix" ]; then
-            local _cc="${_masked_suffix%"${_masked_suffix#?}"}"
-            local _cr="${_masked_suffix#?}"
-            _display="${_masked_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
+        if [ "$_is_pw" -eq 1 ]; then
+            _dp="${cursor_prefix//?/*}"; _ds="${cursor_suffix//?/*}"
         else
-            _display="${_masked_prefix}"$'\x1b[7m \x1b[27m'
-            _vis_len=$(( _vis_len + 1 ))
+            _dp="$cursor_prefix"; _ds="$cursor_suffix"
         fi
 
-        local _pad=$(( 34 - _vis_len ))
+        _render_cursor_display "$_dp" "$_ds"
+
+        local _pad=$(( 34 - _VIS_LEN ))
         [ "$_pad" -lt 0 ] && _pad=0
 
         _hide_cursor
         _draw_at "$input_row"
-        printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
+        printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_DISPLAY" "" >&2
 
         _read_key char
 
@@ -983,16 +903,8 @@ passwordbox() {
             _read_str_timeout 2 next_chars
 
             case "$next_chars" in
-                "[D"|"OD") [ -n "$cursor_prefix" ] && {
-                    _c="${cursor_prefix#"${cursor_prefix%?}"}"
-                    cursor_prefix="${cursor_prefix%?}"
-                    cursor_suffix="${_c}${cursor_suffix}"
-                } ;;
-                "[C"|"OC") [ -n "$cursor_suffix" ] && {
-                    _c="${cursor_suffix%"${cursor_suffix#?}"}"
-                    cursor_suffix="${cursor_suffix#?}"
-                    cursor_prefix="${cursor_prefix}${_c}"
-                } ;;
+                "[D"|"OD") _cursor_left cursor_prefix cursor_suffix ;;
+                "[C"|"OC") _cursor_right cursor_prefix cursor_suffix ;;
                 "[3") _read_str_timeout 1 _del_c
                     [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
                     ;;
@@ -1012,7 +924,6 @@ passwordbox() {
             cursor_prefix="${cursor_prefix}${char}"
         fi
 
-        # Clamp length
         local _combined="${cursor_prefix}${cursor_suffix}"
         if [ "${#_combined}" -gt 34 ]; then
             local _suffix_room=$(( 34 - ${#cursor_prefix} ))
@@ -1025,7 +936,8 @@ passwordbox() {
     snap_line=$(printf "%*s" "$MAX_WIDTH" "")
     printf "\e[${phys_row};${PADDING_LEFT}H${BG_MAIN_ESC}%s" "$snap_line" >&2
 
-    _draw_footer
+    [ "$_is_pw" -eq 1 ] && _draw_footer
+
     val="${cursor_prefix}${cursor_suffix}"
     TUI_RESULT="$val"
     echo "$val"
@@ -1131,25 +1043,23 @@ textbox() {
             last_top=$top
         fi
 
-        local key
-        _read_key key
+        _read_key_esc
 
-        if [ "$key" = "$(printf '\e')" ]; then
-            _read_str_timeout 2 key
-            case "$key" in
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
                 "[A"|"OA") [ "$top" -gt 0 ] && top=$((top-1)) ;;
                 "[B"|"OB") [ "$((top + height))" -lt "$count" ] && top=$((top+1)) ;;
                 "[5"|"[5~"|"5~") [ "$top" -gt 0 ] && top=$((top - height + 1)); [ "$top" -lt 0 ] && top=0 ;;
                 "[6"|"[6~"|"6~") [ "$((top + height))" -lt "$count" ] && top=$((top + height - 1)); [ "$top" -gt "$((count - height))" ] && top=$((count - height)) ;;
             esac
-        elif [ "$key" = "k" ]; then
+        elif [ "$KEY" = "k" ]; then
             [ "$top" -gt 0 ] && top=$((top-1))
-        elif [ "$key" = "j" ]; then
+        elif [ "$KEY" = "j" ]; then
             [ "$((top + height))" -lt "$count" ] && top=$((top+1))
-        elif [ "$key" = "q" ]; then
+        elif [ "$KEY" = "q" ]; then
             rm -f "$tmpf"
             return 0
-        elif [ -z "$key" ]; then
+        elif [ -z "$KEY" ]; then
             rm -f "$tmpf"
             return 0
         fi
@@ -1202,8 +1112,8 @@ tailbox() {
         _draw_controls " Watching: ${src##*/} | ${SB}Enter${SR} Close"
         _draw_footer
 
-        _read_key key
-        if [ -z "$key" ]; then
+        _read_key_esc
+        if [ -z "$KEY" ]; then
             return 0
         fi
     done
@@ -1441,17 +1351,13 @@ form() {
                 if [ "$key" = "[C" ] || [ "$key" = "OC" ]; then
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*" && [ -n "$_cursor_suffix" ]; then
-                        _c="${_cursor_suffix%"${_cursor_suffix#?}"}"
-                        _cursor_suffix="${_cursor_suffix#?}"
-                        _cursor_prefix="${_cursor_prefix}${_c}"
+                        _cursor_right _cursor_prefix _cursor_suffix
                         eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                     fi
                 elif [ "$key" = "[D" ] || [ "$key" = "OD" ]; then
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*" && [ -n "$_cursor_prefix" ]; then
-                        _c="${_cursor_prefix#"${_cursor_prefix%?}"}"
-                        _cursor_prefix="${_cursor_prefix%?}"
-                        _cursor_suffix="${_c}${_cursor_suffix}"
+                        _cursor_left _cursor_prefix _cursor_suffix
                         eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
                     fi
                 elif [ "$key" = "[3" ]; then
@@ -1929,14 +1835,8 @@ Supported Expressions in cells:
         if [[ "$mode" == "EDIT" ]]; then
             local label=" EDIT: "
             local val_limit=$(( bar_limit - ${#label} ))
-            if [ -n "$_cursor_suffix" ]; then
-                local _cc="${_cursor_suffix%"${_cursor_suffix#?}"}"
-                local _cr="${_cursor_suffix#?}"
-                local _display="${_cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
-            else
-                local _display="${_cursor_prefix}"$'\x1b[7m \x1b[27m'
-            fi
-            printf "${label}${BG_INPUT_ESC}${FG_INPUT_ESC}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$_display" >&2
+            _render_cursor_display "$_cursor_prefix" "$_cursor_suffix"
+            printf "${label}${BG_INPUT_ESC}${FG_INPUT_ESC}%-${val_limit}.${val_limit}s ${RESET}${BG_MAIN_ESC}  " "$_DISPLAY" >&2
         else
             local raw=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
             local label=" [$(printf \\$(printf '%03o' $((cur_c+64))))${cur_r}] Raw: "
@@ -2119,10 +2019,10 @@ Supported Expressions in cells:
 }
 
 filtermenu() {
-    local title=$1 msg=$2 d=0 input_string=""
+    local title=$1 msg=$2 d=-1 input_string=""
 
     if _is_numeric "$3"; then
-        d=$(( $3 ))
+        d=$(( $3 - 1 ))
         input_string=$4
     else
         input_string=$3
@@ -2136,7 +2036,7 @@ filtermenu() {
     local filter_query=""
     local last_query="INIT_STATE"
     local cur=$d
-    local _saved_cur=1
+    local _saved_cur=0
     local scroll_offset=0
     local start_row=$(_get_start_row)
 
@@ -2170,19 +2070,14 @@ filtermenu() {
         _draw_at "$row"
 
         local style="${BG_WID_ESC}${FG_TEXT_ESC}"
-        [ "$cur" -eq 0 ] && style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
+        [ "$cur" -eq -1 ] && style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
 
         local _display="$filter_query"
         local _vis_len=${#filter_query}
-        if [ "$cur" -eq 0 ]; then
-            if [ -n "$cursor_suffix" ]; then
-                local _cc="${cursor_suffix%"${cursor_suffix#?}"}"
-                local _cr="${cursor_suffix#?}"
-                _display="${cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
-            else
-                _display="${cursor_prefix}"$'\x1b[7m \x1b[27m'
-                _vis_len=$(( _vis_len + 1 ))
-            fi
+        if [ "$cur" -eq -1 ]; then
+            _render_cursor_display "$cursor_prefix" "$cursor_suffix"
+            _display="$_DISPLAY"
+            _vis_len=$_VIS_LEN
         fi
         local _pad=$(( 25 - _vis_len ))
         [ "$_pad" -lt 0 ] && _pad=0
@@ -2194,12 +2089,13 @@ filtermenu() {
         [ "$active_vh" -gt "$max_vh" ] && active_vh=$max_vh
         [ "$active_vh" -lt 1 ] && active_vh=1
 
-        [ "$cur" -gt "$count" ] && cur=$count
+        [ "$cur" -ge "$count" ] && cur=$((count - 1))
+        [ "$cur" -lt -1 ] && cur=-1
 
-        if [ "$((cur - 1))" -lt "$scroll_offset" ] && [ "$cur" -gt 0 ]; then
-            scroll_offset=$((cur - 1))
-        elif [ "$((cur - 1))" -ge "$((scroll_offset + active_vh))" ]; then
-            scroll_offset=$((cur - active_vh))
+        if [ "$cur" -ge 0 ] && [ "$cur" -lt "$scroll_offset" ]; then
+            scroll_offset=$cur
+        elif [ "$cur" -ge 0 ] && [ "$cur" -ge "$((scroll_offset + active_vh))" ]; then
+            scroll_offset=$((cur - active_vh + 1))
         fi
 
         local list_top=$row
@@ -2208,7 +2104,7 @@ filtermenu() {
             local current_row=$((list_top + i))
             _draw_at "$current_row"
             printf "  " >&2
-            local is_cur=0; [ "$((cur - 1))" -eq "$idx" ] && is_cur=1
+            local is_cur=0; [ "$cur" -eq "$idx" ] && is_cur=1
 
             if [ "$idx" -lt "$count" ]; then
                 eval "fv=\"\$filtered_$idx\""
@@ -2222,98 +2118,68 @@ filtermenu() {
         done
 
         row=$((list_top + max_vh))
-
         _draw_at "$row"
         _draw_spacer
-
         _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Enter${SR} Select"
         _draw_spacer
-
         row=$((row + 1))
         _draw_footer
 
-        local key
-        _read_key key
+        _read_key_esc
 
-        if [ "$key" = "$(printf '\e')" ]; then
-            _read_str_timeout 2 key
-            case "$key" in
-                "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA") [ "$cur" -ge 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB")
-                    if [ "$cur" -eq 0 ] && [ "$count" -gt 0 ]; then
-                        cur=1
-                    elif [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ]; then
+                    if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                        cur=0
+                    elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
                         cur=$((cur+1))
                     fi ;;
-                "[C"|"OC")
-                    [ "$cur" -eq 0 ] && [ -n "$cursor_suffix" ] && {
-                        _c="${cursor_suffix%"${cursor_suffix#?}"}"
-                        cursor_suffix="${cursor_suffix#?}"
-                        cursor_prefix="${cursor_prefix}${_c}"
-                    } ;;
-                "[D"|"OD")
-                    [ "$cur" -eq 0 ] && [ -n "$cursor_prefix" ] && {
-                        _c="${cursor_prefix#"${cursor_prefix%?}"}"
-                        cursor_prefix="${cursor_prefix%?}"
-                        cursor_suffix="${_c}${cursor_suffix}"
-                    } ;;
+                "[C"|"OC") [ "$cur" -eq -1 ] && _cursor_right cursor_prefix cursor_suffix ;;
+                "[D"|"OD") [ "$cur" -eq -1 ] && _cursor_left cursor_prefix cursor_suffix ;;
                 "[3")
                     _read_str_timeout 1 _del_c
-                    [ "$cur" -eq 0 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
+                    [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
                     ;;
             esac
             continue
         fi
 
-        case "$key" in
+        case "$KEY" in
             "")
-                if [ "$cur" -eq 0 ]; then
-                    [ "$count" -gt 0 ] && cur=1
+                if [ "$cur" -eq -1 ]; then
+                    [ "$count" -gt 0 ] && cur=0
                 else
-                    eval "TUI_RESULT=\"\$filtered_$((cur-1))\""
-                    eval "echo \"\$filtered_$((cur-1))\""
+                    eval "TUI_RESULT=\"\$filtered_$cur\""
+                    eval "echo \"\$filtered_$cur\""
                     return 0
                 fi ;;
-            "k")
-                if [ "$cur" -gt 0 ]; then
-                    cur=$((cur-1))
-                elif [ "$cur" -eq 0 ]; then
-                    cursor_prefix="${cursor_prefix}${key}"
-                fi ;;
-            "j")
-                if [ "$cur" -gt 0 ] && [ "$cur" -lt "$count" ]; then
-                    cur=$((cur+1))
-                elif [ "$cur" -eq 0 ]; then
-                    cursor_prefix="${cursor_prefix}${key}"
-                fi ;;
-            "/")
-                [ "$cur" -gt 0 ] && cur=0 ;;
+            "/") [ "$cur" -ge 0 ] && cur=-1 ;;
             "$(printf '\177')"|"$(printf '\10')")
-                if [ "$cur" -eq 0 ]; then
+                if [ "$cur" -eq -1 ]; then
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
                     else
-                        cur=${_saved_cur:-1}
-                        [ "$cur" -gt "$count" ] && cur=$count
+                        cur=${_saved_cur:-0}
+                        [ "$cur" -ge "$count" ] && cur=$((count - 1))
                     fi
-                elif [ "$cur" -gt 0 ]; then
-                    cur=0
+                elif [ "$cur" -ge 0 ]; then
+                    cur=-1
                 fi ;;
             "$(printf '\t')")
-                if [ "$cur" -eq 0 ]; then
-                    cur=${_saved_cur:-1}
-                    [ "$cur" -gt "$count" ] && cur=$count
+                if [ "$cur" -eq -1 ]; then
+                    cur=${_saved_cur:-0}
+                    [ "$cur" -ge "$count" ] && cur=$((count - 1))
                 else
                     _saved_cur=$cur
-                    cur=0
+                    cur=-1
                 fi ;;
             *)
-                if [ "$cur" -eq 0 ]; then
-                    case "$key" in
-                        [[:print:]])
-                            cursor_prefix="${cursor_prefix}${key}"
-                            scroll_offset=0
-                            ;;
+                if [ "$cur" -eq -1 ]; then
+                    case "$KEY" in [[:print:]])
+                        cursor_prefix="${cursor_prefix}${KEY}"
+                        scroll_offset=0 ;;
                     esac
                 fi ;;
         esac
@@ -3184,24 +3050,22 @@ table() {
         _draw_controls " ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
         _draw_footer
 
-        local key
-        _read_key key
+        _read_key_esc
 
-        case "$key" in
-            "j") [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1)) ;;
-            "k") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
-            "")
-                eval "TUI_RESULT=\"\$cmd_$cur\""
-                eval "echo \"\$cmd_$cur\""
-                return 0 ;;
-            "$(printf '\e')")
-                _read_str_timeout 2 key
-                case "$key" in
-                    "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
-                    "[B"|"OB") [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1)) ;;
-                esac
-                ;;
-        esac
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
+                "[B"|"OB") [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1)) ;;
+            esac
+        elif [ "$KEY" = "j" ]; then
+            [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+        elif [ "$KEY" = "k" ]; then
+            [ "$cur" -gt 0 ] && cur=$((cur-1))
+        elif [ -z "$KEY" ]; then
+            eval "TUI_RESULT=\"\$cmd_$cur\""
+            eval "echo \"\$cmd_$cur\""
+            return 0
+        fi
     done
 }
 
@@ -3297,14 +3161,9 @@ filtertable() {
         local _display="$filter_query"
         local _vis_len=${#filter_query}
         if [ "$cur" -eq -1 ]; then
-            if [ -n "$cursor_suffix" ]; then
-                local _cc="${cursor_suffix%"${cursor_suffix#?}"}"
-                local _cr="${cursor_suffix#?}"
-                _display="${cursor_prefix}"$'\x1b[7m'"${_cc}"$'\x1b[27m'"${_cr}"
-            else
-                _display="${cursor_prefix}"$'\x1b[7m \x1b[27m'
-                _vis_len=$(( _vis_len + 1 ))
-            fi
+            _render_cursor_display "$cursor_prefix" "$cursor_suffix"
+            _display="$_DISPLAY"
+            _vis_len=$_VIS_LEN
         fi
         local _pad=$(( 25 - _vis_len ))
         [ "$_pad" -lt 0 ] && _pad=0
@@ -3353,13 +3212,10 @@ filtertable() {
         _draw_spacer
         _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
 
-        local key
-        _read_key key
+        _read_key_esc
 
-        if [ "$key" = "$(printf '\e')" ]; then
-            _read_str_timeout 2 key
-
-            case "$key" in
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -ge 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB")
                     if [ "$cur" -ge 0 ]; then
@@ -3367,36 +3223,23 @@ filtertable() {
                     elif [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
                         cur=0
                     fi ;;
-                "[C"|"OC")
-                    [ "$cur" -eq -1 ] && [ -n "$cursor_suffix" ] && {
-                        _c="${cursor_suffix%"${cursor_suffix#?}"}"
-                        cursor_suffix="${cursor_suffix#?}"
-                        cursor_prefix="${cursor_prefix}${_c}"
-                    } ;;
-                "[D"|"OD")
-                    [ "$cur" -eq -1 ] && [ -n "$cursor_prefix" ] && {
-                        _c="${cursor_prefix#"${cursor_prefix%?}"}"
-                        cursor_prefix="${cursor_prefix%?}"
-                        cursor_suffix="${_c}${cursor_suffix}"
-                    } ;;
+                "[C"|"OC") [ "$cur" -eq -1 ] && _cursor_right cursor_prefix cursor_suffix ;;
+                "[D"|"OD") [ "$cur" -eq -1 ] && _cursor_left cursor_prefix cursor_suffix ;;
                 "[3")
                     _read_str_timeout 1 _del_c
                     [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
-                    ;;
-                *)
-                    read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
                     ;;
             esac
             continue
         fi
 
-        case "$key" in
+        case "$KEY" in
             "j"|"k")
                 if [ "$cur" -ge 0 ]; then
-                    [ "$key" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-                    [ "$key" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
+                    [ "$KEY" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+                    [ "$KEY" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
                 elif [ "$cur" -eq -1 ]; then
-                    cursor_prefix="${cursor_prefix}${key}"
+                    cursor_prefix="${cursor_prefix}${KEY}"
                 fi ;;
             "") # Enter
                 if [ $cur -ge 0 ]; then
@@ -3427,10 +3270,9 @@ filtertable() {
                 fi ;;
             *)
                 if [ "$cur" -eq -1 ]; then
-                    case "$key" in [[:print:]])
-                        cursor_prefix="${cursor_prefix}${key}"
-                        top=0
-                        ;;
+                    case "$KEY" in [[:print:]])
+                        cursor_prefix="${cursor_prefix}${KEY}"
+                        top=0 ;;
                     esac
                 fi ;;
         esac
@@ -3911,39 +3753,6 @@ _execute_mode_action() {
             cur=-2
             ;;
     esac
-}
-
-_handle_paste() {
-    # If clipboard is empty, do nothing
-    [ "$clipboard_count" = "0" ] && return
-
-    local i=0
-    while [ "$i" -lt "$clipboard_count" ]; do
-        eval "item=\$clipboard_$i"
-        local name="${item##*/}"
-        local target="$root_dir/$name"
-        
-        # Smart Rename (_1, _2)
-        if [[ -e "$target" ]]; then
-            local base="${name%.*}"
-            local ext="${name##*.}"
-            [[ "$base" == "$ext" ]] && ext="" || ext=".$ext"
-            local j=1
-            while [[ -e "$root_dir/${base}_${j}${ext}" ]]; do j=$((j+1)); done
-            target="$root_dir/${base}_${j}${ext}"
-        fi
-
-        if [[ "$clipboard_op" == "CUT" ]]; then
-            mv -f "$item" "$target"
-        else
-            cp -rf "$item" "$target"
-        fi
-        i=$((i+1))
-    done
-    
-    # Only clear clipboard if it was a CUT operation
-    [[ "$clipboard_op" == "CUT" ]] && clipboard_count=0
-    rebuild=1
 }
 
 _get_prompt_msg() {
