@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5k lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~5,700 lines). Zero dependencies. MIT license.
 
 ## Setup
 
@@ -21,7 +21,7 @@ yesno "Title" "Go?" && echo "yes"
 
 ## Available widgets
 
-`msgbox`, `infobox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `file_navigator`, `file_manager`, `table`, `filtertable`, `spreadsheet`, `kanban`, `mainmenu`.
+`msgbox`, `infobox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `filemanager`, `table`, `filtertable`, `spreadsheet`, `kanban`, `mainmenu`.
 
 ## Layout (set via `TUI_MODE` env var)
 
@@ -47,9 +47,15 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 ```bash
 # Run the full demo (exercises every widget):
 ./terminal-menus-demo.sh
+
+# Run the test suite (Python unittest, 23 per-widget test files):
+python3 -m unittest discover -s test -p "test_widget_*.py" -v
+
+# Run shell compatibility tests (ash and bash syntax + pty functional):
+./test/test_shell_compat.sh
 ```
 
-No test framework, no CI, no linter config. The demo script is the only verification path.
+The project has a **Python unittest-based test suite** (23 `test_widget_*.py` files in `test/`), a **GitHub Actions CI pipeline** (`.github/workflows/test.yml`), and **ShellCheck** for Bash linting (aspirational — run manually, not enforced in CI). The demo script exercises all widgets end-to-end.
 
 ## Script conventions
 
@@ -64,7 +70,7 @@ No test framework, no CI, no linter config. The demo script is the only verifica
 You are an expert Bash developer following the "Bash Bible" philosophy by dylanaraps. Your goal is to write fast, portable, and flicker-free shell scripts and TUIs by avoiding external processes.
 
 ### 1. Core Philosophies
-- Use ShellCheck for all Bash scripts.
+- ShellCheck recommended (run manually — not enforced in CI).
 - **Pure Bash Only**: Use built-in functionality over external binaries (`sed`, `awk`, `cut`, `basename`, etc.).
 - **No Subshells**: Minimize the use of `$(...)` and pipes `|`. Every subshell fork causes TUI flicker.
 - **Flicker-Free UI**: 
@@ -124,10 +130,10 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
     - Outputs `[SS] <path>` for the generation script to pick up
 
 **Key components:**
-- `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + scrot
-- `test/wrappers/*_wrapper.sh` — 23 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data
-- `test/drivers/*.driver` — 23 per-widget keystroke scripts (send_key, type_text, screenshot, wait_s)
-- `scripts/generate_readme_screenshots.sh` — Master generation script that loops all widgets
+- `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + xwd/convert
+- `test/wrappers/*_wrapper.sh` — 52 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data (23 used by screenshot generator)
+- `test/drivers/*.driver` — 26 per-widget keystroke scripts (send_key, type_text, screenshot, wait_s) (23 used by screenshot generator)
+- `scripts/generate_readme_screenshots.sh` — Master generation script that loops all 23 screenshot targets
 
 #### Terminal choice
 - **xterm** (not mlterm): chosen for reliable TrueType font support via `-fa`/`-fs` flags
@@ -136,7 +142,7 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
 - **Background**: `-bg '#222222'` sets dark grey background matching BG_MAIN (`34;34;34`). Fixes white edges from xterm's default white (#FFFFFF) showing at unpainted areas
 - **Do NOT use `-internalBorder 0`**: crashes xterm in Xvfb with BadWindow error
 - **Xvfb root window** (`xsetroot -solid`): **not needed** — xterm's own `-bg` handles the background, no white shows around edges
-- **Why not mlterm**: mlterm's default foreground is white (text without explicit FG renders OK), but xterm's default is black (text without explicit FG renders as BLACK on dark backgrounds — must pair every BG escape with a FG escape)
+- **Why xterm over mlterm**: xterm supports TrueType fonts via `-fa`/`-fs` and is more widely available. mlterm's default foreground is white (accidentally OK for dark themes) but xterm's default is black — so every BG escape on visible text MUST be paired with a FG escape
 
 #### How to regenerate all screenshots
 ```bash
@@ -153,7 +159,8 @@ bash scripts/generate_readme_screenshots.sh
 ```
 
 #### Requirements
-- `Xvfb`, `xterm`, `xdotool`, `scrot`, `ImageMagick` (convert), `ash`, `fonts-dejavu-core`
+- `Xvfb`, `xterm`, `xdotool`, `ImageMagick` (provides `xwd` and `convert`), `ash`, `fonts-dejavu-core`
+- `scrot` — optional (last-resort fallback only)
 
 #### Fallback chain for screenshot capture
 1. `xwd -id $child_window` + `convert` — captures xterm's VT100 child widget (pure text area, no borders)
@@ -164,7 +171,9 @@ bash scripts/generate_readme_screenshots.sh
 
 **Black text in screenshots:** Missing explicit foreground color in a `printf` call. Fix: add `$FG_TEXT_ESC` before the text content, or use `$HL_WHITE_BOLD` for active/highlighted elements.
 
-**scrot -u fails (no file created):** The xterm window may not be properly focused. The screenshot function has a fallback to `xwd -id` on the parent window. If scrot consistently fails for a specific widget, check the driver timing (widget may have already closed before screenshot is taken).
+**xwd capture fails (no file created):** Run `xwininfo -tree` on the xterm window to verify the child window ID. Increase `sleep 0.5` before the screenshot call in `interactive_runner.sh:screenshot()`. Check that `xwd` and `convert` (ImageMagick) are installed.
+
+**scrot -u fails (no file created):** The xterm window may not be properly focused. The screenshot function falls back to `xwd -id` on the parent window. If scrot consistently fails, check the driver timing (widget may have closed before screenshot). scrot is only the 3rd fallback — xwd is the primary path.
 
 **Window not found error:** `xdotool search --pid` may fail because xterm forks. The runner falls back to `--classname "xterm"`. If both fail, increase the sleep after starting xterm, or try running with DEBUG output visible (remove `2>/dev/null`).
 
