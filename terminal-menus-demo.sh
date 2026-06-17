@@ -348,7 +348,7 @@ Deployment: $deployment
 # 17. File Picker
 # ------------------------------------------------------------------------------
 BACKTITLE="terminal-menus.sh demo 17 of 23 - filepicker"
-FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)
+FILE_PICK=$(filepicker "File picker" "Choose a file" "." 5)
 [ -n "$FILE_PICK" ] && msgbox "You chose" "$FILE_PICK"
 
 
@@ -426,7 +426,7 @@ BACKTITLE="terminal-menus.sh demo 20 of 23 - filemanager"
 # Use external preview script instead of the built-in one
 . ./preview.sh
 
-filemanager "Advanced file manager" "." 3
+filemanager "Advanced file manager" "." 5
 
 # 5. Capture and display the result after exiting
 RESULT=$?
