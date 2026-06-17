@@ -22,7 +22,7 @@ The **`mainmenu`** in fullscreen mode:
 
 ## 🚀 Features
 
-- **Bash 3.2+ & BusyBox Ash**: Works on modern systems and embedded environments alike (Mac and Linux).
+- **Bash 3.2+ & BusyBox Ash**: Works on old, modern & embedded systems (Mac and Linux).
 - **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
 - **TrueColor (24-bit)**: Customisable RGB themes.
 - **Many Layouts**: Modal popups, full-screen UIs, toast notifications, and command palettes.
