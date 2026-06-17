@@ -2192,6 +2192,7 @@ filepicker() {
     
     local top=0 menu_w=30 
     local preview_x=$(( menu_w + 8 )) 
+    local preview_offset=0
     local last_cur=-1 last_dir="INIT"
     local rebuild=1
     
@@ -2425,8 +2426,8 @@ filepicker() {
 
             "k"|"w") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
             "j"|"s") [ $cur -lt $((count - 1)) ] && cur=$((cur+1)) ;;
-            "[") local pu_off=$((preview_offset - height)); [ $pu_off -lt 0 ] && pu_off=0; preview_offset=$pu_off ;;
-            "]") local pd_off=$((preview_offset + height)); [ $pd_off -gt 0 ] && preview_offset=$pd_off ;;
+            "[") preview_offset=$((preview_offset - height)); [ $preview_offset -lt 0 ] && preview_offset=0; last_cur=-3 ;;
+            "]") preview_offset=$((preview_offset + height)); last_cur=-3 ;;
             "h"|"a")
                 local old_name="${root_dir##*/}"
                 local parent_dir="${root_dir%/*}"
