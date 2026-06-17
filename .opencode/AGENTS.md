@@ -186,3 +186,25 @@ bash scripts/generate_readme_screenshots.sh
 - If a task requires a complex external tool (like `curl`), isolate it and ensure its output is parsed using built-in string manipulation.
 - Always check scripts with `shellcheck` (integrated in OpenCode).
 
+## 9. Available Skills
+
+These skills are registered in `.opencode/skills/` and are loaded automatically. Use them for common tasks:
+
+| Skill | When to use | What it does |
+|---|---|---|
+| `screenshots` | Regenerating README screenshots | `rm -f screenshots/*.png && bash scripts/generate_readme_screenshots.sh` |
+| `test-widgets` | Running widget integration tests | `python3 -m unittest discover -s test -p "test_widget_*.py" -v` |
+| `compat` | Shell compatibility + syntax checks | `bash -n` + `ash -n` + `./test/test_shell_compat.sh` + `python3 test/test_form_pty.sh` |
+| `demo` | Running the full interactive demo | `./terminal-menus-demo.sh` |
+| `shell-search` | **Searching code** — use `grep`/`ag`, **never `rg`** (not installed) | Patterns for function lookup, variable tracking, color escape hunting |
+| `shell-debug` | **Debugging shell code** — tracing, terminal state, syscalls | `bash -x`, `stty`, `strace`, `shellcheck`, TUI debugging checklist |
+| `shell-fix` | **Fixing common bugs** — ash compat, color rendering, missing `local`, preview_offset | Pattern catalog for 10 most common bugs in this codebase |
+
+### Skill invocation
+
+Skills are loaded automatically when their description matches the task. Key rules from `.opencode/skills/shell-search/SKILL.md`:
+
+- **This system has `grep` and `ag` (the Silver Searcher). It does NOT have `rg` (ripgrep). Never use `rg`.**
+- Use the search patterns in `shell-search` to find function definitions, variable usage, color escape issues, ash incompatibilities, etc.
+- After making changes, always verify with `compat` (`bash -n` + `ash -n`).
+
