@@ -662,6 +662,39 @@ Delete,Action,modal "yesno 'Confirm' 'Are you sure?'" && rm file.tmp
 
 ---
 
+### ⌨️ Custom Keybindings (`TUI_EXTRA_KEYS`)
+
+Add custom keyboard shortcuts to any interactive widget. Bind a key to arbitrary shell code — typically a `modal` call — to overlay popups without leaving the current widget.
+
+**Format:** one `key=command` per line in the env var.
+
+| Key syntax | Example | Effect |
+|------------|---------|--------|
+| Literal char | `?=modal "infobox 'Help' '...'"` | Triggers on `?` |
+| `ctrl_<c>` | `ctrl_x=modal "yesno 'Quit?' '...'"` | Control+X |
+| `shift_<c>` | `shift_u=modal "msgbox '…'"` | Uppercase U |
+
+**Controls:**
+- Keys are checked **before** the widget's native handler, so you can shadow built-in keys.
+- The value is any shell code (typically `modal "widget 'title' 'body'"`).
+- Control codes use `_` separator: `ctrl_c`, `ctrl_x`, etc.
+- Single quotes inside values are automatically escaped; avoid unescaped double quotes in message text.
+
+**Example — filemanager with help, info, and about modals:**
+
+```bash
+export TUI_EXTRA_KEYS="
+shift_u=modal \"msgbox 'Help' 'Navigate with arrows/j/k.\nTab to select.\nq to quit.'\"
+2=modal \"infobox 'System Info' 'terminal-menus.sh v1.0'\"
+3=modal \"msgbox 'About TUI_EXTRA_KEYS' 'Set TUI_EXTRA_KEYS env var with:\n  key=command\n  ctrl_x=command'\"
+"
+filemanager "Browse" "$HOME"
+```
+
+Works in all 16 interactive widgets: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`/`configtree`, `table`/`filtertable`, `mainmenu`, `filemanager`, `kanban`.
+
+---
+
 ## ⚙️ Persistent Configuration
 
 The `mainmenu` demo includes a `update_config` helper to manage `key=value` configuration files with automatic duplicate removal:
@@ -685,6 +718,7 @@ update_config "theme='dark'"
 | `BACKTITLE` | All | Background title text |
 | `OK_LABEL` | `msgbox` | OK button label |
 | `YES_LABEL` / `NO_LABEL` | `yesno` | Yes/No button labels |
+| `TUI_EXTRA_KEYS` | All interactive widgets | Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys)) |
 | `BG_MODAL` | `modal` wrapper | Modal overlay background colour |
 | `ANCHOR` | `palette` mode | Anchor position (tl, tr, bl, br, tc, bc, cc) |
 

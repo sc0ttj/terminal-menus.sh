@@ -101,6 +101,59 @@ _read_key_esc() {
     [ "$KEY" = "$(printf '\e')" ] && _read_str_timeout 2 ESC_SEQ
 }
 
+# --- Extra keys parser and handler ---
+# Parses TUI_EXTRA_KEYS env var into numbered globals for custom keybindings.
+# Each line: key=command (key supports ctrl_<c> and shift_<c> prefixes)
+_parse_extra_keys() {
+    _ek_count=0
+    [ -z "$TUI_EXTRA_KEYS" ] && return
+    local _ek_save="$IFS"; IFS=$'\n'
+    for _ek_line in $TUI_EXTRA_KEYS; do
+        IFS="$_ek_save"
+        while :; do case "$_ek_line" in ' '*) _ek_line="${_ek_line# }" ;; $'\t'*) _ek_line="${_ek_line#	}" ;; *) break ;; esac; done
+        [ -z "$_ek_line" ] && continue
+        case "$_ek_line" in *=*) ;; *) continue ;; esac
+        local _ek_key="${_ek_line%%=*}"
+        local _ek_val="${_ek_line#*=}"
+        case "$_ek_key" in
+            ctrl_*)
+                local _ek_ch="${_ek_key#ctrl_}"
+                local _ek_code; _ek_code=$(printf '%d' "'$_ek_ch")
+                _ek_code=$((_ek_code - 96))
+                _ek_key=$(printf '%b' "\\$(printf '%03o' "$_ek_code")")
+                ;;
+        esac
+        case "$_ek_key" in
+            shift_*)
+                local _ek_ch="${_ek_key#shift_}"
+                _ek_key=$(printf '%s' "$_ek_ch" | tr '[:lower:]' '[:upper:]')
+                ;;
+        esac
+        eval "_ek_key_$_ek_count=\$_ek_key"
+        # Store value with single-quote escaping for safe eval
+        local _ek_val_sq; _ek_val_sq=$(printf '%s' "$_ek_val" | sed "s/'/'\\\\''/g")
+        eval "_ek_val_$_ek_count='$_ek_val_sq'"
+        _ek_count=$((_ek_count+1))
+    done
+    IFS="$_ek_save"
+}
+
+_handle_extra_keys() {
+    [ "$_ek_count" -eq 0 ] && [ -n "$TUI_EXTRA_KEYS" ] && _parse_extra_keys
+    [ "$_ek_count" -eq 0 ] && return 1
+    local _ek_i=0 _ek_k _ek_v
+    while [ "$_ek_i" -lt "$_ek_count" ]; do
+        eval "_ek_k=\"\$_ek_key_$_ek_i\""
+        if [ "$1" = "$_ek_k" ]; then
+            eval "_ek_v=\"\$_ek_val_$_ek_i\""
+            eval "$_ek_v"
+            return 0
+        fi
+        _ek_i=$((_ek_i+1))
+    done
+    return 1
+}
+
 # --- UI Labels ---
 
 # Optional title that goes at the very top
@@ -384,6 +437,9 @@ _apply_layout() {
 
 # Initial call to set global variables based on default mode
 _apply_layout
+
+# Parse custom keybindings from environment
+_parse_extra_keys
 
 _get_start_row() {
     local offset=0
@@ -713,6 +769,7 @@ _draw_list() {
 
         # --- INPUT HANDLING ---
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -821,6 +878,7 @@ msgbox() {
         _draw_footer
         
         _read_key key
+        _handle_extra_keys "$key" && continue
         [ -z "$key" ] && TUI_RESULT=0 && return 0
     done
 }
@@ -844,6 +902,7 @@ yesno() {
 
         local key
         _read_key key
+        _handle_extra_keys "$key" && continue
         
         if [ "$key" = "$(printf '\e')" ]; then
             _read_str_timeout 2 key
@@ -897,6 +956,7 @@ _input_core() {
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_DISPLAY" "" >&2
 
         _read_key char
+        _handle_extra_keys "$char" && continue
 
         if [ "$char" = "$_escape" ]; then
             local _del_c="" next_chars=""
@@ -1044,6 +1104,7 @@ textbox() {
         fi
 
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -1113,6 +1174,7 @@ tailbox() {
         _draw_footer
 
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
         if [ -z "$KEY" ]; then
             return 0
         fi
@@ -1321,6 +1383,7 @@ form() {
 
         local key
         _read_key key
+        _handle_extra_keys "$key" && continue
 
         if [ "$key" = "$(printf '\e')" ]; then
             _read_str_timeout 2 key
@@ -1847,6 +1910,7 @@ Supported Expressions in cells:
         # 6. Input Handling
         local key
         _read_key key
+        _handle_extra_keys "$key" && continue
 
         # --- ENTER KEY HANDLER ---
         if [[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]; then
@@ -2126,6 +2190,7 @@ filtermenu() {
         _draw_footer
 
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -2388,6 +2453,7 @@ filepicker() {
 
         local key
         _read_key key
+        _handle_extra_keys "$key" && continue
         
         case "$key" in
             $'\t')
@@ -2664,6 +2730,7 @@ _tree_core() {
         # --- STEP 1: ATOMIC CAPTURE ---
         local key="" ESC_SEQ=""
         _read_key key
+        _handle_extra_keys "$key" && continue
         [ "$key" = "$(printf '\e')" ] && { _read_str_timeout 2 ESC_SEQ; }
 
         # --- STEP 2: FILTER INPUT (Focus at -1) ---
@@ -3052,6 +3119,7 @@ table() {
         _draw_footer
 
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -3214,22 +3282,13 @@ filtertable() {
         _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
 
         _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -ge 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB")
-                    if [ "$cur" -ge 0 ]; then
-                        [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-                    elif [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
-                        cur=0
-                    fi ;;
-                "[C"|"OC") [ "$cur" -eq -1 ] && _cursor_right cursor_prefix cursor_suffix ;;
-                "[D"|"OD") [ "$cur" -eq -1 ] && _cursor_left cursor_prefix cursor_suffix ;;
-                "[3")
-                    _read_str_timeout 1 _del_c
-                    [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
-                    ;;
+
             esac
             continue
         fi
@@ -3282,6 +3341,7 @@ filtertable() {
 
 modal() {
     local BACKTITLE=
+    local _saved_bg_main="$BG_MAIN"
     
     # 1. Shadow BG_MAIN locally. 
     # Uses prefixed value if present, otherwise defaults to a dark/med grey
@@ -3293,9 +3353,6 @@ modal() {
         BG_MAIN="$BG_MODAL"
     fi
     
-    # 2. Re-calculate the escape sequence so sub-functions use the new color
-    local BG_MAIN_ESC=$(_esc 50 "$BG_MAIN")
-
     # 3. Mode Logic
     local target_mode="$TUI_MODE"
     if [[ "$target_mode" == "fullscreen" || -z "$target_mode" ]]; then
@@ -3316,6 +3373,7 @@ modal() {
     TUI_MODE="$old_mode"
     TUI_MODAL="$old_modal"
     
+    BG_MAIN="$_saved_bg_main"
     _init_tui 
 }
 
@@ -3543,6 +3601,7 @@ EOF
 
         # 6. INPUT HANDLING
         _read_key key
+        _handle_extra_keys "$key" && continue
         case "$key" in
             $'\t') focus=$((1 - focus)); continue ;;
             $'\033') _read_str_timeout 2 key
@@ -4532,6 +4591,7 @@ EOF
 
         # 6. INPUT HANDLING
         _read_key key || { TUI_RESULT=''; break; }
+        _handle_extra_keys "$key" && continue
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
         case "$key" in
@@ -5270,6 +5330,7 @@ ${SB}q${SR}           Quit"
 
         # 5. Input Handling
         _read_key key
+        _handle_extra_keys "$key" && continue
         
         case "$key" in
             $'\033')

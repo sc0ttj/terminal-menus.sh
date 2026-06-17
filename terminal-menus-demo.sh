@@ -426,6 +426,14 @@ BACKTITLE="terminal-menus.sh demo 20 of 23 - filemanager"
 # Use external preview script instead of the built-in one
 . ./preview.sh
 
+# Custom keybindings demonstrating modal popups via TUI_EXTRA_KEYS
+export TUI_EXTRA_KEYS="
+shift_u=modal \"msgbox 'Help' 'Navigate with arrows/j/k.\nTab to select files.\nq to quit.\n \nExtra keys:\n  ? - This help\n  @ - System info\n  o - About TUI_EXTRA_KEYS'\"
+2=modal \"infobox 'System Info' 'terminal-menus.sh v1.0\nBusyBox Ash + Bash compatible\nZero dependencies\n \nTUI_EXTRA_KEYS lets you add\ncustom modal keybindings!'\"
+3=modal \"msgbox 'About TUI_EXTRA_KEYS' 'Set TUI_EXTRA_KEYS env var with:\n  key=modal \\\"widget args\\\"\n  ctrl_x=modal \\\"info …\\\"\n \nKeys are checked before the\nwidgets native handlers.'\"
+"
+export TUI_EXTRA_KEYS
+
 filemanager "Advanced file manager" "." 5
 
 # 5. Capture and display the result after exiting

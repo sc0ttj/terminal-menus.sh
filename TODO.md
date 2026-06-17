@@ -50,7 +50,7 @@ Fix `spreadsheet` demo:
 
 ------------------------------------------------------------------
 
-## New: custom keybindings
+## New Feature: custom keybindings
 
 For some widgets, custom key bindings that popup modal widgets will be very useful, particularly for command palette style popups.
 
