@@ -3360,7 +3360,12 @@ filtertable() {
 
             case "$key" in
                 "[A"|"OA") [ "$cur" -ge 0 ] && cur=$((cur-1)) ;;
-                "[B"|"OB") [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1)) ;;
+                "[B"|"OB")
+                    if [ "$cur" -ge 0 ]; then
+                        [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+                    elif [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                        cur=0
+                    fi ;;
                 "[C"|"OC")
                     [ "$cur" -eq -1 ] && [ -n "$cursor_suffix" ] && {
                         _c="${cursor_suffix%"${cursor_suffix#?}"}"
@@ -3407,14 +3412,12 @@ filtertable() {
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
                     else
-                        cur=${_saved_cur:-0}
-                        [ "$cur" -ge "$count" ] && cur=$((count - 1))
+                        [ "$count" -gt 0 ] && cur=0
                     fi
                 fi ;;
             "$(printf '\t')") # TAB
                 if [ "$cur" -eq -1 ]; then
-                    cur=${_saved_cur:-0}
-                    [ "$cur" -ge "$count" ] && cur=$((count - 1))
+                    [ -z "$cursor_prefix" ] && [ "$count" -gt 0 ] && cur=0
                 else
                     _saved_cur=$cur
                     cur=-1
