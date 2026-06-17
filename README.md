@@ -678,7 +678,7 @@ update_config "theme='dark'"
 | `TUI_PERSISTENT_FILTERS=true` | `mainmenu` | Keep filter text when switching sidebar items |
 | `ENABLE_FILTER=true` | `tree`, `configtree` | Enable search/filter input |
 | `TREE_RETURN_VALUES=true` | `tree` | Return label paths instead of ID paths |
-| `TUI_CD_FILE` | `filepicker` | Write `cd` commands to a file for shell integration |
+| `TUI_CD_FILE` | `filepicker`, `filemanager` | Write `cd` commands to a file for shell integration |
 | `TUI_MODE` | All | Layout mode (centered, fullscreen, classic, popup, top, bottom, toast, palette) |
 | `TUI_WIDTH` / `TUI_HEIGHT` | `custom` mode | Custom widget dimensions |
 | `TUI_X` / `TUI_Y` | `custom` mode | Custom widget position |
