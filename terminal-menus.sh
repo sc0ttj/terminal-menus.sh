@@ -1722,20 +1722,21 @@ spreadsheet() {
     local src="$2"
     local tmp_csv=$(mktemp)
     
-    local CONTROLS_TXT="
-${SB}Arrows${SR} or ${SB}wasd${SR}    Navigate cells
-${SB}Enter${SR}           Enter edit mode for current cell
-${SB}Right/Left${SR}      Move cursor in edit mode
-${SB}q${SR}               Quit
-${SB}?${SR}               Toggle this help
-
+    local CONTROLS_TXT=" 
+ ${SB}Arrows${SR} or ${SB}wasd${SR}  Navigate cells
+ ${SB}Enter${SR}           Enter edit mode for current cell
+ ${SB}Right/Left${SR}      Move cursor in edit mode
+ ${SB}q${SR}               Quit
+ ${SB}?${SR}               Toggle this help
+ 
 Supported Expressions in cells:
-  =A1+B2         Basic math: +, -, *, /
-  =SUM(A1:B10)   Range functions: SUM, AVG, MIN, MAX, COUNT, COUNTA
-  =ROUND(A1,2)   Round to decimal places
-  =IF(A1>=50,Y,N) Conditional logic (supports >=, <=, >, <, =)
-  =A1&B1         String concatenation
-  =A1            Cell reference (returns A1 value)"
+ 
+ =A1+B2          Basic math: +, -, *, /
+ =SUM(A1:B10)    Range functions: SUM, AVG, MIN, MAX, COUNT, COUNTA
+ =ROUND(A1,2)    Round to decimal places
+ =IF(A1>=50,Y,N) Conditional logic (supports >=, <=, >, <, =)
+ =A1&B1          String concatenation
+ =A1             Cell reference (returns A1 value)"
 
     # 1. Setup Stacks and Clipboard
     local clipboard_val=""
@@ -3414,6 +3415,8 @@ filtertable() {
                     else
                         [ "$count" -gt 0 ] && cur=0
                     fi
+                elif [ "$cur" -ge 0 ]; then
+                    cur=-1
                 fi ;;
             "$(printf '\t')") # TAB
                 if [ "$cur" -eq -1 ]; then

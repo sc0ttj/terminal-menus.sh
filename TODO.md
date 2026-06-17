@@ -2,10 +2,10 @@
 ------------------------------------------------------------------
 
 
-Improve `tree` and `configtree`:
+Improve `filtertable`:
 * pressing BACKSPACE in empty filter input should focus on first item in list
 * pressing TAB in an empty filter should behave the same as pressing ENTER in an empty filter - focus on first item in list
-
+* make its controls more consistent with other filter inputs (filtertable, configtree, tree)
 
 Fix `filemanager`
 * If focused item in sidemenu is a dir, list its contents in the preview window (ls -1, with dirs first, and dirs suffixed with "/")
