@@ -1,6 +1,6 @@
 # terminal-menus.sh
 
-A high-performance, dependency-free TUI (Terminal User Interface) library written in **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
+A high-performance, dependency-free TUI (Terminal User Interface) library, supports **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
 
 Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern alternative to `whiptail` and `dialog` with support for TrueColor and modular layouts.
 
@@ -22,10 +22,10 @@ The **`mainmenu`** in fullscreen mode:
 
 ## 🚀 Features
 
-- **Bash 3.2+ & BusyBox Ash**: Works on modern systems and embedded environments alike.
+- **Bash 3.2+ & BusyBox Ash**: Works on modern systems and embedded environments alike (Mac and Linux).
 - **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
 - **TrueColor (24-bit)**: Customisable RGB themes.
-- **Adaptive Layouts**: Modal popups, full-screen dashboards, toast notifications, and command palettes.
+- **Many Layouts**: Modal popups, full-screen UIs, toast notifications, and command palettes.
 - **High Performance**: Minimal use of subshells; uses internal built-ins for all logic.
 
 > **Shell requirements**: The library requires `[[ ]]`, `read -n`, and `$'...'` support.  
