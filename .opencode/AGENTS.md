@@ -199,6 +199,7 @@ These skills are registered in `.opencode/skills/` and are loaded automatically.
 | `shell-search` | **Searching code** — use `grep`/`ag`, **never `rg`** (not installed) | Patterns for function lookup, variable tracking, color escape hunting |
 | `shell-debug` | **Debugging shell code** — tracing, terminal state, syscalls | `bash -x`, `stty`, `strace`, `shellcheck`, TUI debugging checklist |
 | `shell-fix` | **Fixing common bugs** — ash compat, color rendering, missing `local`, preview_offset | Pattern catalog for 10 most common bugs in this codebase |
+| `shell-performance` | **Optimizing TUI performance** — batch printing, no subshells in loops, pre-computation | Bottleneck checklist for flicker-free rendering |
 
 ### Skill invocation
 
