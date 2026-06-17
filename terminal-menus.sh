@@ -2802,7 +2802,17 @@ _tree_core() {
         if [ "$ENABLE_FILTER" = "true" ] && [ $cur -eq -1 ]; then
             if [ -z "$ESC_SEQ" ]; then
                 case "$key" in
-                    $(printf '\177')|$(printf '\b')) filter_query="${filter_query%?}"; _update_tree_cache; continue ;;
+                    $(printf '\177')|$(printf '\b'))
+                    if [ -z "$filter_query" ]; then
+                        [ $v_count -gt 0 ] && cur=0
+                    else
+                        filter_query="${filter_query%?}"
+                        _update_tree_cache
+                    fi
+                    continue ;;
+                $(printf '\t'))
+                    [ -z "$filter_query" ] && [ $v_count -gt 0 ] && cur=0
+                    continue ;;
                     "") # ENTER: JUMP TO MATCH
                         if [ $visible_count -gt 0 ]; then
                             cur=0

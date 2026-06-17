@@ -16,7 +16,7 @@ preview() {
 
     local line_count=0
     local preview_content=""
-    local preview_tmp="/tmp/tui_pv_$$.txt"
+    local preview_tmp=$(mktemp /tmp/tui_preview.XXXXXX)
 
     sed $'s/\e[[][^A-Za-z]*[A-Za-z]//g' "$file" | sed -n "$((offset + 1)),$((offset + height))p" > "$preview_tmp"
 
