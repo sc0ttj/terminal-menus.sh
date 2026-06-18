@@ -44,8 +44,12 @@ Improve `spreadsheet` controls:
 * then add a popup help menu, triggered by "?" and similar to the `kanban` widget, listing all controls and supported Expressions (listed in README.md)
 
 Fix `spreadsheet` demo:
-* typing "=" into the EDIT input of the spreadsheet causes an error `ash: =: unknown operand`
-* typing "(" into the EDIT input of the spreadsheet causes an error `ash: closing paren`
+* ~~typing "=" into the EDIT input of the spreadsheet causes an error `ash: =: unknown operand`~~
+* ~~typing "(" into the EDIT input of the spreadsheet causes an error `ash: closing paren`~~
+  Fixed: replaced `[[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]` with
+  POSIX-safe `[ -z "$key" ] || [ "$key" = "$cr" ] || [ "$key" = "$lf" ]` where
+  `cr`/`lf` are pre-computed via `$(printf '\r')` / `$(printf '\n')`. Also added
+  "unknown operand" and "closing paren" to `assert_no_shell_errors` checks.
 
 
 ------------------------------------------------------------------

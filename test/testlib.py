@@ -316,6 +316,7 @@ class TuiTestCase(unittest.TestCase):
 
     def assert_no_shell_errors(self, stdout, msg=""):
         for err in ("Syntax error", "not found", "unexpected",
-                    "Bad substitution"):
+                    "Bad substitution", "unknown operand",
+                    "closing paren"):
             self.assertNotIn(err, stdout,
                              f"{msg} -- shell error {err!r} found in output")

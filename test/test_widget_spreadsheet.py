@@ -57,3 +57,15 @@ class TestSpreadsheet(TuiTestCase):
         ], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
+
+    def test_spreadsheet_edit_special_chars(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_wrapper.sh", [
+            KEY.ENTER,
+            KEY.char("="),
+            KEY.char("!"),
+            KEY.char("("),
+            KEY.ENTER,
+            KEY.char("q"),
+        ], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)

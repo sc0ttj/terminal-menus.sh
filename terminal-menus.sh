@@ -1695,6 +1695,7 @@ Supported Expressions in cells:
 
     local cur_r=1 cur_c=1 top_r=1 top_c=1
     local mode="NAV" _cursor_prefix="" _cursor_suffix=""
+    local cr=$(printf '\r') lf=$(printf '\n')
 
     # handle shifting viewport up a line if $title is empty
     local shift=0
@@ -1882,7 +1883,7 @@ Supported Expressions in cells:
         _handle_extra_keys "$key" && continue
 
         # --- ENTER KEY HANDLER ---
-        if [[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]; then
+        if [ -z "$key" ] || [ "$key" = "$cr" ] || [ "$key" = "$lf" ]; then
             if [[ "$mode" == "NAV" ]]; then
                 mode="EDIT"
                 _cursor_prefix=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv"); _cursor_suffix=""
