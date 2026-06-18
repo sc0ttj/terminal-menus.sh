@@ -8,6 +8,20 @@ Single-file Pure Bash 3.2+ TUI library (~5,780 lines). Zero dependencies. MIT li
 source ./terminal-menus.sh     # or . ./terminal-menus.sh
 ```
 
+## Demo script
+
+```bash
+./terminal-menus-demo.sh                 # Interactive widget picker menu
+./terminal-menus-demo.sh all             # Run all 23 demos sequentially
+./terminal-menus-demo.sh <widget>        # Run one widget demo and exit
+                                          #   e.g. ./terminal-menus-demo.sh filemanager
+
+Valid widget names: all, infobox, msgbox, yesno, inputbox, passwordbox,
+menu, checklist, radiolist, filtermenu, gauge, textbox, tailbox, tree,
+configtree, form, filepicker, table, filtertable, filemanager, spreadsheet,
+kanban, mainmenu
+```
+
 ## Usage patterns
 
 ```bash
@@ -48,8 +62,9 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 All **161 tests pass** in ~64s (down from 165s after bundling PTY sessions per widget class).
 
 ```bash
-# Run the full demo (exercises every widget):
+# Run the full demo (interactive picker, or run all sequentially):
 ./terminal-menus-demo.sh
+./terminal-menus-demo.sh all
 
 # Run the full test suite:
 python3 -m unittest discover -s test -p "test_widget_*.py" -v

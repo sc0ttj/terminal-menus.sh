@@ -45,8 +45,23 @@ source ./terminal-menus.sh  # Bash-specific
 
 ---
 
-## 🛠 Basic Usage
+## 🎮 Demo Script
 
+The included demo script (`terminal-menus-demo.sh`) exercises every widget. Three ways to use it:
+
+```bash
+./terminal-menus-demo.sh                # Interactive widget picker menu
+./terminal-menus-demo.sh all            # Run all 23 demos sequentially
+./terminal-menus-demo.sh filemanager    # Run one widget demo and exit
+```
+
+Valid widget names: `infobox`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `table`, `filtertable`, `filemanager`, `spreadsheet`, `kanban`, `mainmenu`.
+
+When run with no arguments, the script shows a `filtermenu` listing all widgets. Select "All widgets" to run everything in order, or pick individual widgets to run one at a time (returns to the picker after each).
+
+---
+
+## 🛠 Basic Usage
 ### 1. Message Box (`msgbox`)
 
 ![msgbox](screenshots/msgbox.png)
