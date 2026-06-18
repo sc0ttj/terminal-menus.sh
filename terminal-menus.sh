@@ -3454,6 +3454,7 @@ EOF
     local absolute_table_x_esc="\e[$(( PADDING_LEFT + table_x ))G"
 
     while true; do
+        filter_query="${cursor_prefix}${cursor_suffix}"
         # 3. DATA LOADER
         if [[ $cur_side -ne $last_side ]]; then
             eval "src=\$side_file_$cur_side"
