@@ -4664,6 +4664,19 @@ EOF
                         else
                             _handle_selection; [[ $? -eq 2 ]] && return 0
                         fi ;;
+                    "[3") # DELETE key (3-char seq: \033[3~)
+                        _read_str_timeout 1 _del_c
+                        if [ "$_del_c" = "~" ] && [ "$ui_mode" != "NAV" ]; then
+                            local _buf="$prompt_buffer"; [ "$ui_mode" = "SEARCH" ] && _buf="$search_query"
+                            if [ "$prompt_pos" -lt "${#_buf}" ]; then
+                                if [ "$ui_mode" = "SEARCH" ]; then
+                                    search_query="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
+                                else
+                                    prompt_buffer="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
+                                fi
+                                _refresh_prompt
+                            fi
+                        fi ;;
                     "[A"|"[B"|"OA"|"OB") # Up/Down
                         preview_offset=0
                         if [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
