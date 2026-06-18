@@ -166,18 +166,6 @@ _handle_extra_keys() {
 : ${NO_LABEL:="NO"}
 
 
-# --- GLOBAL LAYOUT INITIALISATION ---
-# This runs once when the script starts
-: ${MAX_WIDTH:=80}
-: ${MAX_HEIGHT:=24}
-
-_TERM_W=$(tput cols)
-_TERM_H=$(tput lines)
-
-# Safety Clamping
-[ "$MAX_WIDTH" -gt "$_TERM_W" ] && MAX_WIDTH=$_TERM_W && PADDING_LEFT=0
-[ "$MAX_HEIGHT" -gt "$_TERM_H" ] && MAX_HEIGHT=$_TERM_H && PADDING_TOP=0
-
 # A var that always captures the output of a widget, users 
 # should check this var after a widget exits.
 TUI_RESULT=""
@@ -355,11 +343,6 @@ _init_tui() {
         row=2
     fi
 }
-
-# --- GLOBAL LAYOUT INITIALISATION ---
-# Run once at startup to set initial state
-_TERM_W=$(tput cols)
-_TERM_H=$(tput lines)
 
 _apply_layout() {
     # Use local variables for the current terminal state to support resizing
@@ -1133,6 +1116,7 @@ tailbox() {
     
     _init_tui
     local box_width=$(( MAX_WIDTH - 4 ))
+    local tmpf=$(mktemp /tmp/tui_tail.XXXXXX)
     while true; do
         _draw_header "$title" "$msg"
 
@@ -1144,7 +1128,6 @@ tailbox() {
         local top=$(( count - height ))
         [ "$top" -lt 0 ] && top=0
 
-        local tmpf=$(mktemp /tmp/tui_tail.XXXXXX)
         sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
 
         i=0; while [ "$i" -lt "$height" ]; do
@@ -1165,7 +1148,6 @@ tailbox() {
             row=$(( MAX_HEIGHT - 1 ))
             i=$((i+1))
         done
-        rm -f "$tmpf"
 
         _draw_at "$((row - 1))" 0
         printf "${BG_MAIN_ESC}%*s${RESET}" "$MAX_WIDTH" "" >&2
@@ -1176,9 +1158,28 @@ tailbox() {
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
         if [ -z "$KEY" ]; then
+            rm -f "$tmpf"
             return 0
         fi
     done
+}
+
+# Filter comma-separated options against a query, sets filtered_N globals and FILTERED_COUNT
+_filter_opts() {
+    local _fq="$1" _opts="$2"
+    local _lq=$(echo "$_fq" | _tolower)
+    local _fi=0
+    local _old_ifs="$IFS"; IFS=','
+    set -- $_opts
+    for _o do
+        local _lo=$(echo "$_o" | _tolower)
+        if [ -z "$_fq" ] || _match "$_lo" "*${_lq}*"; then
+            eval "filtered_$_fi='$_o'"
+            _fi=$((_fi+1))
+        fi
+    done
+    IFS="$_old_ifs"
+    FILTERED_COUNT=$_fi
 }
 
 form() {
@@ -1318,20 +1319,9 @@ form() {
             opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
-                local l_q=$(echo "$query" | _tolower)
-                local f_idx=0
-                local old_ifs="$IFS"; IFS=','
-                set -- $opts
-                for o do
-                    local l_o=$(echo "$o" | _tolower)
-                    if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
-                        eval "filtered_$f_idx='$o'"
-                        f_idx=$((f_idx+1))
-                    fi
-                done
-                IFS="$old_ifs"
+                _filter_opts "$query" "$opts"
                 eval "drow=\$((field_rows_$cur + 1))"
-                j=0; while [ "$j" -lt "$f_idx" ]; do
+                j=0; while [ "$j" -lt "$FILTERED_COUNT" ]; do
                     _draw_at "$drow"
                     printf "  " >&2
                     eval "odisp=\"\$filtered_$j\""
@@ -1395,20 +1385,9 @@ form() {
             query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
-                local l_q=$(echo "$query" | _tolower)
-                local f_idx=0
-                local old_ifs="$IFS"; IFS=','
-                set -- $opts
-                for o do
-                    local l_o=$(echo "$o" | _tolower)
-                    if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
-                        eval "filtered_$f_idx='$o'"
-                        f_idx=$((f_idx+1))
-                    fi
-                done
-                IFS="$old_ifs"
+                _filter_opts "$query" "$opts"
                 [ "$key" = "[A" ] || [ "$key" = "OA" ] && [ "$s_idx" -gt 0 ] && s_idx=$((s_idx-1))
-                [ "$key" = "[B" ] || [ "$key" = "OB" ] && [ "$s_idx" -lt "$((f_idx-1))" ] && s_idx=$((s_idx+1))
+                [ "$key" = "[B" ] || [ "$key" = "OB" ] && [ "$s_idx" -lt "$((FILTERED_COUNT-1))" ] && s_idx=$((s_idx+1))
                 eval "values_$cur='$state|$s_idx|$query|$opts'"; continue
             else
                 if [ "$key" = "[C" ] || [ "$key" = "OC" ]; then
@@ -1507,17 +1486,7 @@ form() {
 
                 if _match "$cf" "{*"; then
                     if [ "$state" = "OPEN" ]; then
-                        local l_q=$(echo "$query" | _tolower)
-                        local f_idx=0
-                        local old_ifs="$IFS"; IFS=','
-                        set -- $opts
-                        for o do
-                            local l_o=$(echo "$o" | _tolower)
-                            if [ -z "$query" ] || _match "$l_o" "*${l_q}*"; then
-                                eval "filtered_$f_idx='$o'"
-                                f_idx=$((f_idx+1))
-                            fi
-                        done
+                        _filter_opts "$query" "$opts"
                         eval "picked=\"\$filtered_$s_idx\""
                         local idx=0
                         local old_ifs2="$IFS"; IFS=','
@@ -2044,16 +2013,8 @@ Supported Expressions in cells:
                     esac
                 elif [[ "$mode" == "EDIT" ]]; then
                     case "$key" in
-                        "[C"|"OC") [ -n "$_cursor_suffix" ] && {
-                            local _c="${_cursor_suffix%"${_cursor_suffix#?}"}"
-                            _cursor_suffix="${_cursor_suffix#?}"
-                            _cursor_prefix="${_cursor_prefix}${_c}"
-                        } ;;
-                        "[D"|"OD") [ -n "$_cursor_prefix" ] && {
-                            local _c="${_cursor_prefix#"${_cursor_prefix%?}"}"
-                            _cursor_prefix="${_cursor_prefix%?}"
-                            _cursor_suffix="${_c}${_cursor_suffix}"
-                        } ;;
+                        "[C"|"OC") _cursor_right _cursor_prefix _cursor_suffix ;;
+                        "[D"|"OD") _cursor_left _cursor_prefix _cursor_suffix ;;
                         "[3") _read_str_timeout 1 _del_c
                             [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ] && _cursor_suffix="${_cursor_suffix#?}"
                             ;;
@@ -2653,6 +2614,26 @@ _tree_core() {
         done
     }
 
+    _tree_expand() {
+        local _id="$1" _i=0
+        while [ "$_i" -lt "$expanded_count" ]; do
+            eval "[ \"\$expanded_$_i\" = \"$_id\" ]" && return
+            _i=$((_i+1))
+        done
+        eval "expanded_$expanded_count='$_id'"
+        expanded_count=$((expanded_count+1))
+    }
+
+    _tree_remove_expanded() {
+        local _rid="$1" _ne=0 _i=0 _v
+        while [ "$_i" -lt "$expanded_count" ]; do
+            eval "_v=\"\$expanded_$_i\""
+            [ "$_v" != "$_rid" ] && { eval "expanded_$_ne='$_v'"; _ne=$((_ne+1)); }
+            _i=$((_i+1))
+        done
+        expanded_count=$_ne
+    }
+
     _update_tree_cache
 
     local box_width=$(( MAX_WIDTH - 6 ))
@@ -2814,35 +2795,15 @@ _tree_core() {
             case "$ESC_SEQ" in
                 "[A"|"OA") if [ $cur -gt 0 ]; then cur=$((cur-1)); elif [ "$ENABLE_FILTER" = "true" ]; then cur=-1; fi ;;
                 "[B"|"OB") [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1)) ;;
-                "[C"|"OC") [ "$k" = "true" ] && { local _ei=0 _found=0; while [ "$_ei" -lt "$expanded_count" ]; do eval "_ev=\"\$expanded_$_ei\""; [ "$_ev" = "$id" ] && { _found=1; break; }; _ei=$((_ei+1)); done; [ "$_found" -eq 0 ] && { eval "expanded_$expanded_count='$id'"; expanded_count=$((expanded_count+1)); }; _update_tree_cache; } ;;
-                "[D"|"OD") # Collapse Logic
-                    # rebuild expanded without matching id
-                    local new_expi=0
-                    local ei=0; while [ "$ei" -lt "$expanded_count" ]; do
-                        eval "ev=\"\$expanded_$ei\""
-                        if [ "$ev" != "$id" ]; then
-                            eval "expanded_$new_expi='$ev'"
-                            new_expi=$((new_expi+1))
-                        fi
-                        ei=$((ei+1))
-                    done
-                    expanded_count=$new_expi
+                "[C"|"OC") [ "$k" = "true" ] && { _tree_expand "$id"; _update_tree_cache; } ;;
+                "[D"|"OD")
+                    _tree_remove_expanded "$id"
                     local scan_idx=$((g_idx + 1))
                     while [ $scan_idx -lt $count ]; do
                         eval "snode=\"\$node_$scan_idx\""
                         [ "${snode%%|*}" -le "$d" ] && break
                         local sid="${snode#*|}"; sid="${sid%%|*}"
-                        # rebuild expanded without matching sid
-                        local new_expi2=0
-                        local ei2=0; while [ "$ei2" -lt "$expanded_count" ]; do
-                            eval "ev2=\"\$expanded_$ei2\""
-                            if [ "$ev2" != "$sid" ]; then
-                                eval "expanded_$new_expi2='$ev2'"
-                                new_expi2=$((new_expi2+1))
-                            fi
-                            ei2=$((ei2+1))
-                        done
-                        expanded_count=$new_expi2
+                        _tree_remove_expanded "$sid"
                         scan_idx=$((scan_idx+1))
                     done
                     _update_tree_cache ;;
