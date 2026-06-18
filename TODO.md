@@ -1,6 +1,13 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
+## Fix filemanager
+
+When leaving an empty command prompt with TAB key, the sidemenu re-renders wrong - it hides all items above the focused item.
+This sidemenu rendering bug has been fixed before, when leaving the command prompt with other keys. check the commit history.
+
+------------------------------------------------------------------
+
 ## Allow Nerd font icons
 
 I want a way to support using Nerd font icons in input data, using placeholders like so:
@@ -29,59 +36,9 @@ The end goal would be for users to be able to easily, optionally, use nerd font 
   - selecting more items should append them to the current selection 
   - this should include executable and hidden files and other files rendered with custom styles
 
-## Fix `filemanager` "list view"
+------------------------------------------------------------------
 
-* Press "," to enter "list view"
-* The contents columns are not nicely aligned
-
-EXAMPLE 1:
-
-                                              === Advanced file manager ===
-                                              Path: ~/sites/github/sc0ttj/terminal-menus.sh
-
-                                               ..
-                                               screenshots/                   drwxr-xr-x  0 0 4.0K Jun 18 21:16
-                                               scripts/                       drwxr-xr-x  0 0 4.0K Jun 18 21:16
-                                               test/                          drwxr-xr-x  0 0 4.0K Jun 18 21:55
-                                               LICENSE.md                     -rw-r--r--  0 0 1.1K Jun 18 21:15
-                                               README.md                      -rw-r--r--  0 0 27K Jun 18 21:55
-                                               TODO.md                        -rw-r--r--  0 0 2.9K Jun 18 22:20
-                                               preview.sh                     -rw-r--r--  0 0 1.2K Jun 18 21:16
-                                               terminal-menus-demo.sh         -rwxr-xr-x  0 0 21K Jun 18 21:16
-                                               terminal-menus.sh              -rw-r--r--  0 0 223K Jun 18 22:29
-
-
-EXAMPLE 2:
-
-                                              === Advanced file manager ===
-                                              Path: ~
-
-                                               ..
-                                               Choices/                       drwxr-xr-x  0 0 4.0K Dec 7  2021
-                                               Desktop/                       drwxr-xr-x  65534 65534 4.0K Dec 11  2
-                                               Documents/                     drwxr-xr-x  65534 65534 4.0K Jul 11  2
-                                               Downloads/                     drwxr-xr-x  65534 65534 4.0K Nov 12  2
-                                               Music/                         drwxr-xr-x  65534 65534 4.0K Sep 2  20
-                                               Startup/                       drwxr-xr-x  0 0 4.0K Oct 15  2020
-                                               Sync/                          drwxr-xr-x  0 0 4.0K Feb 12  2023
-                                               bin/                           drwxr-xr-x  65534 65534 12K May 13 21:
-                                               files/
-                                               ftpd/                          drwxrwxrwx  1000 0 3 Jan 7  2008
-                                               images/                        drwxr-xr-x  0 0 4.0K Sep 2  2024
-                                               livesprojects/                 drwxr-xr-x  0 0 4.0K Dec 2  2024
-                                               makehuman/                     drwxr-xr-x  0 0 4.0K Sep 16  2023
-                                               my-documents/                  drwxr-xr-x  0 0 4.0K Apr 27  2021
-
-I want the columns to be nicely aligned without being too wide for the TUI_LAYOUT chosen.
-
-
-## Fix `kanban` widget
-
-* Fix the kanban widget:
-- I can't see any tickets in the board (but I can see them in list view after pressing "/")
-
-
-## Support page up and page down keys
+## Support page up and page down keys in various widgets
 
 * In widgets with scrollable lists, add support for page up/page down keys
 * For the `filemanager` and `filepicker` widgets:
