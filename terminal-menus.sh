@@ -4884,6 +4884,7 @@ EOF
                             continue
                         else
                             # 3. Existing CMD Logic: Exit if empty
+                            cur=$_saved_cur; top=$_saved_top
                             ui_mode="NAV"; prompt_pos=0; rebuild=1
                             continue
                         fi
