@@ -2872,8 +2872,12 @@ _tree_core() {
                             local crest="${cnode#*|}"
                             local cid="${crest%%|*}"; crest="${crest#*|}"
                             local cl="${crest%%|*}"; local chk="${crest##*|}"
-                            before="${cl%%\[x\]*}"; after="${cl#*\[x\]}"; cl="${before}[ ]${after}"
-                            before="${cl%%\(\*\)*}"; after="${cl#*\(\*\)}"; cl="${before}( )${after}"
+                            if _match "$cl" "*\[x\]*"; then
+                                before="${cl%%\[x\]*}"; after="${cl#*\[x\]}"; cl="${before}[ ]${after}"
+                            fi
+                            if _match "$cl" "*\(\*\)*"; then
+                                before="${cl%%\(\*\)*}"; after="${cl#*\(\*\)}"; cl="${before}( )${after}"
+                            fi
                             eval "node_$j='$cd|$cid|$cl|$chk'"
                             j=$((j+1))
                         done
@@ -2898,7 +2902,9 @@ _tree_core() {
                         local tid="${trest%%|*}"; trest="${trest#*|}"
                         local tl="${trest%%|*}"; local tk="${trest##*|}"
                         if [ $td -eq $d ]; then
-                            before="${tl%%\(\*\)*}"; after="${tl#*\(\*\)}"; tl="${before}( )${after}"
+                            if _match "$tl" "*\(\*\)*"; then
+                                before="${tl%%\(\*\)*}"; after="${tl#*\(\*\)}"; tl="${before}( )${after}"
+                            fi
                             eval "node_$j='$td|$tid|$tl|$tk'"
                         fi
                         j=$((j+1))
