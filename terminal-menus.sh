@@ -3337,6 +3337,7 @@ filtertable() {
 }
 
 modal() {
+    local _saved_backtitle="$BACKTITLE"
     local BACKTITLE=
     local _saved_bg_main="$BG_MAIN"
     
@@ -3370,6 +3371,7 @@ modal() {
     TUI_MODE="$old_mode"
     TUI_MODAL="$old_modal"
     
+    BACKTITLE="$_saved_backtitle"
     BG_MAIN="$_saved_bg_main"
     _init_tui 
 }
