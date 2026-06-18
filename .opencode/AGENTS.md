@@ -128,7 +128,25 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 
 **Rule**: Always use `case` for pattern matching, never `[[ ... == ...* ]]`.
 
-### 3. Coding Practices & Rules
+### 3. System Tool Capabilities (Puppy Linux / current dev environment)
+
+This system uses GNU versions of common tools. Extensions available:
+
+| Tool | Extension | Available |
+|------|-----------|-----------|
+| **awk** | `gensub()`, `match(str,pat,arr)`, `strtonum()`, `asort()`/`asorti()`, `mktime()`/`strftime()` | ✅ |
+| **awk** | `\|&` two-way coprocess | ❌ |
+| **date** | `-d "yesterday"`, `+%N` (nanoseconds), `-f` (file input), `-u` (UTC) | ✅ |
+| **find** | `-maxdepth`/`-mindepth`, `-regex`, `-delete`, `-newerXY` | ✅ |
+| **grep** | `-E`, `-F`, `-P` (PCRE), `-f`, `-o`, `--color`, `--exclude-dir` | ✅ |
+| **printf** | `-v` (var assign), `\xHH` (hex), `\uHHHH` (unicode) | ✅ |
+| **sed** | `\U`/`\L` case conv, `-E`, `-i [suffix]`, `\n` in replacement | ✅ |
+| **tar** | `--auto-compress`/`-a`, `--exclude`, hyphenless `cf` syntax | ✅ |
+| **xargs** | `-P` (parallel), `-d` (delimiter), `-0` (null), `-r` (no-run-if-empty) | ✅ |
+
+**Implication**: Generated shell code can safely use GNU extensions. TUI code (`terminal-menus.sh`) must still avoid them for portability to systems with only BusyBox tools.
+
+### 4. Coding Practices & Rules
 - **String Manipulation**: Use Parameter Expansion instead of `sed` or `echo | cut`.
     - *Bad*: `name=$(echo "$file" | cut -d. -f1)`
     - *Good*: `name="${file%.*}"`
@@ -137,12 +155,12 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 - **Calculations**: Use `$(( var = a + b ))` for integer math; do not use `bc` or `expr`.
 - **Arrays**: Use `eval`-based numbered variables (e.g. `eval "arr_$i='$val'"; eval "v=\$arr_$i"`) since arrays are unavailable.
 
-### 4. TUI Rendering Logic
+### 5. TUI Rendering Logic
 - **Batch Printing**: Group UI updates into a single `printf` call to prevent partial screen updates.
 - **Static Positioning**: Use `\e[H` to return to home and `\e[J` to clear only what is necessary.
 - **Colors**: Use variables for ANSI codes: `readonly RED=$'\e[31m'`, `readonly RESET=$'\e[0m'`.
 
-### 5. Color Rendering Rules (CRITICAL)
+### 6. Color Rendering Rules (CRITICAL)
 - **Every visible text element MUST have an explicit foreground color.** Never rely on the terminal's default foreground (which may be black in xterm/Xvfb).
 - Use `$FG_TEXT_ESC` (off-white `239;239;239`) as the default foreground for all text unless a specific color is intended.
 - When using `$BG_WID_ESC`, `$BG_MAIN_ESC`, or `$BG_INPUT_ESC` (background-only escapes), always pair with a foreground escape like `$FG_TEXT_ESC` or `$FG_BLUE_BOLD`.
@@ -151,7 +169,7 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 - If adding a new `printf` call that renders visible text, always include a foreground escape BEFORE the text content. The `_draw_line()` and `_draw_at()` helpers now set `$FG_TEXT_ESC` by default, but raw `printf` calls elsewhere must set it explicitly.
 - When a text element appears black in screenshots, it means a `printf` somewhere is missing a foreground color. Search for `${BG_WID_ESC}`, `${BG_MAIN_ESC}`, `${BG_INPUT_ESC}`, `${BG_BLUE_ESC}` that are used without a following `${FG_TEXT_ESC}` or other FG escape.
 
-### 6. Screenshot Generation System
+### 7. Screenshot Generation System
 
 #### How screenshots work
 Screenshots are generated in isolated Xvfb sessions using `test/interactive_runner.sh` and `scripts/generate_readme_screenshots.sh`.
@@ -206,7 +224,7 @@ bash scripts/generate_readme_screenshots.sh
 2. `xwd -id $parent_window` + `convert` — captures parent window (includes window decorations) if child fails
 3. `scrot` (full screen) — last resort if xwd fails
 
-### 7. Troubleshooting Screenshots
+### 8. Troubleshooting Screenshots
 
 **Black text in screenshots:** Missing explicit foreground color in a `printf` call. Fix: add `$FG_TEXT_ESC` before the text content, or use `$HL_WHITE_BOLD` for active/highlighted elements.
 
@@ -220,7 +238,7 @@ bash scripts/generate_readme_screenshots.sh
 
 **White edges around screenshots:** Caused by xterm's default white background (#FFFFFF) at unpainted areas of the terminal. Fix: add `-bg '#222222'` to xterm (matching BG_MAIN `34;34;34`). If re-capturing, delete the old PNG first so the generation script doesn't skip it.
 
-### 8. Debugging
+### 9. Debugging
 
 **Shell error detection in tests:** `TuiTestCase.assert_no_shell_errors()` checks PTY output for `"Syntax error"`, `"not found"`, `"Bad substitution"`, `"unknown operand"`, `"closing paren"`. Run tests with `-v` and watch for these.
 
@@ -244,7 +262,7 @@ class KEY:
 
 **After code changes:** Always run `bash -n terminal-menus.sh && ash -n terminal-menus.sh` for syntax, then `./test/run_changed.sh` for targeted testing before a full suite run.
 
-### 9. Operational Instructions
+### 10. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.
 - If a task requires a complex external tool (like `curl`), isolate it and ensure its output is parsed using built-in string manipulation.
 - Always check scripts with `shellcheck` (integrated in OpenCode).
@@ -253,7 +271,7 @@ class KEY:
 - Use `shell-performance` for flicker-free rendering optimization.
 - Run `./test/run_changed.sh` for targeted testing before a full suite run.
 
-## 10. Available Skills
+## 11. Available Skills
 
 These skills are registered in `.opencode/skills/` and are loaded automatically. Use them for common tasks:
 
