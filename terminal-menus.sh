@@ -2516,6 +2516,19 @@ _tree_core() {
         i=$((i+1))
     done
 
+    # Pre-compute lowercase labels and IDs for faster filter matching
+    i=0; while [ "$i" -lt "$count" ]; do
+        eval "node=\"\$node_$i\""
+        local remaining="${node#*|}"
+        local nid="${remaining%%|*}"; remaining="${remaining#*|}"
+        local nlbl="${remaining%%|*}"
+        local _nlcl=$(printf "%s" "$nlbl" | _tolower)
+        local _nicl=$(printf "%s" "$nid" | _tolower)
+        eval "nlc_$i='$_nlcl'"
+        eval "nic_$i='$_nicl'"
+        i=$((i+1))
+    done
+
     _update_tree_cache() {
         visible_count=0; formatted_count=0
         local last_hidden_depth=-1
@@ -2523,56 +2536,82 @@ _tree_core() {
         local ei=0; while [ "$ei" -lt "$expanded_count" ]; do eval "ev=\"\$expanded_$ei\""; exp_str="${exp_str}${ev}|"; ei=$((ei+1)); done
         local is_filtering=0; [ -n "$filter_query" ] && is_filtering=1
 
-        i=0; while [ "$i" -lt "$count" ]; do
-            eval "node=\"\$node_$i\""
-            local depth="${node%%|*}"
-            local remaining="${node#*|}"
-            local id="${remaining%%|*}"; remaining="${remaining#*|}"
-            local label="${remaining%%|*}"; local has_kids="${remaining##*|}"
+        if [ $is_filtering -eq 1 ]; then
+            # --- PHASE 1: DIRECT MATCH CHECK ---
+            _fq_lc=$(printf "%s" "$filter_query" | _tolower)
+            local di=0; while [ "$di" -lt "$count" ]; do
+                eval "nm_$di=0"
+                eval "nl=\"\$nlc_$di\""; eval "ni=\"\$nic_$di\""
+                if _match "$nl" "*$_fq_lc*" || _match "$ni" "*$_fq_lc*"; then
+                    eval "nm_$di=1"
+                fi
+                di=$((di+1))
+            done
 
-            # --- 1. FILTER CALCULATION ---
-            local match=0
-            if [ $is_filtering -eq 1 ]; then
-                _lab_lc=$(printf "%s" "$label" | _tolower)
-                _id_lc=$(printf "%s" "$id" | _tolower)
-                _fq_lc=$(printf "%s" "$filter_query" | _tolower)
-                if _match "$_lab_lc" "*$_fq_lc*" || _match "$_id_lc" "*$_fq_lc*"; then
-                    match=1
-                else
-                    local scan_p=$i check_d=$depth
+            # --- PHASE 2: BACKWARD PROPAGATION (mark ancestors of matching nodes) ---
+            local pi=$((count-1)); while [ "$pi" -ge 0 ]; do
+                eval "pm=\"\$nm_$pi\""
+                if [ "$pm" = "1" ]; then
+                    eval "pnode=\"\$node_$pi\""
+                    local pd="${pnode%%|*}"
+                    local scan_p=$pi
                     while [ $scan_p -gt 0 ]; do
                         scan_p=$((scan_p-1))
-                        eval "p_node=\"\$node_$scan_p\""
-                        if [ "${p_node%%|*}" -lt "$check_d" ]; then
-                            local p_rem="${p_node#*|}"
-                            _p_lc=$(printf "%s" "${p_rem#*|}" | _tolower)
-                            _p_id_lc=$(printf "%s" "${p_rem%%|*}" | _tolower)
-                            if _match "$_p_lc" "*$_fq_lc*" || _match "$_p_id_lc" "*$_fq_lc*"; then
-                                match=1; break
-                            fi
-                            check_d="${p_node%%|*}"
+                        eval "ppnode=\"\$node_$scan_p\""
+                        if [ "${ppnode%%|*}" -lt "$pd" ]; then
+                            eval "npm=\"\$nm_$scan_p\""
+                            [ "$npm" = "1" ] && break
+                            eval "nm_$scan_p=1"
+                            pd="${ppnode%%|*}"
                         fi
                     done
-                    if [ $match -eq 0 ]; then
-                        local scan_d=$((i + 1))
-                        while [ $scan_d -lt $count ]; do
-                            eval "d_node=\"\$node_$scan_d\""
-                            [ "${d_node%%|*}" -le "$depth" ] && break
-                            local d_rem="${d_node#*|}"
-                            _d_lc=$(printf "%s" "${d_rem#*|}" | _tolower)
-                            _d_id_lc=$(printf "%s" "${d_rem%%|*}" | _tolower)
-                            if _match "$_d_lc" "*$_fq_lc*" || _match "$_d_id_lc" "*$_fq_lc*"; then
-                                match=1; break
-                            fi
-                            scan_d=$((scan_d+1))
-                        done
-                    fi
                 fi
-                [ $match -eq 0 ] && { i=$((i+1)); continue; }
-            fi
+                pi=$((pi-1))
+            done
 
-            # --- 2. HIERARCHY / EXPANSION LOGIC ---
-            if [ $is_filtering -eq 0 ]; then
+            # --- PHASE 3: FORWARD PASS (build visible list from nm_$i flags) ---
+            i=0; while [ "$i" -lt "$count" ]; do
+                eval "node=\"\$node_$i\""
+                local depth="${node%%|*}"
+                local remaining="${node#*|}"
+                local id="${remaining%%|*}"; remaining="${remaining#*|}"
+                local label="${remaining%%|*}"; local has_kids="${remaining##*|}"
+
+                eval "match_flag=\"\$nm_$i\""
+                [ "$match_flag" != "1" ] && { i=$((i+1)); continue; }
+
+                eval "visible_$visible_count=$i"; visible_count=$((visible_count+1))
+                local indent=""; d=0; while [ "$d" -lt "$depth" ]; do indent="  $indent"; d=$((d+1)); done
+                local icon="  "
+                [ "$has_kids" = "true" ] && icon="▼ "
+
+                local is_disabled="false"
+                local scan_ptr=$i check_d=$depth
+                while [ $scan_ptr -gt 0 ]; do
+                    scan_ptr=$((scan_ptr-1))
+                    eval "p_node=\"\$node_$scan_ptr\""
+                    local p_depth="${p_node%%|*}"
+                    if [ $p_depth -lt $check_d ]; then
+                        local p_label="${p_node#*|*|}"; p_label="${p_label%%|*}"
+                        if _match "$p_label" "*\[ \]*" || _match "$p_label" "*( )*"; then
+                            is_disabled="true"; break
+                        fi
+                        check_d=$p_depth
+                    fi
+                done
+
+                eval "formatted_$formatted_count='${indent}${icon}${label}|${is_disabled:-false}'"; formatted_count=$((formatted_count+1))
+                i=$((i+1))
+            done
+        else
+            # Non-filtering mode: original expansion-based logic
+            i=0; while [ "$i" -lt "$count" ]; do
+                eval "node=\"\$node_$i\""
+                local depth="${node%%|*}"
+                local remaining="${node#*|}"
+                local id="${remaining%%|*}"; remaining="${remaining#*|}"
+                local label="${remaining%%|*}"; local has_kids="${remaining##*|}"
+
                 if [ $last_hidden_depth -ne -1 ] && [ $depth -gt $last_hidden_depth ]; then
                     i=$((i+1)); continue
                 fi
@@ -2580,39 +2619,37 @@ _tree_core() {
                 if [ "$has_kids" = "true" ] && ! _match "$exp_str" "*|$id|*"; then
                     last_hidden_depth=$depth
                 fi
-            fi
 
-            # --- 3. RENDER ---
-            eval "visible_$visible_count=$i"; visible_count=$((visible_count+1))
-            local indent=""; d=0; while [ "$d" -lt "$depth" ]; do indent="  $indent"; d=$((d+1)); done
-
-            local icon="  "
-            if [ "$has_kids" = "true" ]; then
-                if [ $is_filtering -eq 1 ] || _match "$exp_str" "*|$id|*"; then
-                    icon="▼ "
-                else
-                    icon="▶ "
-                fi
-            fi
-
-            local is_disabled="false"
-            local scan_ptr=$i check_d=$depth
-            while [ $scan_ptr -gt 0 ]; do
-                scan_ptr=$((scan_ptr-1))
-                eval "p_node=\"\$node_$scan_ptr\""
-                local p_depth="${p_node%%|*}"
-                if [ $p_depth -lt $check_d ]; then
-                    local p_label="${p_node#*|*|}"; p_label="${p_label%%|*}"
-                    if _match "$p_label" "*\[ \]*" || _match "$p_label" "*( )*"; then
-                        is_disabled="true"; break
+                eval "visible_$visible_count=$i"; visible_count=$((visible_count+1))
+                local indent=""; d=0; while [ "$d" -lt "$depth" ]; do indent="  $indent"; d=$((d+1)); done
+                local icon="  "
+                if [ "$has_kids" = "true" ]; then
+                    if _match "$exp_str" "*|$id|*"; then
+                        icon="▼ "
+                    else
+                        icon="▶ "
                     fi
-                    check_d=$p_depth
                 fi
-            done
 
-            eval "formatted_$formatted_count='${indent}${icon}${label}|${is_disabled:-false}'"; formatted_count=$((formatted_count+1))
-            i=$((i+1))
-        done
+                local is_disabled="false"
+                local scan_ptr=$i check_d=$depth
+                while [ $scan_ptr -gt 0 ]; do
+                    scan_ptr=$((scan_ptr-1))
+                    eval "p_node=\"\$node_$scan_ptr\""
+                    local p_depth="${p_node%%|*}"
+                    if [ $p_depth -lt $check_d ]; then
+                        local p_label="${p_node#*|*|}"; p_label="${p_label%%|*}"
+                        if _match "$p_label" "*\[ \]*" || _match "$p_label" "*( )*"; then
+                            is_disabled="true"; break
+                        fi
+                        check_d=$p_depth
+                    fi
+                done
+
+                eval "formatted_$formatted_count='${indent}${icon}${label}|${is_disabled:-false}'"; formatted_count=$((formatted_count+1))
+                i=$((i+1))
+            done
+        fi
     }
 
     _tree_expand() {
@@ -2639,10 +2676,17 @@ _tree_core() {
 
     local box_width=$(( MAX_WIDTH - 6 ))
 
+    _init_tui
+    local _skip_header=0 _post_header_row=0
     while true; do
-        _init_tui
-        _draw_header "$title" "$msg"
-        
+        if [ $_skip_header -eq 0 ]; then
+            _draw_header "$title" "$msg"
+            _post_header_row=$row
+        else
+            row=$_post_header_row
+        fi
+        _skip_header=0
+
         if [ "$ENABLE_FILTER" = "true" ]; then
             _draw_at "$row"
             local f_style="${BG_WID_ESC}${FG_TEXT_ESC}"
@@ -2657,8 +2701,7 @@ _tree_core() {
             local _pad=$(( 25 - _vis_len ))
             [ "$_pad" -lt 0 ] && _pad=0
             printf "  Filter: ${f_style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
-            _draw_line "" "$row"
-            _draw_line "" # Spacer
+            row=$((row+2))
         fi
 
         local view_top=$row
@@ -2706,8 +2749,7 @@ _tree_core() {
                 printf "%*s" "$(($MAX_WIDTH - 2))" "" >&2
             fi
             
-            row=$current_view_row
-            _draw_line ""
+            row=$((current_view_row + 1))
             i=$((i+1))
         done
 
@@ -2716,8 +2758,10 @@ _tree_core() {
         local hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Enter${SR} Select"
         [ "$mode" = "config" ] && hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Confirm"
 
-        _draw_line ""
-        _draw_controls "$hint"
+        row=$((row+1))
+        if [ $_skip_header -eq 0 ]; then
+            _draw_controls "$hint"
+        fi
 
         # --- STEP 1: ATOMIC CAPTURE ---
         local key="" ESC_SEQ=""
@@ -2734,6 +2778,7 @@ _tree_core() {
                         cursor_prefix="${cursor_prefix%?}"
                         filter_query="${cursor_prefix}${cursor_suffix}"
                         _update_tree_cache
+                        _skip_header=1
                     else
                         [ $v_count -gt 0 ] && cur=0
                     fi
@@ -2747,13 +2792,8 @@ _tree_core() {
                             _fq_lc=$(printf "%s" "$filter_query" | _tolower)
                             idx=0; while [ "$idx" -lt "$visible_count" ]; do
                                 eval "g_idx=\"\$visible_$idx\""
-                                eval "g_node=\"\$node_$g_idx\""
-                                local rem="${g_node#*|}"
-                                local id_str="${rem%%|*}"
-                                local lab_str="${rem#*|}"; lab_str="${lab_str%%|*}"
-                                _ls_lc=$(printf "%s" "$lab_str" | _tolower)
-                                _is_lc=$(printf "%s" "$id_str" | _tolower)
-                                if _match "$_ls_lc" "*$_fq_lc*" || _match "$_is_lc" "*$_fq_lc*"; then
+                                eval "glc=\"\$nlc_$g_idx\""; eval "gic=\"\$nic_$g_idx\""
+                                if _match "$glc" "*$_fq_lc*" || _match "$gic" "*$_fq_lc*"; then
                                     cur=$idx
                                     break
                                 fi
@@ -2768,6 +2808,7 @@ _tree_core() {
                             filter_query="${cursor_prefix}${cursor_suffix}"
                             _update_tree_cache
                             cur=-1
+                            _skip_header=1
                             continue 
                         fi
                         ;;
@@ -2779,7 +2820,7 @@ _tree_core() {
                     "[D"|"OD") _cursor_left cursor_prefix cursor_suffix; filter_query="${cursor_prefix}${cursor_suffix}" ;;
                     "[3")
                         _read_str_timeout 1 _del_c
-                        [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && { cursor_suffix="${cursor_suffix#?}"; filter_query="${cursor_prefix}${cursor_suffix}"; _update_tree_cache; }
+                        [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && { cursor_suffix="${cursor_suffix#?}"; filter_query="${cursor_prefix}${cursor_suffix}"; _update_tree_cache; _skip_header=1; }
                         ;;
                 esac
                 continue
