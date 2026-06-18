@@ -2538,6 +2538,8 @@ _tree_core() {
     # 1. New Filter State
     : ${ENABLE_FILTER:=false}
     local filter_query=""
+    local cursor_prefix=""
+    local cursor_suffix=""
     local last_query="INIT"
 
     local visible_count=0 formatted_count=0 expanded_count=0
@@ -2663,8 +2665,16 @@ _tree_core() {
             _draw_at "$row"
             local f_style="${BG_WID_ESC}${FG_TEXT_ESC}"
             [ $cur -eq -1 ] && f_style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"
-            # Use a fixed width for the filter bar to prevent bleeding
-            printf "  Filter: ${f_style} > %-25s ${RESET}${BG_MAIN_ESC}" "$filter_query" >&2
+            local _display="$filter_query"
+            local _vis_len=${#filter_query}
+            if [ $cur -eq -1 ]; then
+                _render_cursor_display "$cursor_prefix" "$cursor_suffix"
+                _display="$_DISPLAY"
+                _vis_len=$_VIS_LEN
+            fi
+            local _pad=$(( 25 - _vis_len ))
+            [ "$_pad" -lt 0 ] && _pad=0
+            printf "  Filter: ${f_style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
             _draw_line "" "$row"
             _draw_line "" # Spacer
         fi
@@ -2738,11 +2748,12 @@ _tree_core() {
             if [ -z "$ESC_SEQ" ]; then
                 case "$key" in
                     $(printf '\177')|$(printf '\b'))
-                    if [ -z "$filter_query" ]; then
-                        [ $v_count -gt 0 ] && cur=0
-                    else
-                        filter_query="${filter_query%?}"
+                    if [ -n "$cursor_prefix" ]; then
+                        cursor_prefix="${cursor_prefix%?}"
+                        filter_query="${cursor_prefix}${cursor_suffix}"
                         _update_tree_cache
+                    else
+                        [ $v_count -gt 0 ] && cur=0
                     fi
                     continue ;;
                 $(printf '\t'))
@@ -2771,7 +2782,8 @@ _tree_core() {
                         ;;
                     *)
                         if [ -n "$key" ]; then
-                            filter_query="${filter_query}${key}"
+                            cursor_prefix="${cursor_prefix}${key}"
+                            filter_query="${cursor_prefix}${cursor_suffix}"
                             _update_tree_cache
                             cur=-1
                             continue 
@@ -2779,7 +2791,15 @@ _tree_core() {
                         ;;
                 esac
             else
-                [ "$ESC_SEQ" = "[B" ] || [ "$ESC_SEQ" = "OB" ] && [ $v_count -gt 0 ] && cur=0
+                case "$ESC_SEQ" in
+                    "[B"|"OB") [ $v_count -gt 0 ] && cur=0 ;;
+                    "[C"|"OC") _cursor_right cursor_prefix cursor_suffix; filter_query="${cursor_prefix}${cursor_suffix}" ;;
+                    "[D"|"OD") _cursor_left cursor_prefix cursor_suffix; filter_query="${cursor_prefix}${cursor_suffix}" ;;
+                    "[3")
+                        _read_str_timeout 1 _del_c
+                        [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && { cursor_suffix="${cursor_suffix#?}"; filter_query="${cursor_prefix}${cursor_suffix}"; _update_tree_cache; }
+                        ;;
+                esac
                 continue
             fi
         fi
@@ -3294,7 +3314,17 @@ filtertable() {
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -ge 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB")
-
+                    if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                        cur=0
+                    elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
+                        cur=$((cur+1))
+                    fi ;;
+                "[C"|"OC") [ "$cur" -eq -1 ] && _cursor_right cursor_prefix cursor_suffix ;;
+                "[D"|"OD") [ "$cur" -eq -1 ] && _cursor_left cursor_prefix cursor_suffix ;;
+                "[3")
+                    _read_str_timeout 1 _del_c
+                    [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
+                    ;;
             esac
             continue
         fi
