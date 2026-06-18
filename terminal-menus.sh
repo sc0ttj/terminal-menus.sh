@@ -1333,7 +1333,7 @@ form() {
                 done
                 row=$((drow > row ? drow : row))
                 _dd_field=$cur
-                _dd_count=$f_idx
+                _dd_count=$FILTERED_COUNT
                 eval "_dd_open_row=\$((field_rows_$cur + 1))"
                 _dd_was_open=1
             elif [ "$_dd_was_open" -eq 1 ]; then
