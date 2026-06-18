@@ -4256,11 +4256,16 @@ EOF
                     [[ "$v1" == "total" || -z "$name" ]] && continue
                     [[ ${#v1} -eq 10 ]] && v1="${v1} "
                     [[ ${#v6} -eq 1 ]] && v6=" $v6"
-                    local v8_aligned=$(printf "%5s" "$v8")
                     local clean_name="${name##*/}"
                     [[ "$clean_name" == "." || "$clean_name" == ".." ]] && continue
                     local safe_name="${clean_name//[^a-zA-Z0-9_]/_}"
-                    eval "META_F_${safe_name}=\"\$v1 \$v3 \$v4 \$v5 \$v6 \$v7 \$v8_aligned\""
+                    local v3_pad=$(printf "%5s" "$v3")
+                    local v4_pad=$(printf "%5s" "$v4")
+                    local v5_pad=$(printf "%5s" "$v5")
+                    local v6_pad=$(printf "%-3s" "$v6")
+                    local v7_pad=$(printf "%2s" "$v7")
+                    local v8_pad=$(printf "%5s" "$v8")
+                    eval "META_F_${safe_name}=\"\$v1 \$v3_pad \$v4_pad \$v5_pad \$v6_pad \$v7_pad \$v8_pad\""
                 done < "$meta_tmp"
                 rm -f "$meta_tmp"
             fi
@@ -4495,8 +4500,9 @@ EOF
         fi
 
         # --- NEW: Dynamic Filename Column Width ---
-        # Default for normal view (truncate if needed)
-        local active_name_w=30
+        local active_name_w=$(( active_menu_w - 43 ))
+        [ $active_name_w -lt 8 ] && active_name_w=8
+        [ $active_name_w -gt 50 ] && active_name_w=50
 
         local height=$(( MAX_HEIGHT - list_top - 2 ))
         [[ $cur -lt $top ]] && top=$cur
@@ -4531,7 +4537,6 @@ EOF
                 if [[ $show_details -eq 1 ]]; then
                     if [[ "$label" == ".." ]]; then
                         display_name=".."
-                        [[ "$TUI_MODE" == "fullscreen" ]] && active_name_w=80
                     else
                         local lbl="$label"
                         [[ "$is_dir" == "true" ]] && lbl="${label}/"
