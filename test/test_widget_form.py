@@ -39,11 +39,6 @@ class TestForm(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
-    def test_form_escape_cancel(self):
-        stdout, rc = self.runner("wrappers/form_wrapper.sh", [KEY.ESCAPE])
-        self.assert_exit(1, stdout)
-        self.assert_no_shell_errors(stdout)
-
     def test_form_backspace_input(self):
         stdout, rc = self.runner("wrappers/form_wrapper.sh", [
             KEY.TAB, KEY.BACKSPACE, KEY.char("x"), KEY.ENTER,

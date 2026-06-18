@@ -56,7 +56,7 @@ Music:tuuuunes:/tmp/tui_music.csv
 Settings:settings:/tmp/tui_settings.csv"
 
 # --- 5. Launch ---
-TUI_PERSISTENT_FILTERS=true mainmenu "Media center" "" "$KODI_MENU" 3
+TUI_PERSISTENT_FILTERS=true mainmenu "Media center" "" "$KODI_MENU" 1
 
 echo "EXIT=$?"
 echo "RESULT=$TUI_RESULT"

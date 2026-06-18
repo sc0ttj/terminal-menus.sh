@@ -24,7 +24,7 @@ class TestMainmenu(TuiTestCase):
             KEY.ENTER, KEY.ENTER, KEY.ENTER,
         ], timeout=10)
         self.assert_exit(0, stdout)
-        self.assert_in_output("echo matrix", stdout)
+        self.assert_in_output("Playing Matrix...", stdout)
 
     def test_mainmenu_sort_columns(self):
         stdout, rc = self.runner("wrappers/mainmenu_wrapper.sh", [

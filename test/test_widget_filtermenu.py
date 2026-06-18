@@ -8,19 +8,19 @@ class TestFiltermenu(TuiTestCase):
 
     def test_filtermenu_type_and_select(self):
         stdout, rc = self.runner("wrappers/filtermenu_wrapper.sh", [
-            KEY.BACKSPACE, KEY.char("U"), KEY.char("S"),
-            KEY.char("A"), KEY.ENTER, KEY.ENTER,
+            KEY.BACKSPACE, KEY.char("A"), KEY.char("l"),
+            KEY.char("g"), KEY.ENTER, KEY.ENTER,
         ])
         self.assert_exit(0, stdout)
-        self.assert_result("USA", stdout)
+        self.assert_result("Algeria", stdout)
 
     def test_filtermenu_type_backspace(self):
         stdout, rc = self.runner("wrappers/filtermenu_wrapper.sh", [
-            KEY.BACKSPACE, KEY.char("U"), KEY.BACKSPACE,
-            KEY.char("U"), KEY.char("S"), KEY.char("A"), KEY.ENTER, KEY.ENTER,
+            KEY.BACKSPACE, KEY.char("X"), KEY.BACKSPACE,
+            KEY.char("A"), KEY.char("l"), KEY.char("g"), KEY.ENTER, KEY.ENTER,
         ])
         self.assert_exit(0, stdout)
-        self.assert_result("USA", stdout)
+        self.assert_result("Algeria", stdout)
 
     def test_filtermenu_down_and_select(self):
         stdout, rc = self.runner("wrappers/filtermenu_wrapper.sh", [
