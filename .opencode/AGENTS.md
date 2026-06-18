@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5,700 lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~5,650 lines). Zero dependencies. MIT license.
 
 ## Setup
 
@@ -41,10 +41,11 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 ## Other globals
 
 `BACKTITLE`, `OK_LABEL`, `CANCEL_LABEL`, `YES_LABEL`, `NO_LABEL` — customize button text.
+`TUI_EXTRA_KEYS` — multi-line env var of `key=command` pairs for custom keybindings (see README).
 
 ## Testing / verification
 
-All **160 tests pass** in ~66s (down from 165s after bundling PTY sessions per widget class).
+All **161 tests pass** in ~64s (down from 165s after bundling PTY sessions per widget class).
 
 ```bash
 # Run the full demo (exercises every widget):
@@ -75,11 +76,11 @@ python3 -m unittest discover -s test -p "test_widget_menu*" -v
 
 ### Test architecture
 
-- **23 files** (`test/test_widget_*.py`), **160 tests** total.
+- **23 files** (`test/test_widget_*.py`), **161 tests** total.
 - Each file tests one widget via PTY-driven integration tests.
 - A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 160→23, cutting runtime by 60%.
 - Legacy fallback: the `PtyRunner` class (uses `script`) kicks in if `pty.fork()` is unavailable.
-- Wrappers: 52 `test/wrappers/*_wrapper.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
+- Wrappers: 50 `test/wrappers/*_wrapper.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
 - The CI pipeline (`.github/workflows/test.yml`) runs the full suite; **ShellCheck** is aspirational (manual, not enforced in CI).
 - The demo script (`terminal-menus-demo.sh`) exercises all widgets end-to-end.
 
@@ -219,12 +220,40 @@ bash scripts/generate_readme_screenshots.sh
 
 **White edges around screenshots:** Caused by xterm's default white background (#FFFFFF) at unpainted areas of the terminal. Fix: add `-bg '#222222'` to xterm (matching BG_MAIN `34;34;34`). If re-capturing, delete the old PNG first so the generation script doesn't skip it.
 
-### 8. Operational Instructions
+### 8. Debugging
+
+**Shell error detection in tests:** `TuiTestCase.assert_no_shell_errors()` checks PTY output for `"Syntax error"`, `"not found"`, `"Bad substitution"`, `"unknown operand"`, `"closing paren"`. Run tests with `-v` and watch for these.
+
+**The `[[ $'\r' ]]` trap:** In BusyBox Ash, `[[ "$key" == $'\r' ]]` can print to stderr when `!`, `(` or `=` are typed, making those characters appear as visible terminal errors (commit e71d156). Fix: pre-define `cr=$(printf '\r')` and use `[ "$key" = "$cr" ]`. Same for `$'\n'`.
+
+**Tracing with `set -x`:** To debug a widget, temporarily add `set -x` before a problem section and `set +x` after. Shell trace output goes to stderr, which renders as visible text over the TUI. For cleaner capture, redirect stderr to a file: `./terminal-menus.sh 2>/tmp/trace.log` and inspect after.
+
+**No `TUI_DEBUG` env var exists yet.** For surgical tracing, insert `printf "DEBUG: var=$var" >&2` at the point of interest, or wrap with `bash -x terminal-menus.sh 2>/tmp/trace.log`.
+
+**PTY debug timing:** Tests use `PtySession(init_delay=0.05)`. For flaky tests, raise `init_delay=0.3` or fall back to `PtyRunner` (per-test `script` subprocess, slower but more isolated).
+
+**Key constants for tests:**
+```python
+class KEY:
+    ENTER = b"\r"; ESCAPE = b"\x1b"; TAB = b"\t"; SPACE = b" "
+    BACKSPACE = b"\x7f"; DELETE = b"\x1b[3~"
+    UP = b"\x1b[A"; DOWN = b"\x1b[B"; LEFT = b"\x1b[D"; RIGHT = b"\x1b[C"
+    HOME = b"\x1b[H"; END = b"\x1b[F"
+    PAGE_UP = b"\x1b[5~"; PAGE_DOWN = b"\x1b[6~"
+```
+
+**After code changes:** Always run `bash -n terminal-menus.sh && ash -n terminal-menus.sh` for syntax, then `./test/run_changed.sh` for targeted testing before a full suite run.
+
+### 9. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.
 - If a task requires a complex external tool (like `curl`), isolate it and ensure its output is parsed using built-in string manipulation.
 - Always check scripts with `shellcheck` (integrated in OpenCode).
+- Run `bash -n terminal-menus.sh && ash -n terminal-menus.sh` after every edit.
+- Load `shell-fix` skill to fix common bugs (ash compat, color rendering, preview_offset).
+- Use `shell-performance` for flicker-free rendering optimization.
+- Run `./test/run_changed.sh` for targeted testing before a full suite run.
 
-## 9. Available Skills
+## 10. Available Skills
 
 These skills are registered in `.opencode/skills/` and are loaded automatically. Use them for common tasks:
 
