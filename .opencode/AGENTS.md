@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5,650 lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~5,780 lines). Zero dependencies. MIT license.
 
 ## Setup
 
@@ -128,6 +128,17 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 
 **Rule**: Always use `case` for pattern matching, never `[[ ... == ...* ]]`.
 
+### 2b. BusyBox Ash Pitfalls (discovered through bugs)
+
+| Pitfall | Symptom | Fix |
+|---|---|---|
+| `$(...)` inside `while read < "$tmpf"` | Loop silently skips entries (stdin consumed by subshell) | Use two-phase: read paths from file in one loop with NO subshells, then process in a numbered-index loop |
+| `~` in `local dir="$3"` | `~` stays literal, not expanded til home | `dir=$(cd "$dir" && pwd)` resolves to absolute path |
+| `result=$(sort <<< "$var")` or `printf "%s" \| sort` | Pipeline via `$(...)` can drop last line under load | Use `sort -o tmpfile tmpfile` for in-place sort |
+| Heredocs `<<_EOF_` inside widget functions | Consume from stdin instead of script body in TUI/PTY context | Use temp-file redirection: `while read < "$tmpf"` then `rm -f "$tmpf"` |
+| Substring `${var: -3}` (space before minus) | Works in ash but the space before `-3` is required — `: -3` not `:-3` | Always write `${var: -3}` with the space |
+| `[[ "$key" == $'\r' ]]` | Prints stderr garbage when `!`, `(`, `=` pressed | Pre-define `cr=$(printf '\r')` and use `[ "$key" = "$cr" ]` |
+
 ### 3. System Tool Capabilities (Puppy Linux / current dev environment)
 
 This system uses GNU versions of common tools. Extensions available:
@@ -154,6 +165,26 @@ This system uses GNU versions of common tools. Extensions available:
 - **Reading Files**: Use `read -r` loops; never use `cat` (also `mapfile` is not available in BusyBox Ash).
 - **Calculations**: Use `$(( var = a + b ))` for integer math; do not use `bc` or `expr`.
 - **Arrays**: Use `eval`-based numbered variables (e.g. `eval "arr_$i='$val'"; eval "v=\$arr_$i"`) since arrays are unavailable.
+
+### 4b. Standard Code Patterns
+
+These patterns are used throughout the codebase and are proven to work on bash 3.2+ and BusyBox Ash:
+
+- **Pattern matching**: Use `_match()` helper — `_match "$var" "pattern*"` — instead of raw `case` when inside a function. Defined as `_match() { case $1 in $2) return 0;; esac; return 1; }`.
+- **Key reading**: Always use `_read_key var` (sets `IFS=`, reads `-r -n1` from `/dev/tty`). Use `_read_key_esc` for escape-sequence-aware reading: reads `KEY`, then if ESC, reads `ESC_SEQ`.
+- **Escape char**: Pre-define `_escape=$(printf '\e')` at function start rather than calling `printf` inline.
+- **Rendering**: ALWAYS use `printf >&2` — never `echo`. Stdout is reserved for widget return data.
+- **Terminal setup**: `stty -echo -icanon min 1 time 1` at start of TUI; `stty sane` in cleanup.
+- **Modal overlays**: `modal "widget 'arg1' 'arg2'"` layers a dialog on top of a fullscreen widget. Used in CSV command columns for table/mainmenu.
+- **External preview override**: `. ./preview.sh` in the demo replaces the built-in `preview()` with an enhanced version. Set `PREVIEW_SCRIPT` env var to auto-load.
+- **Theme switching**: Call `_init_static_colors()` then `_init_tui()` to reload colors mid-session after changing `BG_MAIN`, `HL_BLUE`, etc.
+- **Temp-file two-phase pattern** (for loops that need subshells):
+  ```bash
+  # Phase 1: read paths with NO subshells in the body
+  while IFS= read -r _fpath < "$tmpf"; do ... done
+  # Phase 2: process with numbered-index loop (no stdin redirection)
+  i=0; while [ "$i" -lt "$count" ]; do eval "f=\$f_$i"; r=$(_get_fm ...); i=$((i+1)); done
+  ```
 
 ### 5. TUI Rendering Logic
 - **Batch Printing**: Group UI updates into a single `printf` call to prevent partial screen updates.
@@ -188,7 +219,7 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
 
 **Key components:**
 - `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + xwd/convert
-- `test/wrappers/*_wrapper.sh` — 52 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data (23 used by screenshot generator)
+- `test/wrappers/*_wrapper.sh` — 50 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data (23 used by screenshot generator)
 - `test/drivers/*.driver` — 26 per-widget keystroke scripts (send_key, type_text, screenshot, wait_s) (23 used by screenshot generator)
 - `scripts/generate_readme_screenshots.sh` — Master generation script that loops all 23 screenshot targets
 
