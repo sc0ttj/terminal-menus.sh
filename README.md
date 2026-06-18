@@ -26,7 +26,7 @@ The **`mainmenu`** in fullscreen mode:
 - **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
 - **TrueColor (24-bit)**: Customisable RGB themes.
 - **Many Layouts**: Modal popups, full-screen UIs, toast notifications, and command palettes.
-- **High Performance**: Minimal use of subshells; uses internal built-ins for all logic.
+- **High Performance**: Pre-computed lowercase caches, viewport file reading (no `sed` per row), `find`-based directory listing (no shell glob ARG_MAX), shell parameter expansion over `awk`/`cut`/`tr` forks, and `MAX_FILTER_ITEMS` safety cap.
 
 > **Shell requirements**: The library requires `[[ ]]`, `read -n`, and `$'...'` support.  
 > Bash 3.2+ works natively. BusyBox Ash needs `ASH_BASH_COMPAT` enabled at build time.  
@@ -162,6 +162,11 @@ A standard single-choice selection list. Also see `filtermenu`.
 CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
 ```
 
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+CHOICE=$(menu "Menu" "Pick one:" --file /path/to/items.txt)
+```
+
 ### 7. Checklist (`checklist`)
 
 ![checklist](screenshots/checklist.png)
@@ -181,6 +186,11 @@ Multiple-choice selection list. Returns each selected item on a new line.
 CHKS=$(checklist "Checklist" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
 ```
 
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+CHKS=$(checklist "Checklist" "Select:" --file /path/to/items.txt)
+```
+
 ### 8. Radiolist (`radiolist`)
 
 ![radiolist](screenshots/radiolist.png)
@@ -198,6 +208,12 @@ Mutually exclusive selection list.
 
 ```bash
 RADIO=$(radiolist "Radiolist" "Choose exactly one:" 2 "Low" "Medium" "High")
+```
+
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+RADIO=$(radiolist "Radiolist" "Choose:" --file /path/to/items.txt)
+```
 ```
 
 ### 9. Filtermenu (`filtermenu`)
@@ -299,6 +315,11 @@ TREE_DATA=("0|usr|/usr|true" "1|bin|bin/|true" "2|bash|bash|false")
 TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" 1 "${TREE_DATA[@]}")
 ```
 
+For large tree data, use `--file` to read nodes from a file (one node per line, avoids ARG_MAX):
+```bash
+TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" --file /path/to/nodes.txt)
+```
+
 ### 14. Configtree (`configtree`)
 
 ![configtree](screenshots/configtree.png)
@@ -320,6 +341,11 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 
 ```bash
 CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
+```
+
+For large tree data, use `--file` to read nodes from a file (avoids ARG_MAX):
+```bash
+CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" --file /path/to/nodes.txt)
 ```
 
 ### 15. Form (`form`)
@@ -439,6 +465,7 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [Arrows]  Navigate (also w/a/s/d and h/j/k/l)
 [ENTER]   Open / Select
 [TAB]     Toggle add to selection (sel/{})
+[SPACE]   Toggle current selection
 [.]       Toggle hidden files
 [,]       Toggle detailed list
 [i]       Toggle ignored (.gitignore)
@@ -451,6 +478,9 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [x/c/v]   Cut/copy/paste
 [h/j/k/l] Left/down/up/right (vim)
 [J/K/g/G] PageDown/PageUp/top/bottom
+[~]       Go home
+[?]       Show help
+[[]/[]]   Preview scroll up/down
 [q/ESC]   Exit / Cancel
 ```
 
@@ -719,6 +749,7 @@ update_config "theme='dark'"
 | `OK_LABEL` | `msgbox` | OK button label |
 | `YES_LABEL` / `NO_LABEL` | `yesno` | Yes/No button labels |
 | `TUI_EXTRA_KEYS` | All interactive widgets | Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys)) |
+| `MAX_FILTER_ITEMS` | `mainmenu`, `filtermenu`, `filtertable`, `tree`, `configtree` | Max items to process in filter loops (default: 5000). Prevents freezes with 10K+ items |
 | `BG_MODAL` | `modal` wrapper | Modal overlay background colour |
 | `ANCHOR` | `palette` mode | Anchor position (tl, tr, bl, br, tc, bc, cc) |
 

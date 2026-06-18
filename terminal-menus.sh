@@ -159,6 +159,9 @@ _handle_extra_keys() {
 # Optional title that goes at the very top
 : ${BACKTITLE:=""}
 
+# Maximum items to process in filter loops (avoids long freezes with 10K+ items)
+: ${MAX_FILTER_ITEMS:=5000}
+
 # --- Global Button Labels ---
 : ${OK_LABEL:="OK"}
 : ${CANCEL_LABEL:="CANCEL"}
@@ -815,37 +818,60 @@ _draw_list() {
 
 # --- Widgets ---
 
-menu() {
-    local t=$1 m=$2 d=0
-    if _is_numeric "$3"; then
-        d=$(( $3 - 1 ))
-        shift 3
-    else
+# _list_widget: dispatcher for menu/checklist/radiolist
+# Handles --file mode, numeric-default, and no-default cases.
+_list_widget() {
+    local type=$1 t=$2 m=$3 d=0
+    shift 3
+    if [ "$1" = "--file" ]; then
+        local _file=$2 _line
         shift 2
+        set --
+        while IFS= read -r _line; do
+            [ -z "$_line" ] && continue
+            set -- "$@" "$_line"
+        done < "$_file"
+    else
+        if _is_numeric "$1"; then
+            d=$(($1 - 1))
+            shift
+        fi
     fi
-    _draw_list "menu" "$t" "$m" "$d" "$@"
+    _draw_list "$type" "$t" "$m" "$d" "$@"
+}
+
+# _tree_widget: dispatcher for tree/configtree
+# Handles --file mode, numeric-default, and no-default cases.
+_tree_widget() {
+    local type=$1 t=$2 m=$3 d=0
+    shift 3
+    if [ "$1" = "--file" ]; then
+        local _file=$2 _line
+        shift 2
+        set --
+        while IFS= read -r _line; do
+            [ -z "$_line" ] && continue
+            set -- "$@" "$_line"
+        done < "$_file"
+    else
+        if _is_numeric "$1"; then
+            d=$(($1 - 1))
+            shift
+        fi
+    fi
+    _tree_core "$type" "$t" "$m" "$d" "$@"
+}
+
+menu() {
+    _list_widget "menu" "$@"
 }
 
 checklist() {
-    local t=$1 m=$2 d=0
-    if _is_numeric "$3"; then
-        d=$(( $3 - 1 ))
-        shift 3
-    else
-        shift 2
-    fi
-    _draw_list "check" "$t" "$m" "$d" "$@"
+    _list_widget "check" "$@"
 }
 
 radiolist() {
-    local t=$1 m=$2 d=0
-    if _is_numeric "$3"; then
-        d=$(( $3 - 1 ))
-        shift 3
-    else
-        shift 2
-    fi
-    _draw_list "radio" "$t" "$m" "$d" "$@"
+    _list_widget "radio" "$@"
 }
 
 msgbox() {
@@ -1059,26 +1085,30 @@ textbox() {
 
             sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
 
-            i=0; while [ "$i" -lt "$height" ]; do
-                local idx=$((top + i))
+            i=0; while IFS= read -r rl && [ "$i" -lt "$height" ]; do
                 local current_view_row=$((view_top + i))
-                
-                _draw_at "$current_view_row"
-                printf "  " >&2 
 
-                if [ "$idx" -lt "$count" ]; then
-                    local rl=$(sed -n "$((idx + 1))p" "$src" 2>/dev/null)
-                    local content="${rl//$'\t'/    }"
-                    content="${content:0:$box_width}"
-                    _draw_item "text" 0 0 "$content" "$box_width"
-                else
-                    _draw_item "text" 0 0 "" "$box_width"
-                fi
-                
+                _draw_at "$current_view_row"
+                printf "  " >&2
+
+                local content="${rl//$'\t'/    }"
+                content="${content:0:$box_width}"
+                _draw_item "text" 0 0 "$content" "$box_width"
+
+                _draw_line "" "$current_view_row"
+                i=$((i+1))
+            done < "$tmpf"
+
+            # fill remaining rows with blanks
+            while [ "$i" -lt "$height" ]; do
+                local current_view_row=$((view_top + i))
+                _draw_at "$current_view_row"
+                printf "  " >&2
+                _draw_item "text" 0 0 "" "$box_width"
                 _draw_line "" "$current_view_row"
                 i=$((i+1))
             done
-            
+
             row=$((view_top + height))
             _draw_line "" 
             _draw_controls " ${SB}Up/Down/j/k${SR} Scroll | ${SB}PgUp/PgDn${SR} Page | ${SB}Enter${SR} Close"
@@ -1113,7 +1143,9 @@ textbox() {
 tailbox() {
     local title=$1 msg=$2 src=$3 key
     [ ! -f "$src" ] && { msgbox "Error" "File not found: $src"; return 1; }
-    
+
+    local count=$(wc -l < "$src")
+
     _init_tui
     local box_width=$(( MAX_WIDTH - 4 ))
     local tmpf=$(mktemp /tmp/tui_tail.XXXXXX)
@@ -1124,26 +1156,31 @@ tailbox() {
         local height=$(( MAX_HEIGHT - view_top - 2 ))
         [ "$height" -lt 3 ] && height=3
 
-        local count=$(wc -l < "$src")
         local top=$(( count - height ))
         [ "$top" -lt 0 ] && top=0
 
         sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
 
-        i=0; while [ "$i" -lt "$height" ]; do
-            local idx=$((top + i))
+        i=0; while IFS= read -r _tail_line && [ "$i" -lt "$height" ]; do
             local current_view_row=$((view_top + i))
-            
-            _draw_at "$current_view_row" 0
-            printf "${BG_MAIN_ESC}  " >&2 
 
-            if [ "$idx" -lt "$count" ]; then
-                local raw_content=$(sed -n "$((idx + 1))p" "$tmpf" 2>/dev/null | expand -t 4 | cut -c 1-"$box_width")
-                printf "${BG_WID_ESC}${FG_TEXT_ESC}%-${box_width}.${box_width}s${RESET}" "$raw_content" >&2
-            else
-                printf "${BG_WID_ESC}%${box_width}s${RESET}" "" >&2
-            fi
-            
+            _draw_at "$current_view_row" 0
+            printf "${BG_MAIN_ESC}  " >&2
+
+            local content="${_tail_line//$'\t'/    }"
+            content="${content:0:$box_width}"
+            printf "${BG_WID_ESC}${FG_TEXT_ESC}%-${box_width}.${box_width}s${RESET}" "$content" >&2
+
+            printf "${BG_MAIN_ESC}  ${RESET}" >&2
+            row=$(( MAX_HEIGHT - 1 ))
+            i=$((i+1))
+        done < "$tmpf"
+
+        while [ "$i" -lt "$height" ]; do
+            local current_view_row=$((view_top + i))
+            _draw_at "$current_view_row" 0
+            printf "${BG_MAIN_ESC}  " >&2
+            printf "${BG_WID_ESC}%${box_width}s${RESET}" "" >&2
             printf "${BG_MAIN_ESC}  ${RESET}" >&2
             row=$(( MAX_HEIGHT - 1 ))
             i=$((i+1))
@@ -1249,8 +1286,9 @@ form() {
                 fi
                 joined="${joined}${cleaned},"
                 idx=$((idx+1))
-            done
-            IFS="$old_ifs"
+done <<_EOF_
+$_kb_manifest
+_EOF_
             joined="${joined%,}"
             eval "fields_$i='{ }'"
             eval "values_$i='CLOSED|$default_idx||$joined'"
@@ -2056,6 +2094,7 @@ filtermenu() {
 
     local all_options
     all_options=$(echo "$input_string" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//')
+    local all_opt_count=0
 
     local cursor_prefix=""
     local cursor_suffix=""
@@ -2238,35 +2277,28 @@ filepicker() {
             eval "raw_0='${root_dir%/*}|..|true'"
             raw_count=1
 
-            for path in "$root_dir"/*; do
-                [ ! -d "$path" ] && continue
-                eval "raw_$raw_count='$path|${path##*/}|true'"
+            local _fp_tmpf=$(mktemp /tmp/tui_fp.XXXXXX)
+            find "$root_dir" -maxdepth 1 -mindepth 1 | sort > "$_fp_tmpf"
+
+            # dirs first (visible, then hidden if show_hidden=1)
+            while IFS= read -r _entry; do
+                [ ! -d "$_entry" ] && continue
+                local _name="${_entry##*/}"
+                case "$_name" in .*) [ $show_hidden -eq 0 ] && continue ;; esac
+                eval "raw_$raw_count='$_entry|$_name|true'"
                 raw_count=$((raw_count+1))
-            done
+            done < "$_fp_tmpf"
 
-            if [ $show_hidden -eq 1 ]; then
-                for path in "$root_dir"/.*; do
-                    [ ! -d "$path" ] && continue
-                    case "${path##*/}" in "."|"..") continue ;; esac
-                    eval "raw_$raw_count='$path|${path##*/}|true'"
-                    raw_count=$((raw_count+1))
-                done
-            fi
-
-            for path in "$root_dir"/*; do
-                [ ! -f "$path" ] && continue
-                eval "raw_$raw_count='$path|${path##*/}|false'"
+            # then files
+            while IFS= read -r _entry; do
+                [ ! -f "$_entry" ] && continue
+                local _name="${_entry##*/}"
+                case "$_name" in .*) [ $show_hidden -eq 0 ] && continue ;; esac
+                eval "raw_$raw_count='$_entry|$_name|false'"
                 raw_count=$((raw_count+1))
-            done
+            done < "$_fp_tmpf"
 
-            if [ $show_hidden -eq 1 ]; then
-                for path in "$root_dir"/.*; do
-                    [ ! -f "$path" ] && continue
-                    case "${path##*/}" in "."|"..") continue ;; esac
-                    eval "raw_$raw_count='$path|${path##*/}|false'"
-                    raw_count=$((raw_count+1))
-                done
-            fi
+            rm -f "$_fp_tmpf"
 
             count=$raw_count
 
@@ -2540,6 +2572,7 @@ _tree_core() {
             # --- PHASE 1: DIRECT MATCH CHECK ---
             _fq_lc=$(printf "%s" "$filter_query" | _tolower)
             local di=0; while [ "$di" -lt "$count" ]; do
+                [ $di -ge $MAX_FILTER_ITEMS ] && break
                 eval "nm_$di=0"
                 eval "nl=\"\$nlc_$di\""; eval "ni=\"\$nic_$di\""
                 if _match "$nl" "*$_fq_lc*" || _match "$ni" "*$_fq_lc*"; then
@@ -2571,6 +2604,7 @@ _tree_core() {
 
             # --- PHASE 3: FORWARD PASS (build visible list from nm_$i flags) ---
             i=0; while [ "$i" -lt "$count" ]; do
+                [ $i -ge $MAX_FILTER_ITEMS ] && break
                 eval "node=\"\$node_$i\""
                 local depth="${node%%|*}"
                 local remaining="${node#*|}"
@@ -2993,34 +3027,13 @@ _tree_core() {
 # When TREE_RETURN_VALUES=true, returns label paths instead of ID paths.
 : ${TREE_RETURN_VALUES:=false}
 tree() {
-    local t=$1 m=$2 d=0
-    
-    # Check if $3 is a number (initial index)
-    if _is_numeric "$3"; then
-        d=$(($3 - 1))
-        shift 3
-    else
-        # If not, the tree data nodes start at $3
-        shift 2
-    fi
-    
-    _tree_core "select" "$t" "$m" "$d" "$@"
+    _tree_widget "select" "$@"
 }
 
 # Returns generated Variable pairs
 configtree() {
-    local t=$1 m=$2 d=0
-    
-    # 1. Detect optional focused index
-    if _is_numeric "$3"; then
-        d=$(($3 - 1))
-        shift 3
-    else
-        shift 2
-    fi
-
     local raw_output
-    raw_output=$(_tree_core "config" "$t" "$m" "$d" "$@")
+    raw_output=$(_tree_widget "config" "$@")
     [ -z "$raw_output" ] && TUI_RESULT='' && return 1
 
     local raw_count=0
@@ -3215,6 +3228,7 @@ filtertable() {
             eval "cmd_val=\"\${$_cmd_idx}\""
             eval "master_line_$master_count=\"\$formatted\""
             eval "master_search_$master_count=\"\$line\""
+            eval "master_search_lc_$master_count=\"\$(printf \"%s\" \"\$line\" | _tolower)\""
             eval "master_cmd_$master_count=\"\$cmd_val\""
             master_count=$((master_count+1))
         fi
@@ -3227,14 +3241,14 @@ filtertable() {
         if [ "$filter_query" != "$last_query" ]; then
             filter_count=0
             i=0
+            _flow=$(echo "$filter_query" | _tolower)
             while [ "$i" -lt "$master_count" ]; do
+                [ $i -ge $MAX_FILTER_ITEMS ] && break
                 _match=""
                 if [ -z "$filter_query" ]; then
                     _match=1
                 else
-                    eval "search=\"\$master_search_$i\""
-                    _slow=$(echo "$search" | _tolower)
-                    _flow=$(echo "$filter_query" | _tolower)
+                    eval "_slow=\"\$master_search_lc_$i\""
                     case "$_slow" in
                         *$_flow*) _match=1 ;;
                     esac
@@ -3513,6 +3527,7 @@ EOF
                         done
                         fmt="${fmt% }"
                         eval "master_line_$master_count=\"\$fmt\""
+                        eval "master_line_lc_$master_count=\"\$(printf \"%s\" \"\$fmt\" | _tolower)\""
                         _cmd_safe="$cmd"; eval "master_cmd_$master_cmd_count=\"\$_cmd_safe\""
                         rd=""
                         i=0; while [ "$i" -lt "$col_count" ]; do
@@ -3541,9 +3556,10 @@ EOF
         # 4. CONDITIONAL FILTER
         if [[ "$filter_query" != "$last_query" || $force_refilter -gt 0 ]]; then
             filtered_count=0; filtered_cmd_count=0
-            search_pattern="*${filter_query}*"
             q_lower=$(echo "$filter_query" | _tolower)
+            sp="*${q_lower}*"
             i=0; while [ "$i" -lt "$master_count" ]; do
+                [ $i -ge $MAX_FILTER_ITEMS ] && break
                 eval "ml=\$master_line_$i"
                 if [ -z "$filter_query" ]; then
                     eval "filtered_line_$filtered_count=\$master_line_$i"
@@ -3551,9 +3567,9 @@ EOF
                     filtered_count=$((filtered_count+1))
                     filtered_cmd_count=$((filtered_cmd_count+1))
                 else
-                    ml_lower=$(echo "$ml" | _tolower)
+                    eval "ml_lower=\"\$master_line_lc_$i\""
                     case "$ml_lower" in
-                        $search_pattern)
+                        $sp)
                             eval "filtered_line_$filtered_count=\$master_line_$i"
                             eval "filtered_cmd_$filtered_cmd_count=\$master_cmd_$i"
                             filtered_count=$((filtered_count+1))
@@ -3712,8 +3728,16 @@ EOF
                             tmp_sort="/tmp/tui_sort_$$.txt"
                             > "$tmp_sort"
                             i=0; while [ "$i" -lt "$master_count" ]; do
+                                [ $i -ge $MAX_FILTER_ITEMS ] && break
                                 eval "rd=\$master_rd_$i"
-                                sk=$(echo "$rd" | awk -F'\t' -v c=$((col+1)) '{print $c}')
+                                # extract column $col from tab-separated rd using shell PE (avoids awk fork)
+                                local _sk_rem="$rd"
+                                local _fi=1
+                                while [ "$_fi" -le "$col" ]; do
+                                    _sk_rem="${_sk_rem#*$'\t'}"
+                                    _fi=$((_fi+1))
+                                done
+                                sk="${_sk_rem%%$'\t'*}"
                                 echo "$sk|$i" >> "$tmp_sort"
                                 i=$((i+1))
                             done
@@ -3726,12 +3750,14 @@ EOF
                             new_count=0
                             for si in $sorted; do
                                 eval "tmp_ml_$new_count=\"\$master_line_$si\""
+                                eval "tmp_mlc_$new_count=\"\$master_line_lc_$si\""
                                 eval "tmp_mc_$new_count=\"\$master_cmd_$si\""
                                 eval "tmp_mr_$new_count=\"\$master_rd_$si\""
                                 new_count=$((new_count+1))
                             done
                             i=0; while [ "$i" -lt "$new_count" ]; do
                                 eval "master_line_$i=\"\$tmp_ml_$i\""
+                                eval "master_line_lc_$i=\"\$tmp_mlc_$i\""
                                 eval "master_cmd_$i=\"\$tmp_mc_$i\""
                                 eval "master_rd_$i=\"\$tmp_mr_$i\""
                                 i=$((i+1))
@@ -3930,7 +3956,10 @@ _refresh_prompt() {
 _refresh_sidebar_only() {
     local clean_query="${search_query# }" 
     local f_idx=0
-    
+
+    local lc_query=""
+    [ -n "$clean_query" ] && lc_query=$(echo "$clean_query" | _tolower)
+
     local si=0; while [ "$si" -lt "$master_raw_count" ]; do
         eval "item=\$master_raw_$si"
         local name="${item#*|}"
@@ -3941,8 +3970,7 @@ _refresh_sidebar_only() {
             eval "raw_$f_idx='$item'"
             f_idx=$((f_idx+1))
         else
-            lc_name=$(echo "$name" | _tolower)
-            lc_query=$(echo "$clean_query" | _tolower)
+            eval "lc_name=\"\$raw_lc_$si\""
             case "$lc_name" in
                 *"$lc_query"*)
                     eval "raw_$f_idx='$item'"
@@ -4223,7 +4251,7 @@ EOF
             # --- PRO MOVE: Fetch all metadata in ONE fork ---
             if [[ $show_details -eq 1 ]]; then
                 local meta_tmp="/tmp/tui_meta_$$.txt"
-                (cd "$root_dir" && \ls -lAnhd * .* 2>/dev/null) > "$meta_tmp"
+                find "$root_dir" -maxdepth 1 -mindepth 1 -exec ls -lAnhd {} + 2>/dev/null > "$meta_tmp"
                 while read -r v1 v2 v3 v4 v5 v6 v7 v8 name; do
                     [[ "$v1" == "total" || -z "$name" ]] && continue
                     [[ ${#v1} -eq 10 ]] && v1="${v1} "
@@ -4247,12 +4275,16 @@ EOF
                 sel_path_count=0
             fi
 
-            # 2. Visible directories
-            for path in "$root_dir"/*; do
-                [[ ! -d "$path" ]] && continue
-                local name="${path##*/}"
-                [[ "${name:0:1}" == "." ]] && continue
-                
+            # 2. List all entries with one find call (avoids ARG_MAX from shell glob)
+            local _fm_tmpf=$(mktemp /tmp/tui_fm.XXXXXX)
+            find "$root_dir" -maxdepth 1 -mindepth 1 | sort > "$_fm_tmpf"
+
+            # Visible directories
+            while IFS= read -r _entry; do
+                [ ! -d "$_entry" ] && continue
+                local name="${_entry##*/}"
+                case "$name" in .*) continue ;; esac
+
                 if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
                     case "$ignored_cache" in *"|$name|"*) continue ;; esac
                 fi
@@ -4261,26 +4293,28 @@ EOF
                     local l_name=$(echo "$name" | _tolower)
                     case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
-                
-                eval "raw_$raw_count='$path|$name|true'"
+
+                eval "raw_$raw_count='$_entry|$name|true'"
                 eval "selpath_$sel_path_count=0"
+                eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                 raw_count=$((raw_count+1))
                 sel_path_count=$((sel_path_count+1))
-                
+
                 if [[ $show_details -eq 1 ]]; then
                     local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
                     local varname="META_F_$safe_lookup"
                     eval "detail_$((raw_count-1))=\${$varname}"
                 fi
-            done
+            done < "$_fm_tmpf"
 
-            # 3. Hidden directories
+            # Hidden directories
             if [[ $show_hidden -eq 1 ]]; then
-                for path in "$root_dir"/.*; do
-                    [[ ! -d "$path" ]] && continue
-                    local name="${path##*/}"
+                while IFS= read -r _entry; do
+                    [ ! -d "$_entry" ] && continue
+                    local name="${_entry##*/}"
                     [[ "$name" == "." || "$name" == ".." ]] && continue
-                    
+                    case "$name" in .*) ;; *) continue ;; esac
+
                     if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
                         case "$ignored_cache" in *"|$name|"*) continue ;; esac
                     fi
@@ -4289,26 +4323,27 @@ EOF
                         local l_name=$(echo "$name" | _tolower)
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
-                    
-                    eval "raw_$raw_count='$path|$name|true'"
+
+                    eval "raw_$raw_count='$_entry|$name|true'"
                     eval "selpath_$sel_path_count=0"
+                    eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                     raw_count=$((raw_count+1))
                     sel_path_count=$((sel_path_count+1))
-                    
+
                     if [[ $show_details -eq 1 ]]; then
                         local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
                         local varname="META_F_$safe_lookup"
                         eval "detail_$((raw_count-1))=\${$varname}"
                     fi
-                done
+                done < "$_fm_tmpf"
             fi
 
-            # 4. Visible files
-            for path in "$root_dir"/*; do
-                [[ ! -f "$path" ]] && continue
-                local name="${path##*/}"
-                [[ "${name:0:1}" == "." ]] && continue
-                
+            # Visible files
+            while IFS= read -r _entry; do
+                [ ! -f "$_entry" ] && continue
+                local name="${_entry##*/}"
+                case "$name" in .*) continue ;; esac
+
                 if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
                     case "$ignored_cache" in *"|$name|"*) continue ;; esac
                 fi
@@ -4317,26 +4352,28 @@ EOF
                     local l_name=$(echo "$name" | _tolower)
                     case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
-                
-                eval "raw_$raw_count='$path|$name|false'"
+
+                eval "raw_$raw_count='$_entry|$name|false'"
                 eval "selpath_$sel_path_count=0"
+                eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                 raw_count=$((raw_count+1))
                 sel_path_count=$((sel_path_count+1))
-                
+
                 if [[ $show_details -eq 1 ]]; then
                     local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
                     local varname="META_F_$safe_lookup"
                     eval "detail_$((raw_count-1))=\${$varname}"
                 fi
-            done
+            done < "$_fm_tmpf"
 
-            # 5. Hidden files
+            # Hidden files
             if [[ $show_hidden -eq 1 ]]; then
-                for path in "$root_dir"/.*; do
-                    [[ ! -f "$path" ]] && continue
-                    local name="${path##*/}"
+                while IFS= read -r _entry; do
+                    [ ! -f "$_entry" ] && continue
+                    local name="${_entry##*/}"
                     [[ "$name" == "." || "$name" == ".." ]] && continue
-                    
+                    case "$name" in .*) ;; *) continue ;; esac
+
                     if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
                         case "$ignored_cache" in *"|$name|"*) continue ;; esac
                     fi
@@ -4345,19 +4382,22 @@ EOF
                         local l_name=$(echo "$name" | _tolower)
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
-                    
-                    eval "raw_$raw_count='$path|$name|false'"
+
+                    eval "raw_$raw_count='$_entry|$name|false'"
                     eval "selpath_$sel_path_count=0"
+                    eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                     raw_count=$((raw_count+1))
                     sel_path_count=$((sel_path_count+1))
-                    
+
                     if [[ $show_details -eq 1 ]]; then
                         local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
                         local varname="META_F_$safe_lookup"
                         eval "detail_$((raw_count-1))=\${$varname}"
                     fi
-                done
+                done < "$_fm_tmpf"
             fi
+
+            rm -f "$_fm_tmpf"
 
             if [[ $show_details -eq 1 ]]; then :; fi
             
@@ -5250,6 +5290,8 @@ ${SB}q${SR}           Quit"
     local title=$1
     local msg=$2
     local dir="$3" config="$dir/.project-config"
+    dir=$(cd "$dir" && pwd)
+    config="$dir/.project-config"
     [[ ! -d "$dir" ]] && { msgbox "Error" "Project dir not found"; return 1; }
 
     local content="" kanban_cols_count=0
@@ -5268,7 +5310,7 @@ ${SB}q${SR}           Quit"
             kanban_cols_count=$((kanban_cols_count+1))
         done
     fi
-    
+
     _init_tui && _hide_cursor
 
     local num_cols=$kanban_cols_count
@@ -5299,26 +5341,69 @@ ${SB}q${SR}           Quit"
 
         local rev_flag=""
         [[ "$sort_rev" == "true" ]] && rev_flag="r"
-        
-        local old_ifs="$IFS"; IFS=$'\n'
-        local manifest=$(for f in "$dir"/*.md; do
-            [[ ! -f "$f" ]] && continue
-            local val=$(_get_fm "$f" "$sort_mode")
-            if [[ "$sort_mode" == "rank" ]]; then
-                [[ -z "$val" ]] && val="100"
-                printf "%03d|%s\n" "$val" "${f##*/}"
-            else
-                [[ -z "$val" ]] && val="0000-00-00-00:00:00"
-                echo "${val}|${f##*/}"
-            fi
-        done | sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ))
 
-        for entry in $manifest; do
-            local fname="${entry#*|}"
+        # List .md files via find (avoids ARG_MAX from shell glob) and cache metadata once
+        local _kb_tmpf=$(mktemp /tmp/tui_kb.XXXXXX)
+        find "$dir" -maxdepth 1 -name '*.md' | sort > "$_kb_tmpf"
+
+        # Read paths into numbered vars first (avoids stdin-consumption from $(...) subshells in while read loop)
+        local _pcount=0
+        while IFS= read -r _p; do
+            eval "kb_path_$_pcount='$_p'"
+            _pcount=$((_pcount+1))
+        done < "$_kb_tmpf"
+        rm -f "$_kb_tmpf"
+
+        local _kb_idx=0
+        local _kb_manifest=""
+        local _pi=0; while [ "$_pi" -lt "$_pcount" ]; do
+            eval "_fpath=\"\$kb_path_$_pi\""
+            [ ! -f "$_fpath" ] && { _pi=$((_pi+1)); continue; }
+            local _fname="${_fpath##*/}"
+            local _sort_val=$(_get_fm "$_fpath" "$sort_mode")
+            local _status=$(_get_fm "$_fpath" "status")
+            local _title=$(_get_fm "$_fpath" "title")
+            : ${_title:=${_fname%.md}}
+            if [[ "$sort_mode" == "rank" ]]; then
+                [[ -z "$_sort_val" ]] && _sort_val="100"
+                _sv="000${_sort_val}"
+                _sv="${_sv: -3}"
+                _kb_manifest="${_kb_manifest}${_sv}|${_fname}"$'\n'
+            else
+                [[ -z "$_sort_val" ]] && _sort_val="0000-00-00-00:00:00"
+                _kb_manifest="${_kb_manifest}${_sort_val}|${_fname}"$'\n'
+            fi
+            eval "kb_status_$_kb_idx='$_status'"
+            eval "kb_title_$_kb_idx='$_title'"
+            eval "kb_fname_$_kb_idx='$_fname'"
+            _kb_idx=$((_kb_idx+1))
+            _pi=$((_pi+1))
+        done
+        local _kb_total=$_kb_idx
+
+        # Sort manifest directly to temp file (avoids $(...) subshell dropping last line)
+        local _kb_mftmp=$(mktemp /tmp/tui_kbm.XXXXXX)
+        printf "%s" "$_kb_manifest" > "$_kb_mftmp"
+        sort -t '|' -k1$( [[ "$sort_rev" == "true" ]] && echo "r" ) -o "$_kb_mftmp" "$_kb_mftmp"
+
+        local _entry_idx=0
+        while IFS= read -r _entry; do
+            [ -z "$_entry" ] && continue
+            local fname="${_entry#*|}"
             local fpath="$dir/$fname"
-            
-            local f_status=$(_get_fm "$fpath" "status")
-            local f_title=$(_get_fm "$fpath" "title")
+
+            local f_title=""
+            local f_status=""
+            # look up cached metadata by filename
+            local _fi=0; while [ "$_fi" -lt "$_kb_total" ]; do
+                eval "_tf=\"\$kb_fname_$_fi\""
+                if [[ "$_tf" == "$fname" ]]; then
+                    eval "f_status=\"\$kb_status_$_fi\""
+                    eval "f_title=\"\$kb_title_$_fi\""
+                    break
+                fi
+                _fi=$((_fi+1))
+            done
             : ${f_title:=${fname%.md}}
 
             c=0; while [ "$c" -lt "$num_cols" ]; do
@@ -5336,8 +5421,8 @@ ${SB}q${SR}           Quit"
                 fi
                 c=$((c+1))
             done
-        done
-        IFS="$old_ifs"
+        done < "$_kb_mftmp"
+        rm -f "$_kb_mftmp"
 
         row=2
         [[ $PADDING_TOP -eq 0 && -n "$BACKTITLE" ]] && row=3

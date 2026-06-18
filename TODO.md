@@ -1,78 +1,91 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
+## Allow Nerd font icons
 
-Improve `filtertable`:
-* pressing BACKSPACE in empty filter input should focus on first item in list
-* pressing TAB in an empty filter should behave the same as pressing ENTER in an empty filter - focus on first item in list
-* make its controls more consistent with other filter inputs (filtertable, configtree, tree)
+I want a way to support using Nerd font icons in input data, using placeholders like so:
 
-Fix `filemanager`
-* If focused item in sidemenu is a dir, list its contents in the preview window (ls -1, with dirs first, and dirs suffixed with "/")
-* Also fix the preview.sh script if needed
+```
+str="{icon_name} Foo bar"
+```
 
-Fix filter inputs:
-* some filter inputs, in some widgets, do not allow typing "j" or "k" into the input, but they should
+Example
 
-Improve `textbox`:
-* Add page up/page down controls
+```
+str="{folder} My Documents"
+```
 
-Improve `filtermenu`:
-* when in menu (not in filter input), pressing "/" should move focus to filter input 
-* when in menu (not in filter input), pressing "BACKSPACE" should move focus to filter input 
-* when in filter input, pressing DOWN key should focus on first item in menu (like ENTER does)
+Is it possible to support "Nerd fonts" in this way, without knowing which "Nerd font" is being used? 
 
-Improve `tree` and `configtree`:
-* Add: press TAB key to switch between filter input and viewport content
-* Add ENV var option to return values (`/usr/local/share/doc/manual.txt` instead of keys (`usr/local/share/doc/man`)
-
-Fix `filemanager`:
-* make it support the `TUI_CD_FILE` env var, just like `filepicker` does.
-* add an example to README.md of how to use it for a "cd to dir on exit" feature (where the terminal cds to the dir the filepicker or filemanager was in on exit)
-
-Improve `filemanager`:
-* the command prompt history should be saved to a file in /tmp for persistence each desktop session
-
-Fix `filepicker` and `filemanager`
-* If focused item in sidemenu is a dir, list its contents in the preview window (ls -1, with dirs first, and dirs suffixed with "/")
-
-Fix `filepicker`:
-* add "[" and "]" key bindings for page up and page down (to match `filemanager`)
-
-Improve `spreadsheet` controls:
-* in the controls text, replace "z/Z Undo/Redo" with "? Help"
-* then add a popup help menu, triggered by "?" and similar to the `kanban` widget, listing all controls and supported Expressions (listed in README.md)
-
-Fix `spreadsheet` demo:
-* ~~typing "=" into the EDIT input of the spreadsheet causes an error `ash: =: unknown operand`~~
-* ~~typing "(" into the EDIT input of the spreadsheet causes an error `ash: closing paren`~~
-  Fixed: replaced `[[ -z "$key" || "$key" == $'\r' || "$key" == $'\n' ]]` with
-  POSIX-safe `[ -z "$key" ] || [ "$key" = "$cr" ] || [ "$key" = "$lf" ]` where
-  `cr`/`lf` are pre-computed via `$(printf '\r')` / `$(printf '\n')`. Also added
-  "unknown operand" and "closing paren" to `assert_no_shell_errors` checks.
-
+The end goal would be for users to be able to easily, optionally, use nerd font icons, in their menus, tables, lists, input text, etc.
 
 ------------------------------------------------------------------
 
-## New Feature: custom keybindings
+## Fix `filemanager` and `filepicker`
 
-For some widgets, custom key bindings that popup modal widgets will be very useful, particularly for command palette style popups.
+* Persist TAB selection when switching between normal and list view (by pressing the "," key) 
+* Persist TAB selection when changing directories:
+  - all currently selected files and dirs (current selection) should remain selected after changing dir
+  - selecting more items should append them to the current selection 
+  - this should include executable and hidden files and other files rendered with custom styles
 
-The user should be able to set `TUI_EXTRA_KEYS` env var like so:
+## Fix `filemanager` "list view"
 
-```
-TUI_EXTRA_KEYS="
-a=modal \"menu '' '' 1 'foo bar' 'second' 'third'\"
-b=modal \"checklist '' '' 1 'foo bar' 'second' 'third'\"
-B=modal \"checklist '' '' 1 'other' 'more' 'third'\"
-ctrl_f=modal "inputbox '' '' '' \"
-shift_f=modal "infobox '' '' 'foo'\"
-"
-filemanager ...
-```
+* Press "," to enter "list view"
+* The contents columns are not nicely aligned
 
-The widgets should run the commands when the user presses the defined key binding (before the = sign).
+EXAMPLE 1:
 
+                                              === Advanced file manager ===
+                                              Path: ~/sites/github/sc0ttj/terminal-menus.sh
+
+                                               ..
+                                               screenshots/                   drwxr-xr-x  0 0 4.0K Jun 18 21:16
+                                               scripts/                       drwxr-xr-x  0 0 4.0K Jun 18 21:16
+                                               test/                          drwxr-xr-x  0 0 4.0K Jun 18 21:55
+                                               LICENSE.md                     -rw-r--r--  0 0 1.1K Jun 18 21:15
+                                               README.md                      -rw-r--r--  0 0 27K Jun 18 21:55
+                                               TODO.md                        -rw-r--r--  0 0 2.9K Jun 18 22:20
+                                               preview.sh                     -rw-r--r--  0 0 1.2K Jun 18 21:16
+                                               terminal-menus-demo.sh         -rwxr-xr-x  0 0 21K Jun 18 21:16
+                                               terminal-menus.sh              -rw-r--r--  0 0 223K Jun 18 22:29
+
+
+EXAMPLE 2:
+
+                                              === Advanced file manager ===
+                                              Path: ~
+
+                                               ..
+                                               Choices/                       drwxr-xr-x  0 0 4.0K Dec 7  2021
+                                               Desktop/                       drwxr-xr-x  65534 65534 4.0K Dec 11  2
+                                               Documents/                     drwxr-xr-x  65534 65534 4.0K Jul 11  2
+                                               Downloads/                     drwxr-xr-x  65534 65534 4.0K Nov 12  2
+                                               Music/                         drwxr-xr-x  65534 65534 4.0K Sep 2  20
+                                               Startup/                       drwxr-xr-x  0 0 4.0K Oct 15  2020
+                                               Sync/                          drwxr-xr-x  0 0 4.0K Feb 12  2023
+                                               bin/                           drwxr-xr-x  65534 65534 12K May 13 21:
+                                               files/
+                                               ftpd/                          drwxrwxrwx  1000 0 3 Jan 7  2008
+                                               images/                        drwxr-xr-x  0 0 4.0K Sep 2  2024
+                                               livesprojects/                 drwxr-xr-x  0 0 4.0K Dec 2  2024
+                                               makehuman/                     drwxr-xr-x  0 0 4.0K Sep 16  2023
+                                               my-documents/                  drwxr-xr-x  0 0 4.0K Apr 27  2021
+
+I want the columns to be nicely aligned without being too wide for the TUI_LAYOUT chosen.
+
+
+## Fix `kanban` widget
+
+* Fix the kanban widget:
+- I can't see any tickets in the board (but I can see them in list view after pressing "/")
+
+
+## Support page up and page down keys
+
+* In widgets with scrollable lists, add support for page up/page down keys
+* For the `filemanager` and `filepicker` widgets:
+  - the key bindings for page up/page down keys should move the sidebar focus up/down (like J/K)
 
 ------------------------------------------------------------------
 
