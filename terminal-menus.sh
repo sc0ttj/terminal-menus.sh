@@ -3428,7 +3428,7 @@ mainmenu() {
     
     local last_side=-2 
     local last_query="INIT"
-    local filter_query="" table_top=0 force_refilter=0
+    local filter_query="" cursor_prefix="" cursor_suffix="" table_top=0 force_refilter=0
     local sort_col=-1 sort_asc=1 col_count=0
 
     local side_count=0
@@ -3603,7 +3603,14 @@ EOF
             if [[ $i -eq 0 ]]; then
                 local s_style=$BG_WID_ESC; [[ $focus -eq 1 && $cur_table -eq -1 ]] && s_style=$BG_INPUT_ESC
                 local lbl_style=$([ "$focus" = "1" ] && [ "$cur_table" = "-1" ] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
-                item=$(printf "${lbl_style}Filter: ${s_style}${lbl_style} > ${FG_INPUT_ESC}%-20s ${RESET}${BG_MAIN_ESC}" "$filter_query")
+                local _display="$filter_query" _vis_len=${#filter_query}
+                if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
+                    _render_cursor_display "$cursor_prefix" "$cursor_suffix"
+                    _display="$_DISPLAY"
+                    _vis_len=$_VIS_LEN
+                fi
+                local _pad=$((20 - _vis_len)); [ "$_pad" -lt 0 ] && _pad=0
+                item=$(printf "${lbl_style}Filter: ${s_style}${lbl_style} > ${FG_INPUT_ESC}%s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "")
                 row_content="$row_content$item"
             elif [[ $i -eq 2 ]]; then
                 item=$(printf "${BG_TABLE_HEADER_ESC}${BOLD} %-${table_w}s ${RESET}${BG_MAIN_ESC}" "$table_header")
@@ -3644,8 +3651,13 @@ EOF
                 case "$key" in
                     "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
                     "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
-                    "[C"|"OC") focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0 ;;
-                    "[D"|"OD") focus=0 ;;
+                    "[C"|"OC") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_right cursor_prefix cursor_suffix; else focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0; fi ;;
+                    "[D"|"OD") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_left cursor_prefix cursor_suffix; else focus=0; fi ;;
+                    "[3") _read_str_timeout 1 _del_c
+                        if [ "$_del_c" = "~" ] && [[ $focus -eq 1 && $cur_table -eq -1 ]] && [ -n "$cursor_suffix" ]; then
+                            cursor_suffix="${cursor_suffix#?}"
+                            filter_query="${cursor_prefix}${cursor_suffix}"
+                        fi ;;
                 esac
                 continue ;;
         esac
@@ -3653,15 +3665,16 @@ EOF
         case "$key" in
             "/") 
                 if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
-                    filter_query="${filter_query}${key}"
+                    cursor_prefix="${cursor_prefix}${key}"
+                    filter_query="${cursor_prefix}${cursor_suffix}"
                 else
                     focus=1
                     cur_table=-1
                 fi
                 ;;
-            "q") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query="${filter_query}${key}" || { TUI_RESULT=''; return 1; } ;;
-            "j") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query="${filter_query}${key}" || { [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); }; } ;;
-            "k") [[ $focus -eq 1 && $cur_table -eq -1 ]] && filter_query="${filter_query}${key}" || { [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); }; } ;;
+            "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
+            "j") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
+            "k") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
             "")  # Enter
                 if [[ $focus -eq 0 ]]; then
                     focus=1; cur_table=-1
@@ -3684,7 +3697,8 @@ EOF
                     esac
                 fi ;;
             [1-9])  if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
-                        filter_query="${filter_query}${key}"
+                        cursor_prefix="${cursor_prefix}${key}"
+                        filter_query="${cursor_prefix}${cursor_suffix}"
                     elif [[ $focus -eq 1 && $col_count -gt 0 ]]; then
                         local col=$((key - 1))
                         if [[ $col -lt $col_count ]]; then
@@ -3732,8 +3746,22 @@ EOF
                             force_refilter=1
                         fi
                     fi ;;
-            $'\177'|$'\b') [[ $focus -eq 1 ]] && { filter_query="${filter_query%?}"; cur_table=-1; } ;;
-            *) if [ $focus -eq 1 ]; then case "$key" in [[:print:]]) filter_query="${filter_query}${key}"; cur_table=-1;; esac; fi ;;
+            $'\177'|$'\b')
+                if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
+                    if [ -n "$cursor_prefix" ]; then
+                        cursor_prefix="${cursor_prefix%?}"
+                        filter_query="${cursor_prefix}${cursor_suffix}"
+                    elif [ $f_count -gt 0 ]; then
+                        cur_table=0
+                    fi
+                elif [[ $focus -eq 1 ]]; then
+                    if [ -n "$cursor_prefix" ]; then
+                        cursor_prefix="${cursor_prefix%?}"
+                        filter_query="${cursor_prefix}${cursor_suffix}"
+                    fi
+                    cur_table=-1
+                fi ;;
+            *) if [ $focus -eq 1 ]; then case "$key" in [[:print:]]) cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; cur_table=-1;; esac; fi ;;
         esac
     done
 }
