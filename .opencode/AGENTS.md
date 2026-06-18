@@ -44,18 +44,56 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 
 ## Testing / verification
 
+All **160 tests pass** in ~66s (down from 165s after bundling PTY sessions per widget class).
+
 ```bash
 # Run the full demo (exercises every widget):
 ./terminal-menus-demo.sh
 
-# Run the test suite (Python unittest, 23 per-widget test files):
+# Run the full test suite:
 python3 -m unittest discover -s test -p "test_widget_*.py" -v
+
+# Run a single widget's tests:
+python3 -m unittest test.test_widget_msgbox -v
+
+# Run a single test method by filter:
+python3 -m unittest discover -s test -p "test_widget_msgbox.py" -k test_msgbox_enter -v
+
+# Run an arbitrary subset by glob:
+python3 -m unittest discover -s test -p "test_widget_menu*" -v
+
+# Run only tests affected by uncommitted changes:
+./test/run_changed.sh           # run them
+./test/run_changed.sh --list    # just list them
+
+# Run under coverage.py (install with `pip install coverage`):
+./test/with_coverage.sh
 
 # Run shell compatibility tests (ash and bash syntax + pty functional):
 ./test/test_shell_compat.sh
 ```
 
-The project has a **Python unittest-based test suite** (23 `test_widget_*.py` files in `test/`), a **GitHub Actions CI pipeline** (`.github/workflows/test.yml`), and **ShellCheck** for Bash linting (aspirational — run manually, not enforced in CI). The demo script exercises all widgets end-to-end.
+### Test architecture
+
+- **23 files** (`test/test_widget_*.py`), **160 tests** total.
+- Each file tests one widget via PTY-driven integration tests.
+- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 160→23, cutting runtime by 60%.
+- Legacy fallback: the `PtyRunner` class (uses `script`) kicks in if `pty.fork()` is unavailable.
+- Wrappers: 52 `test/wrappers/*_wrapper.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
+- The CI pipeline (`.github/workflows/test.yml`) runs the full suite; **ShellCheck** is aspirational (manual, not enforced in CI).
+- The demo script (`terminal-menus-demo.sh`) exercises all widgets end-to-end.
+
+### Coverage
+
+```bash
+# Line/branch report for terminal-menus.sh:
+./test/with_coverage.sh
+
+# HTML report:
+./test/with_coverage.sh --html
+```
+
+Requires `pip install coverage`. Coverage is currently for monitoring only — no enforcement gate in CI.
 
 ## Script conventions
 

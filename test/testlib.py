@@ -1,17 +1,20 @@
 """Shared PTY test framework for terminal-menus.sh widgets.
 
-Uses the `script` command (which creates a proper pty with controlling
-terminal) to run widget wrappers, pipes keystrokes through stdin.
+Uses persistent PTY sessions (one per test class) via pty.fork()
+to avoid per-test subprocess overhead. Walks wrappers from the
+wrappers/ directory automatically.
 
 Usage:
-    from testlib import TuiTestCase
+    from testlib import TuiTestCase, KEY
 
     class TestWidget(TuiTestCase):
         def test_something(self):
             stdout, rc = self.runner("wrappers/widget.sh", [KEY.ENTER])
             self.assert_result("expected", stdout)
 """
-import os, subprocess, time, unittest, tempfile
+import os, subprocess, time, unittest, tempfile, select
+import pty
+import signal
 
 COLS = 80
 ROWS = 24
@@ -81,10 +84,126 @@ def parse_result(stdout):
     return result, exit_code
 
 
-class PtyRunner:
-    """Run a widget wrapper via `script` (proper pty with controlling terminal)."""
+class PtySession:
+    """Persistent PTY session shared across a test class.
 
-    def __init__(self, wrapper, shell=None, cols=COLS, rows=ROWS, timeout=8, init_delay=0.3):
+    Uses pty.fork() to create one ash shell that runs all wrappers
+    for a widget, avoiding per-test subprocess overhead.
+    Each wrapper runs in a subshell that saves and restores stty,
+    so terminal state is clean between tests.
+    """
+
+    def __init__(self, shell="ash", init_delay=0.05):
+        self.shell = shell
+        pid, self.fd = pty.fork()
+        if pid == 0:
+            os.execve("/bin/ash", [shell], os.environ)
+            os._exit(1)
+        self.child_pid = pid
+        time.sleep(init_delay)
+        self._send("stty -echo 2>/dev/null\n")
+        time.sleep(0.02)
+        self._flush()
+
+    def _send(self, data):
+        if isinstance(data, str):
+            data = data.encode()
+        os.write(self.fd, data)
+
+    def _flush(self):
+        try:
+            while True:
+                r, _, _ = select.select([self.fd], [], [], 0.01)
+                if r:
+                    os.read(self.fd, 4096)
+                else:
+                    break
+        except (OSError, ValueError):
+            pass
+
+    def run(self, wrapper, keys=None, timeout=8, init_delay=0.05):
+        """Run a widget wrapper in the shared session."""
+        if not os.path.isabs(wrapper):
+            wrapper = os.path.join(os.path.dirname(__file__), wrapper)
+        abs_wrapper = wrapper
+        tty_save = f"/tmp/_tty_save_{os.getpid()}"
+
+        # save stty -> run wrapper -> restore stty -> delimiter
+        cmd = (
+            f"(stty -g > {tty_save} 2>/dev/null; "
+            f"ash '{abs_wrapper}'; "
+            f"stty \"$(cat {tty_save})\" 2>/dev/null; "
+            f"rm -f {tty_save}); "
+            f"echo '___END___'\n"
+        )
+        self._send(cmd)
+
+        if keys:
+            time.sleep(init_delay)
+            ks = b"".join(k.encode() if isinstance(k, str) else k for k in keys)
+            self._send(ks)
+
+        output = b""
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            r, _, _ = select.select([self.fd], [], [], 0.05)
+            if r:
+                try:
+                    data = os.read(self.fd, 4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                output += data
+                if b"___END___" in output:
+                    time.sleep(0.02)
+                    try:
+                        while True:
+                            r, _, _ = select.select([self.fd], [], [], 0.01)
+                            if r:
+                                more = os.read(self.fd, 4096)
+                                if not more:
+                                    break
+                                output += more
+                            else:
+                                break
+                    except OSError:
+                        pass
+                    break
+
+        decoded = output.decode("utf-8", errors="replace")
+
+        rc = None
+        for line in decoded.splitlines():
+            if line.startswith("EXIT="):
+                try:
+                    rc = int(line.split("=", 1)[1].strip())
+                except (ValueError, IndexError):
+                    pass
+                break
+
+        return decoded, rc
+
+    def close(self):
+        try:
+            self._send("exit\n")
+            time.sleep(0.05)
+            os.kill(self.child_pid, signal.SIGTERM)
+            os.waitpid(self.child_pid, 0)
+        except (OSError, ValueError):
+            pass
+        try:
+            os.close(self.fd)
+        except OSError:
+            pass
+
+
+class PtyRunner:
+    """Legacy per-test PTY runner via `script` subprocess. Used as
+    fallback when pty.fork() is unavailable."""
+
+    def __init__(self, wrapper, shell=None, cols=COLS, rows=ROWS,
+                 timeout=8, init_delay=0.3):
         self.wrapper = wrapper
         self.shell = shell or "ash"
         self.cols = cols
@@ -103,14 +222,11 @@ class PtyRunner:
     def run(self, keys=None, delay=0.04):
         wrapper = self._resolve_wrapper()
         shell = self.shell
-
-        # Build input: keystrokes followed by a small delay
         stdin_data = b""
         if keys:
             for k in keys:
                 stdin_data += k.encode() if isinstance(k, str) else k
 
-        # Use script to create a proper pty with controlling terminal
         cmd = [
             "script", "-q", "-c",
             f"COLUMNS={self.cols} LINES={self.rows} {shell} '{wrapper}'",
@@ -125,7 +241,6 @@ class PtyRunner:
                 stderr=subprocess.STDOUT,
             )
         except FileNotFoundError:
-            # script not available; fallback to direct subprocess
             env = os.environ.copy()
             env.update(COLUMNS=str(self.cols), LINES=str(self.rows))
             proc = subprocess.Popen(
@@ -136,12 +251,8 @@ class PtyRunner:
                 env=env,
             )
 
-        # Small delay for widget initialization before sending input
         time.sleep(self.init_delay)
 
-        # Send keystrokes and wait for completion via communicate.
-        # Using communicate(input=...) ensures stdin is closed AFTER writing,
-        # so `script` doesn't kill the pty before the child can process input.
         try:
             stdout_bytes, _ = proc.communicate(
                 input=stdin_data if stdin_data else None,
@@ -156,28 +267,55 @@ class PtyRunner:
 
 
 class TuiTestCase(unittest.TestCase):
-    """Base class for widget integration tests."""
+    """Base class for widget integration tests.
+
+    Uses one persistent PTY session (PtySession) per class,
+    started in setUpClass and torn down in tearDownClass.
+    Falls back to per-test PtyRunner if pty.fork() fails.
+    """
 
     _shell = None
 
-    def runner(self, wrapper, keys=None, timeout=8, init_delay=0.3):
-        r = PtyRunner(wrapper, shell=self._shell, timeout=timeout, init_delay=init_delay)
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls._session = PtySession(shell=cls._shell or "ash")
+        except Exception:
+            cls._session = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, '_session') and cls._session is not None:
+            cls._session.close()
+            cls._session = None
+
+    def runner(self, wrapper, keys=None, timeout=8, init_delay=0.05):
+        if (hasattr(self.__class__, '_session')
+                and self.__class__._session is not None):
+            return self.__class__._session.run(
+                wrapper, keys, timeout, init_delay
+            )
+        r = PtyRunner(
+            wrapper, shell=self._shell, timeout=timeout,
+            init_delay=init_delay
+        )
         return r.run(keys=keys)
 
     def assert_result(self, expected, stdout, msg=""):
         marker = f"{RESULT_MARKER}{expected}"
         self.assertIn(marker, stdout,
-            f"{msg} -- expected RESULT={expected!r}")
+                      f"{msg} -- expected RESULT={expected!r}")
 
     def assert_exit(self, expected, stdout, msg=""):
         marker = f"{EXIT_MARKER}{expected}"
         self.assertIn(marker, stdout,
-            f"{msg} -- expected {marker}")
+                      f"{msg} -- expected {marker}")
 
     def assert_in_output(self, pattern, stdout, msg=""):
         self.assertIn(pattern, stdout, msg)
 
     def assert_no_shell_errors(self, stdout, msg=""):
-        for err in ("Syntax error", "not found", "unexpected", "Bad substitution"):
+        for err in ("Syntax error", "not found", "unexpected",
+                    "Bad substitution"):
             self.assertNotIn(err, stdout,
-                f"{msg} -- shell error {err!r} found in output")
+                             f"{msg} -- shell error {err!r} found in output")
