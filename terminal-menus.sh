@@ -139,7 +139,7 @@ _parse_extra_keys() {
 }
 
 _handle_extra_keys() {
-    [ "$_ek_count" -eq 0 ] && [ -n "$TUI_EXTRA_KEYS" ] && _parse_extra_keys
+    [ "$_ek_last_value" != "$TUI_EXTRA_KEYS" ] && { _ek_count=0; _ek_last_value="$TUI_EXTRA_KEYS"; [ -n "$TUI_EXTRA_KEYS" ] && _parse_extra_keys; }
     [ "$_ek_count" -eq 0 ] && return 1
     local _ek_i=0 _ek_k _ek_v
     while [ "$_ek_i" -lt "$_ek_count" ]; do
