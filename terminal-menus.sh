@@ -2858,7 +2858,7 @@ _tree_core() {
                 $(printf '\t'))
                     [ -z "$filter_query" ] && [ $v_count -gt 0 ] && cur=0
                     continue ;;
-                    "") # ENTER: JUMP TO MATCH
+                    "") # ENTER: JUMP TO MATCH, then fall through to select
                         if [ $visible_count -gt 0 ]; then
                             cur=0
                             _fq_lc=$(printf "%s" "$filter_query" | _tolower)
@@ -2872,7 +2872,6 @@ _tree_core() {
                                 idx=$((idx+1))
                             done
                         fi
-                        continue 
                         ;;
                     *)
                         if [ -n "$key" ]; then
@@ -2934,6 +2933,7 @@ _tree_core() {
         fi
 
         case "$key" in
+            "/") [ "$ENABLE_FILTER" = "true" ] && [ "$cur" -ge 0 ] && cur=-1 ;;
             $(printf '\t')) # TAB toggle filter
                 if [ "$ENABLE_FILTER" = "true" ]; then
                     if [ $cur -eq -1 ]; then
