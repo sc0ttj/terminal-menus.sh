@@ -730,7 +730,7 @@ case "$0" in *terminal-menus-demo.sh)
     case "${1:-}" in
         "")
             while true; do
-                choice=$(filtermenu "Choose a widget" "Widget:" 12 "$WIDGET_LIST")
+                choice=$(filtermenu "Choose a widget" "Widget:" 1 "$WIDGET_LIST")
                 [ -z "$choice" ] && break
                 if [ "$choice" = "All widgets" ]; then
                     run_all
