@@ -3918,7 +3918,7 @@ _execute_mode_action() {
     local tagged_count=0
     local si=0; while [ "$si" -lt "$sel_path_count" ]; do
         eval "item=\$selpath_$si"
-        if [[ "$item" != "0" && -n "$item" ]]; then
+        if [[ -n "$item" ]]; then
             targets="${targets}'${item}' "
             tagged_count=$((tagged_count+1))
         fi
@@ -4347,11 +4347,8 @@ EOF
             if [[ "$root_dir" != "/" ]]; then
                 raw_0="${root_dir%/*}|..|true"
                 raw_count=1
-                selpath_0="0"
-                sel_path_count=1
             else
                 raw_count=0
-                sel_path_count=0
             fi
 
             # 2. List all entries with one find call (avoids ARG_MAX from shell glob)
@@ -4374,10 +4371,8 @@ EOF
                 fi
 
                 eval "raw_$raw_count='$_entry|$name|true'"
-                eval "selpath_$sel_path_count=0"
                 eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                 raw_count=$((raw_count+1))
-                sel_path_count=$((sel_path_count+1))
 
                 if [[ $show_details -eq 1 ]]; then
                     local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
@@ -4404,10 +4399,8 @@ EOF
                     fi
 
                     eval "raw_$raw_count='$_entry|$name|true'"
-                    eval "selpath_$sel_path_count=0"
                     eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                     raw_count=$((raw_count+1))
-                    sel_path_count=$((sel_path_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
                         local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
@@ -4433,10 +4426,8 @@ EOF
                 fi
 
                 eval "raw_$raw_count='$_entry|$name|false'"
-                eval "selpath_$sel_path_count=0"
                 eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                 raw_count=$((raw_count+1))
-                sel_path_count=$((sel_path_count+1))
 
                 if [[ $show_details -eq 1 ]]; then
                     local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
@@ -4463,10 +4454,8 @@ EOF
                     fi
 
                     eval "raw_$raw_count='$_entry|$name|false'"
-                    eval "selpath_$sel_path_count=0"
                     eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
                     raw_count=$((raw_count+1))
-                    sel_path_count=$((sel_path_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
                         local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
@@ -4763,7 +4752,7 @@ EOF
             local results=""
             local si=0; while [ "$si" -lt "$sel_path_count" ]; do
                 eval "sp_val=\$selpath_$si"
-                [[ "$sp_val" != "0" && -n "$sp_val" ]] && results="${results}${sp_val}"$'\n'
+                [[ -n "$sp_val" ]] && results="${results}${sp_val}"$'\n'
                 si=$((si+1))
             done
 
