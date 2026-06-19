@@ -192,7 +192,7 @@ class TestChecklist(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
                                  [KEY.DOWN, KEY.SPACE,
                                   KEY.UP, KEY.SPACE,
-                                  KEY.ENTER, KEY.ENTER], timeout=8)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -380,7 +380,7 @@ class TestTree(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
                                  [KEY.char("/"),
                                   KEY.text("lib"),
-                                  KEY.ENTER, KEY.ENTER], timeout=8)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -394,7 +394,7 @@ class TestTree(TuiTestCase):
     def test_home_end(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
                                  [KEY.DOWN, KEY.HOME,
-                                  KEY.ENTER, KEY.ENTER], timeout=8)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_result("usr", stdout)
         self.assert_no_shell_errors(stdout)
@@ -436,7 +436,7 @@ class TestConfigtree(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
                                  [KEY.char("/"),
                                   KEY.text("web"),
-                                  KEY.ENTER, KEY.ENTER], timeout=8)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -469,7 +469,7 @@ class TestConfigtree(TuiTestCase):
 class TestForm(TuiTestCase):
     def test_submit_defaults(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
-                                 [KEY.ENTER, KEY.ENTER], timeout=8)
+                                 [KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_in_output("User:", stdout)
         self.assert_no_shell_errors(stdout)
@@ -477,7 +477,7 @@ class TestForm(TuiTestCase):
     def test_tab_cycling(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
                                  [KEY.TAB, KEY.TAB,
-                                  KEY.ENTER, KEY.ENTER], timeout=8)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_in_output("User:", stdout)
         self.assert_no_shell_errors(stdout)
@@ -486,7 +486,7 @@ class TestForm(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
                                  [KEY.TAB, KEY.TAB, KEY.TAB,
                                   KEY.SPACE, KEY.DOWN, KEY.SPACE,
-                                  KEY.ENTER, KEY.ENTER], timeout=10)
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=10)
         self.assert_exit(0, stdout)
         self.assert_in_output("User:", stdout)
         self.assert_no_shell_errors(stdout)
@@ -544,7 +544,7 @@ class TestTable(TuiTestCase):
     def test_j_key_scroll(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
                                  [KEY.char("j")] * 10
-                                 + [KEY.ENTER, KEY.ENTER], timeout=8)
+                                 + [KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -557,7 +557,7 @@ class TestTable(TuiTestCase):
 
     def test_home_end(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
-                                 [KEY.END, KEY.ENTER, KEY.ENTER], timeout=8)
+                                 [KEY.END, KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 

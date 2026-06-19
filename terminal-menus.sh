@@ -2858,7 +2858,7 @@ _tree_core() {
                 $(printf '\t'))
                     [ -z "$filter_query" ] && [ $v_count -gt 0 ] && cur=0
                     continue ;;
-                    "") # ENTER: JUMP TO MATCH, then fall through to select
+                    "") # ENTER: JUMP TO MATCH
                         if [ $visible_count -gt 0 ]; then
                             cur=0
                             _fq_lc=$(printf "%s" "$filter_query" | _tolower)
@@ -2872,6 +2872,7 @@ _tree_core() {
                                 idx=$((idx+1))
                             done
                         fi
+                        continue
                         ;;
                     *)
                         if [ -n "$key" ]; then
