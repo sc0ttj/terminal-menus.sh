@@ -4853,12 +4853,14 @@ EOF
                         if [[ "$ui_mode" == "NAV" ]]; then
                             cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0
                             preview_offset=0
-                        fi ;;
+                        fi
+                        case "$next_chars" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
                     "[6"|"[6~")
                         if [[ "$ui_mode" == "NAV" ]]; then
                             cur=$((cur + height)); [ "$cur" -ge "$raw_count" ] && cur=$((raw_count - 1))
                             preview_offset=0
-                        fi ;;
+                        fi
+                        case "$next_chars" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
                     "[H")
                         if [[ "$ui_mode" == "NAV" ]]; then cur=0; preview_offset=0; fi ;;
                     "[F")
