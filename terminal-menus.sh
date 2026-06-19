@@ -1373,6 +1373,11 @@ _EOF_
             opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
+                oi=0; while [ "$oi" -lt "$_dd_count" ]; do
+                    local cr=$((_dd_open_row + oi))
+                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                    oi=$((oi+1))
+                done
                 _filter_opts "$query" "$opts"
                 eval "drow=\$((field_rows_$cur + 1))"
                 j=0; while [ "$j" -lt "$FILTERED_COUNT" ]; do
@@ -1539,8 +1544,13 @@ _EOF_
                 eval "cf=\"\$fields_$cur\""
 
                 if _match "$cf" "{*"; then
-                    if [ "$state" = "OPEN" ]; then
-                        _filter_opts "$query" "$opts"
+            if [ "$state" = "OPEN" ]; then
+                oi=0; while [ "$oi" -lt "$_dd_count" ]; do
+                    local cr=$((_dd_open_row + oi))
+                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                    oi=$((oi+1))
+                done
+                _filter_opts "$query" "$opts"
                         eval "picked=\"\$filtered_$s_idx\""
                         local idx=0
                         local old_ifs2="$IFS"; IFS=','
