@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5,891 lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~5,881 lines). Zero dependencies. MIT license.
 
 ## Setup
 

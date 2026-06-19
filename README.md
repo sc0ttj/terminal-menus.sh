@@ -800,7 +800,7 @@ update_config "theme='dark'"
 
 ## 🧪 Testing
 
-Tests live in `test/`. Three types available:
+Tests live in `test/`. Four types available:
 
 ### 1. Shell compatibility tests (no X required)
 
@@ -814,8 +814,8 @@ Widget integration tests use `ash` by default. To run under a specific shell:
 
 ```bash
 cd test && python3 -m unittest test_demo_widgets
-SHELL=bash python3 -m unittest test_demo_widgets
-SHELL=ash  python3 -m unittest test_demo_widgets
+cd test && SHELL=bash python3 -m unittest test_demo_widgets
+cd test && SHELL=ash  python3 -m unittest test_demo_widgets
 ```
 
 ### 2. Widget integration tests (no X required)
