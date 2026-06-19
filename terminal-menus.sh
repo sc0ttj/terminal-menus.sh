@@ -1681,9 +1681,9 @@ _EOF_
                 TUI_RESULT="${res%$'\n'}"
                 echo "$TUI_RESULT" | tr '\n' ' ' && return 0 ;;
 
-            "q") TUI_RESULT=''; return 1 ;;
             *)
                 eval "cf=\"\$fields_$cur\""
+                [ "$key" = "q" ] && ! _match "$cf" ">*" && TUI_RESULT='' && return 1
                 if _match "$cf" "{ }*"; then
                     eval "v=\"\$values_$cur\""
                     _v_rest="$v"
