@@ -807,6 +807,9 @@ _draw_list() {
                 j=0; while [ "$j" -lt "$count" ]; do eval "sel_$j=0"; j=$((j+1)); done
                 eval "sel_$cur=1"
             fi
+        elif [ "$KEY" = "q" ]; then
+            TUI_RESULT=''
+            return 1
         elif [ -z "$KEY" ]; then
             if [ "$type" = "menu" ]; then
                 eval "TUI_RESULT=\${$((cur+1))}"
@@ -902,7 +905,7 @@ msgbox() {
         
         _read_key key
         _handle_extra_keys "$key" && continue
-        [ -z "$key" ] && TUI_RESULT=0 && return 0
+        [ -z "$key" ] && TUI_RESULT='' && return 0
     done
 }
 
@@ -1678,6 +1681,7 @@ _EOF_
                 TUI_RESULT="${res%$'\n'}"
                 echo "$TUI_RESULT" | tr '\n' ' ' && return 0 ;;
 
+            "q") TUI_RESULT=''; return 1 ;;
             *)
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" "{ }*"; then
@@ -2275,6 +2279,7 @@ filtermenu() {
                     _saved_cur=$cur
                     cur=-1
                 fi ;;
+            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
                     case "$KEY" in [[:print:]])
@@ -3079,9 +3084,9 @@ tree() {
 
 # Returns generated Variable pairs
 configtree() {
-    local raw_output
-    raw_output=$(_tree_widget "config" "$@")
-    [ -z "$raw_output" ] && TUI_RESULT='' && return 1
+    local raw_output rc
+    raw_output=$(_tree_widget "config" "$@") && rc=$? || rc=$?
+    [ $rc -ne 0 ] && TUI_RESULT='' && return 1
 
     local raw_count=0
     local old_ifs="$IFS"; IFS=$'\n'
@@ -3223,6 +3228,9 @@ table() {
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
         elif [ "$KEY" = "k" ]; then
             [ "$cur" -gt 0 ] && cur=$((cur-1))
+        elif [ "$KEY" = "q" ]; then
+            TUI_RESULT=''
+            return 1
         elif [ -z "$KEY" ]; then
             eval "TUI_RESULT=\"\$cmd_$cur\""
             eval "echo \"\$cmd_$cur\""
@@ -3436,6 +3444,7 @@ filtertable() {
                     _saved_cur=$cur
                     cur=-1
                 fi ;;
+            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
                     case "$KEY" in [[:print:]])
@@ -5591,7 +5600,7 @@ ${SB}q${SR}           Quit"
             local next_chars=""
             _read_str_timeout 2 next_chars
             
-            if [[ -z "$next_chars" ]]; then return 0; fi
+            if [[ -z "$next_chars" ]]; then TUI_RESULT=''; return 1; fi
             
             case "$next_chars" in
                 "[A"|"OA") key="k" ;; "[B"|"OB") key="j" ;; "[C"|"OC") key="l" ;; "[D"|"OD") key="h" ;;
@@ -5624,7 +5633,7 @@ ${SB}q${SR}           Quit"
         fi
 
         case "$key" in
-            "q") cleanup; return 0 ;;
+            "q") TUI_RESULT=''; cleanup; return 1 ;;
 
             "/") 
                  local NOW_FULL=$(date +%Y-%m-%d-%H:%M:%S)

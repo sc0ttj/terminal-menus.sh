@@ -174,6 +174,7 @@ A standard single-choice selection list. Also see `filtermenu`.
 - **Page Up** / **Page Down** — Scroll by page
 - **Home** / **End** — Jump to top / bottom
 - **Enter** — Select highlighted item
+- **q** — Cancel / Quit
 
 ```bash
 CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
@@ -200,6 +201,7 @@ Multiple-choice selection list. Returns each selected item on a new line.
 - **Home** / **End** — Jump to top / bottom
 - **Space** — Toggle selection for current item
 - **Enter** — Confirm and return all selected items
+- **q** — Cancel / Quit
 
 ```bash
 CHKS=$(checklist "Checklist" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
@@ -226,6 +228,7 @@ Mutually exclusive selection list.
 - **Home** / **End** — Jump to top / bottom
 - **Space** — Select current item
 - **Enter** — Confirm selection
+- **q** — Cancel / Quit
 
 ```bash
 RADIO=$(radiolist "Radiolist" "Choose exactly one:" 2 "Low" "Medium" "High")
@@ -257,6 +260,7 @@ A searchable, real-time filtered list for large datasets.
 - **Backspace** — Delete last filter character; when empty, focuses filter
 - **Down** — Focus first list item (from filter)
 - **Enter** — Select highlighted item
+- **q** — Cancel / Quit (when not in filter input)
 
 ```bash
 COUNTRIES="Argentina\nAustralia\nBrazil\nCanada"
@@ -400,6 +404,7 @@ Advanced form builder. Returns shell-evaluable assignments.
 - **Left** / **Right** — Move cursor in text/password inputs
 - **Space** — Toggle checkbox/radio, open/close dropdown
 - **Enter** — Submit form
+- **q** — Cancel / Quit
 - **Esc** — Close dropdown or cancel
 
 **Dropdown Specifics:**
@@ -458,6 +463,7 @@ Navigable table from CSV. Returns the command or text in the last (hidden) colum
 - **Page Up** / **Page Down** — Scroll by page
 - **Home** / **End** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
+- **q** — Cancel / Quit
 
 ```bash
 RESULT_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
@@ -480,6 +486,7 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 - **Home** / **End** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
 - **Backspace** — Delete last filter character (when empty, exits widget)
+- **q** — Cancel / Quit (when not in filter input)
 - **Esc** — Cancel / Exit
 
 ```bash

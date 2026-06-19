@@ -733,27 +733,28 @@ class TestKanban(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh kanban",
                                  [KEY.char("q")], timeout=6)
         self.assert_exit(0, stdout)
+        self.assert_result("1", stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_arrow_nav(self):
         stdout, rc = self.runner("wrappers/kanban_nav.sh",
                                  [KEY.DOWN, KEY.RIGHT,
                                   KEY.char("q")], timeout=8)
-        self.assert_exit(0, stdout)
+        self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_page_down(self):
         stdout, rc = self.runner("wrappers/kanban_nav.sh",
                                  [KEY.PAGE_DOWN,
                                   KEY.char("q")], timeout=8)
-        self.assert_exit(0, stdout)
+        self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_home_end(self):
         stdout, rc = self.runner("wrappers/kanban_nav.sh",
                                  [KEY.END, KEY.HOME,
                                   KEY.char("q")], timeout=8)
-        self.assert_exit(0, stdout)
+        self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
 
