@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5,780 lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~5,891 lines). Zero dependencies. MIT license.
 
 ## Setup
 
@@ -59,7 +59,7 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 
 ## Testing / verification
 
-All **161 tests pass** in ~64s (down from 165s after bundling PTY sessions per widget class).
+All **92 tests pass** in ~25s (using bundled PTY sessions per widget class).
 
 ```bash
 # Run the full demo (interactive picker, or run all sequentially):
@@ -67,16 +67,16 @@ All **161 tests pass** in ~64s (down from 165s after bundling PTY sessions per w
 ./terminal-menus-demo.sh all
 
 # Run the full test suite:
-python3 -m unittest discover -s test -p "test_widget_*.py" -v
+cd test && python3 -m unittest test_demo_widgets -v
 
 # Run a single widget's tests:
-python3 -m unittest test.test_widget_msgbox -v
+python3 -m unittest test.test_demo_widgets.TestMenu -v
 
 # Run a single test method by filter:
-python3 -m unittest discover -s test -p "test_widget_msgbox.py" -k test_msgbox_enter -v
+python3 -m unittest test.test_demo_widgets.TestMsgbox.test_ok -v
 
 # Run an arbitrary subset by glob:
-python3 -m unittest discover -s test -p "test_widget_menu*" -v
+python3 -m unittest discover -s test -p "test_demo_widgets*" -v
 
 # Run only tests affected by uncommitted changes:
 ./test/run_changed.sh           # run them
@@ -91,11 +91,11 @@ python3 -m unittest discover -s test -p "test_widget_menu*" -v
 
 ### Test architecture
 
-- **23 files** (`test/test_widget_*.py`), **161 tests** total.
-- Each file tests one widget via PTY-driven integration tests.
-- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 160→23, cutting runtime by 60%.
+- **1 file** (`test/test_demo_widgets.py`), **92 tests** total.
+- Each class tests one widget via PTY-driven integration tests.
+- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 92→22, cutting runtime by 60%.
 - Legacy fallback: the `PtyRunner` class (uses `script`) kicks in if `pty.fork()` is unavailable.
-- Wrappers: 50 `test/wrappers/*_wrapper.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
+- Wrappers: 11 `test/wrappers/*.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
 - The CI pipeline (`.github/workflows/test.yml`) runs the full suite; **ShellCheck** is aspirational (manual, not enforced in CI).
 - The demo script (`terminal-menus-demo.sh`) exercises all widgets end-to-end.
 
@@ -221,7 +221,7 @@ These patterns are used throughout the codebase and are proven to work on bash 3
 Screenshots are generated in isolated Xvfb sessions using `test/interactive_runner.sh` and `scripts/generate_readme_screenshots.sh`.
 
 **Architecture:**
-1. `scripts/generate_readme_screenshots.sh` iterates 23 widgets, each wrapped in a `test/wrappers/*_wrapper.sh` script
+1. `scripts/generate_readme_screenshots.sh` iterates 23 widgets, each wrapped in a per-widget script
 2. For each widget, it launches `test/interactive_runner.sh` which:
     - Starts Xvfb on a random display (`:99` to `:199`)
     - Launches xterm (`-bw 0 -bg '#222222'` DejaVu Sans Mono 12pt, 100x30) running the wrapper script
@@ -234,7 +234,7 @@ Screenshots are generated in isolated Xvfb sessions using `test/interactive_runn
 
 **Key components:**
 - `test/interactive_runner.sh` — Runner that orchestrates Xvfb + xterm + xdotool + xwd/convert
-- `test/wrappers/*_wrapper.sh` — 50 per-widget scripts setting TUI_MODE=fullscreen, BACKTITLE, and demo data (23 used by screenshot generator)
+- `test/wrappers/*.sh` — 11 wrapper scripts for PTY integration tests
 - `test/drivers/*.driver` — 26 per-widget keystroke scripts (send_key, type_text, screenshot, wait_s) (23 used by screenshot generator)
 - `scripts/generate_readme_screenshots.sh` — Master generation script that loops all 23 screenshot targets
 
@@ -324,7 +324,7 @@ These skills are registered in `.opencode/skills/` and are loaded automatically.
 | Skill | When to use | What it does |
 |---|---|---|
 | `screenshots` | Regenerating README screenshots | `rm -f screenshots/*.png && bash scripts/generate_readme_screenshots.sh` |
-| `test-widgets` | Running widget integration tests | `python3 -m unittest discover -s test -p "test_widget_*.py" -v` |
+| `test-widgets` | Running widget integration tests | `cd test && python3 -m unittest test_demo_widgets -v` |
 | `compat` | Shell compatibility + syntax checks | `bash -n` + `ash -n` + `./test/test_shell_compat.sh` + `python3 test/test_form_pty.sh` |
 | `demo` | Running the full interactive demo | `./terminal-menus-demo.sh` |
 | `shell-search` | **Searching code** — use `grep`/`ag`, **never `rg`** (not installed) | Patterns for function lookup, variable tracking, color escape hunting |

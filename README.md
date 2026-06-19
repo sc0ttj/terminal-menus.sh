@@ -171,6 +171,8 @@ A standard single-choice selection list. Also see `filtermenu`.
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Enter** — Select highlighted item
 
 ```bash
@@ -194,6 +196,8 @@ Multiple-choice selection list. Returns each selected item on a new line.
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Space** — Toggle selection for current item
 - **Enter** — Confirm and return all selected items
 
@@ -218,6 +222,8 @@ Mutually exclusive selection list.
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Space** — Select current item
 - **Enter** — Confirm selection
 
@@ -244,6 +250,8 @@ A searchable, real-time filtered list for large datasets.
 **Controls:**
 - **Type** — Filter list in real-time
 - **Up** / **Down** or **k** / **j** — Navigate filtered results
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Left** / **Right** — Move cursor within filter input
 - **/** — Focus filter input (from list)
 - **Backspace** — Delete last filter character; when empty, focuses filter
@@ -282,6 +290,7 @@ A read-only scrollable file viewer.
 **Controls:**
 - **Up** / **Down** or **j** / **k** — Scroll vertically
 - **Page Up** / **Page Down** or **[** / **]** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Enter** — Close viewer
 
 ```bash
@@ -318,6 +327,8 @@ Deep hierarchical navigation. Returns the full path from root of the selected no
 
 **Controls:**
 - **Up** / **Down** — Navigate tree
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Left** / **Right** — Collapse / Expand nodes
 - **Enter** — Select node (returns full path from root)
 - **Space** — Toggle selection (config mode only)
@@ -348,6 +359,8 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 
 **Controls:**
 - **Up** / **Down** — Navigate tree
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Left** / **Right** — Collapse / Expand nodes
 - **Space** — Toggle checkbox value
 - **Enter** — Confirm and return variable assignments
@@ -420,7 +433,8 @@ A lightweight file and directory picker, supports picking single or multiple ite
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
 - **Enter** or **Right** or **l** / **d** — Open directory / Select file
 - **Left** or **h** / **a** — Go to parent directory
-- **[** / **]** — Page up / Page down
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Tab** — Toggle mark on current item (for multiple selection)
 - **.** — Toggle hidden files
 - **q** — Cancel / Exit
@@ -441,6 +455,8 @@ Navigable table from CSV. Returns the command or text in the last (hidden) colum
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** — Scroll rows
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
 
 ```bash
@@ -460,6 +476,8 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 **Controls:**
 - **Type** — Filter rows in real-time
 - **Up** / **Down** or **k** / **j** — Scroll filtered results
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
 - **Backspace** — Delete last filter character (when empty, exits widget)
 - **Esc** — Cancel / Exit
@@ -491,13 +509,17 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [f/F]     New file (f) or folder (F)
 [r]       Rename item
 [x/c/v]   Cut/copy/paste
-[h/j/k/l] Left/down/up/right (vim)
-[J/K/g/G] PageDown/PageUp/top/bottom
+[PgUp] / [PgDn]   Scroll by page
+[Home] / [End]    Jump to top / bottom
 [~]       Go home
 [?]       Show help
 [[]/[]]   Preview scroll up/down
 [q/ESC]   Exit / Cancel
 ```
+
+**Notes:**
+- **TAB selections persist** across view toggles (`,`), directory changes, and cross-directory navigation. Select files in one directory, navigate to another, and TAB-select more — all selections are returned on exit.
+- **Tab** highlights selected items in yellow. Selected items remain highlighted when switching between normal and detailed list views.
 
 **Usage:**
 
@@ -529,6 +551,8 @@ An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCA
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate cells
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to first / last cell
 - **Enter** — Enter edit mode for current cell
 - **Right** / **Left** — Move cursor in edit mode
 - **?** — Toggle help popup (lists all expressions)
@@ -550,6 +574,8 @@ A multi-column kanban board, with a searchable table view.
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **W** / **A** / **S** / **D** or **H** / **J** / **K** / **L** — Move item
 - **/** — Search items
 - **o** — Cycle sort (by rank, modified, created, completed)
@@ -580,6 +606,8 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 - **Tab** — Toggle focus between sidebar and table
 - **Up** / **Down** or **k** / **j** — Navigate sidebar or table
 - **Left** / **Right** — Switch focus to sidebar / table
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **Enter** — Select item, or run command from selected table row
 - **/** — Focus filter input (when in table view)
 - **Backspace** — Focus filter input
@@ -780,28 +808,29 @@ Tests live in `test/`. Three types available:
 ./test/test_shell_compat.sh
 ```
 
-Checks syntax (`ash -n`, `bash -n`) on both scripts, runs the pty form test under each shell, and executes all widget integration tests — 6 assertions total.
+Checks syntax (`ash -n`, `bash -n`) on both scripts, runs the pty form test under each shell, and executes all widget integration tests.
 
 Widget integration tests use `ash` by default. To run under a specific shell:
 
 ```bash
-SHELL=bash python3 -m unittest discover -s test -p "test_widget_*.py"
-SHELL=ash  python3 -m unittest discover -s test -p "test_widget_*.py"
+cd test && python3 -m unittest test_demo_widgets
+SHELL=bash python3 -m unittest test_demo_widgets
+SHELL=ash  python3 -m unittest test_demo_widgets
 ```
 
 ### 2. Widget integration tests (no X required)
 
-Run all 80+ tests across 22 widget test modules:
+Run all 92 tests across 22 widgets:
 
 ```bash
-python3 -m unittest discover -s test -p "test_widget_*.py" -v
+cd test && python3 -m unittest test_demo_widgets -v
 ```
 
-Run a single widget test module:
+Run a single widget's tests:
 
 ```bash
-python3 -m unittest test.test_widget_menu
-python3 -m unittest test.test_widget_form.TestForm.test_form_submit_defaults
+python3 -m unittest test.test_demo_widgets.TestMenu
+python3 -m unittest test.test_demo_widgets.TestForm.test_full_flow
 ```
 
 Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`.
@@ -839,14 +868,14 @@ Screenshots are written to `/tmp/tui_tests/<timestamp>/`.
 ### CI
 
 The project ships with a GitHub Actions workflow (`.github/workflows/test.yml`) that runs
-syntax checks, form pty test, and all 80+ widget integration tests on every push/PR.
+syntax checks, form pty test, and all widget integration tests on every push/PR.
 
 ### Test structure
 
 | Path | Purpose |
 |------|---------|
 | `test/testlib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
-| `test/test_widget_*.py` | 22 Python test modules covering all widgets (80+ tests) |
+| `test/test_demo_widgets.py` | Python integration test module covering all 22 widgets (92 tests) |
 | `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
 | `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |

@@ -21,16 +21,6 @@ The end goal would be for users to be able to easily, optionally, use nerd font 
 
 ------------------------------------------------------------------
 
-## Fix `filemanager` and `filepicker`
-
-* Persist TAB selection when switching between normal and list view (by pressing the "," key) 
-* Persist TAB selection when changing directories:
-  - all currently selected files and dirs (current selection) should remain selected after changing dir
-  - TAB selecting more items in the new dir should append them to the current selection 
-  - this should include executable and hidden files and other files rendered with custom styles
-
-------------------------------------------------------------------
-
 ## Fix: remove calls to `tput`
 
 Use raw ANSI/escape char calls instead. Makes it faster.
