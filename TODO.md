@@ -1,39 +1,6 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Fix typing into dropdown in `form` widget
-
-Typing into the dropown to filter it nearly works perfect, but it leaves rendering artifacts after choosing an item.
-
-For example, I focused on the dropdown, I hit SPACE to open it, I type "us" and I focused on "USA" and hit SPACE to choose it.
-
-Then I see this (there is a "USA" artifact above "Deployment:"):
-
-                                            terminal-menus.sh demo 16 of 23 - form
-
-                                              User:
-                                               > root
-
-                                              Password:
-                                               > ****                       🔑
-
-                                              Country:
-                                              USA ▾
-
-                                              Enabled connections:
-                                              [ ] Ethernet
-                                              [x] Wifi
-                                              [ ] Fibre
-                                               USA
-                                              Deployment:
-                                              (*) Production
-                                              ( ) Staging
-
-
-                                              TAB/Arrows Nav | Space Toggle | Enter Submit
-
-
-
 ## Allow Nerd font icons
 
 I want a way to support using Nerd font icons in input data, using placeholders like so:
@@ -61,14 +28,6 @@ The end goal would be for users to be able to easily, optionally, use nerd font 
   - all currently selected files and dirs (current selection) should remain selected after changing dir
   - TAB selecting more items in the new dir should append them to the current selection 
   - this should include executable and hidden files and other files rendered with custom styles
-
-------------------------------------------------------------------
-
-## Support page up and page down keys in various widgets
-
-* In widgets with scrollable lists (menus/tables), add support for page up/page down keys
-* For the `filemanager` and `filepicker` widgets:
-  - the key bindings for page up/page down keys should move the sidebar focus up/down (like J/K)
 
 ------------------------------------------------------------------
 
