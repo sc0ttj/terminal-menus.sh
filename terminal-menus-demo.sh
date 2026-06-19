@@ -141,7 +141,9 @@ demo_yesno_theming() {
     YES_LABEL="Indeed"
     NO_LABEL="Not really"
 
-    if yesno "Theming demo" "Do you want to change UI colours?" 2; then
+    yesno "Theming demo" "Do you want to change UI colours?" 2
+    TUI_RESULT=$?
+    if [ "$TUI_RESULT" = "0" ]; then
         BG_MAIN="20;40;60"
         BG_WIDGET="40;60;80"
         HL_BLUE="0;170;170"
@@ -155,12 +157,14 @@ demo_yesno_theming() {
 demo_inputbox() {
     BACKTITLE="terminal-menus.sh demo 5 of 23 - inputbox"
     USER_NAME=$(inputbox "Enter you details" "Username:" "foo")
+    TUI_RESULT=$USER_NAME
 }
 
 # 6. Password Box
 demo_passwordbox() {
     BACKTITLE="terminal-menus.sh demo 6 of 23 - passwordbox"
     PASS=$(passwordbox "Enter you details" "password:" "ppp")
+    TUI_RESULT=$PASS
 }
 
 # 7. Simple Menu
@@ -168,6 +172,7 @@ demo_menu() {
     BACKTITLE="terminal-menus.sh demo 7 of 23 - menu"
     CHOICE=$(menu "Choose an item" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
     msgbox "You chose:" "$CHOICE"
+    TUI_RESULT=$CHOICE
 }
 
 # 8. Checklist
@@ -175,6 +180,7 @@ demo_checklist() {
     BACKTITLE="terminal-menus.sh demo 8 of 23 - checklist"
     CHKS=$(checklist "Choose multiple item" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
     msgbox "You chose:" "$CHKS"
+    TUI_RESULT=$CHKS
 }
 
 # 9. Radiolist
@@ -182,6 +188,7 @@ demo_radiolist() {
     BACKTITLE="terminal-menus.sh demo 9 of 23 - radiolist"
     RADIO=$(radiolist "Choose only one" "Choose exactly one:" 2 "Low" "Medium" "High")
     msgbox "You chose:" "$RADIO"
+    TUI_RESULT=$RADIO
 }
 
 # 10. Filtermenu (Searchable)
@@ -231,6 +238,7 @@ United States"
 
     SEARCH=$(filtermenu "Type to filter or navigate up and down the list" "Type to filter countries" 3 "$COUNTRIES")
     msgbox "You chose:" "$SEARCH"
+    TUI_RESULT=$SEARCH
 }
 
 # 11. Gauge (Progress)
@@ -287,6 +295,7 @@ demo_tree() {
 
     TREE_RES=$(ENABLE_FILTER=true tree "Choose a file from the tree" "Select a file or directory:" 2 "$@")
     msgbox "You chose" "$TREE_RES"
+    TUI_RESULT=$TREE_RES
 }
 
 # 15. Configtree (Complex System Configuration)
@@ -314,6 +323,7 @@ demo_configtree() {
 
     CONFIG_OUT=$(ENABLE_FILTER=true configtree "Configuration tree" "Choose your desired settings" 7 "$@")
     msgbox "You chose" "$CONFIG_OUT"
+    TUI_RESULT=$CONFIG_OUT
 }
 
 # 16. Form (Advanced DSL)
@@ -332,22 +342,23 @@ demo_form() {
         "(*) Production:prod" \
         "( ) Staging:stage")
 
-    eval "$FORM_OUT"
+eval "$FORM_OUT"
 
     msgbox "Data Received" "
- 
+  
 User: $user
 Password: $password
- 
+  
 Country: $country
- 
+  
 Enable connections:
 Ethernet: $eth0
 Wifi: $wlan0
 Fiber: $eth1
- 
+  
 Deployment: $deployment
 "
+    TUI_RESULT=$FORM_OUT
 }
 
 # 17. File Picker
@@ -355,6 +366,7 @@ demo_filepicker() {
     BACKTITLE="terminal-menus.sh demo 17 of 23 - filepicker"
     FILE_PICK=$(filepicker "File picker" "Choose a file" "." 5)
     [ -n "$FILE_PICK" ] && msgbox "You chose" "$FILE_PICK"
+    TUI_RESULT=$FILE_PICK
 }
 
 # 18. Table-based System Launcher
@@ -387,6 +399,7 @@ EOF
     LAUNCH_CMD=$(table "Table" "Pick an item" "table_demo.csv" 3)
     rm table_demo.csv
     [ -n "$LAUNCH_CMD" ] && msgbox "" "You chose: $LAUNCH_CMD"
+    TUI_RESULT=$LAUNCH_CMD
 }
 
 # 19. Filterable Table
@@ -419,6 +432,7 @@ EOF
     RESULT_CMD=$(filtertable "Filterable table" "Type to search, pick an item." "filter_demo.csv" 3)
     rm filter_demo.csv
     [ -n "$RESULT_CMD" ] && msgbox "Selection Result" "The table returned: $RESULT_CMD"
+    TUI_RESULT=$RESULT_CMD
 }
 
 # 20. An `fff` style file manager
@@ -462,14 +476,16 @@ Savings,200.00,Auto-transfer
 Misc,45.50,Buffer
 EOF
 
-    FINAL_DATA=$(spreadsheet "Spreadsheet editor" "budget.csv")
+    FINAL_DATA=$(spreadsheet "Spreadsheet editor" "budget.csv"); SS_EXIT=$?
 
-    if [ $? -eq 0 ]; then
+    if [ $SS_EXIT -eq 0 ]; then
         SUMMARY=$(echo "$FINAL_DATA" | head -n 8)
         msgbox "Spreadsheet Saved" "Data returned to script successfully.\n\nPreview:\n$SUMMARY\n..."
     else
         msgbox "Spreadsheet" "Changes discarded."
     fi
+
+    TUI_RESULT=$FINAL_DATA
 
     rm budget.csv
 }
@@ -570,6 +586,7 @@ Document the new API endpoints, setup instructions, and contribution guide.
 EOF
 
     TUI_MODE=fullscreen kanban "Project" "Manage your tickets and notes" ~/my_project
+    TUI_RESULT=$?
 
     rm -rf ~/my_project
 }
@@ -623,7 +640,7 @@ Music:tuuuunes:./music.csv
 Settings:settings:./settings.csv"
 
     TUI_PERSISTENT_FILTERS=true mainmenu "Media center" "" "$KODI_MENU" 3
-
+    RESULT=$?
     if [ $RESULT -eq 0 ] && [ -n "$TUI_RESULT" ]; then
         msgbox "TUI_RESULT (last command you ran)" "$TUI_RESULT"
         msgbox "Your CONF_FILE:" "$(cat $CONF_FILE)"
@@ -633,8 +650,13 @@ Settings:settings:./settings.csv"
 }
 
 # ==============================================================================
-# Dispatch
+# Dispatch (used when sourcing the script)
 # ==============================================================================
+
+demo_yesno() {
+    demo_yesno_modes
+    demo_yesno_theming
+}
 
 run_all() {
     demo_infobox
@@ -704,24 +726,25 @@ run_widget() {
 # Main
 # ==============================================================================
 
-case "${1:-}" in
-    "")
-        while true; do
-            choice=$(filtermenu "Choose a widget" "Widget:" 12 "$WIDGET_LIST")
-            [ -z "$choice" ] && break
-            if [ "$choice" = "All widgets" ]; then
-                run_all
-                break
-            fi
-            run_widget "$choice"
-        done
-        ;;
-    "all")
-        run_all
-        ;;
-    *)
-        run_widget "$1"
-        ;;
+case "$0" in *terminal-menus-demo.sh)
+    case "${1:-}" in
+        "")
+            while true; do
+                choice=$(filtermenu "Choose a widget" "Widget:" 12 "$WIDGET_LIST")
+                [ -z "$choice" ] && break
+                if [ "$choice" = "All widgets" ]; then
+                    run_all
+                    break
+                fi
+                run_widget "$choice"
+            done
+            ;;
+        "all")
+            run_all
+            ;;
+        *)
+            run_widget "$1"
+            ;;
+    esac
+    cleanup
 esac
-
-cleanup

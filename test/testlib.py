@@ -122,16 +122,24 @@ class PtySession:
             pass
 
     def run(self, wrapper, keys=None, timeout=8, init_delay=0.05):
-        """Run a widget wrapper in the shared session."""
-        if not os.path.isabs(wrapper):
-            wrapper = os.path.join(os.path.dirname(__file__), wrapper)
-        abs_wrapper = wrapper
+        """Run a widget wrapper in the shared session.
+
+        The wrapper may include shell arguments after a space, e.g.
+        ``"wrappers/demo_wrapper.sh menu"``.
+        """
+        parts = wrapper.split(None, 1)
+        wrapper_path = parts[0]
+        wrapper_args = " " + parts[1] if len(parts) > 1 else ""
+        if not os.path.isabs(wrapper_path):
+            wrapper_path = os.path.join(os.path.dirname(__file__),
+                                        wrapper_path)
+        abs_wrapper = wrapper_path
         tty_save = f"/tmp/_tty_save_{os.getpid()}"
 
         # save stty -> run wrapper -> restore stty -> delimiter
         cmd = (
             f"(stty -g > {tty_save} 2>/dev/null; "
-            f"ash '{abs_wrapper}'; "
+            f"ash '{abs_wrapper}'{wrapper_args}; "
             f"stty \"$(cat {tty_save})\" 2>/dev/null; "
             f"rm -f {tty_save}); "
             f"echo '___END___'\n"
@@ -175,9 +183,10 @@ class PtySession:
 
         rc = None
         for line in decoded.splitlines():
-            if line.startswith("EXIT="):
+            if "EXIT=" in line:
                 try:
-                    rc = int(line.split("=", 1)[1].strip())
+                    parts = line.split("EXIT=", 1)
+                    rc = int(parts[1].strip())
                 except (ValueError, IndexError):
                     pass
                 break
@@ -212,15 +221,20 @@ class PtyRunner:
         self.init_delay = init_delay
 
     def _resolve_wrapper(self):
-        wrapper = self.wrapper
-        if not os.path.isabs(wrapper):
-            wrapper = os.path.join(os.path.dirname(__file__), wrapper)
-        if not os.path.exists(wrapper):
-            raise FileNotFoundError(f"Wrapper not found: {wrapper}")
-        return wrapper
+        """Resolve wrapper path, splitting args if present."""
+        parts = self.wrapper.split(None, 1)
+        wrapper_path = parts[0]
+        self._wrapper_args = " " + parts[1] if len(parts) > 1 else ""
+        if not os.path.isabs(wrapper_path):
+            wrapper_path = os.path.join(os.path.dirname(__file__),
+                                        wrapper_path)
+        if not os.path.exists(wrapper_path):
+            raise FileNotFoundError(f"Wrapper not found: {wrapper_path}")
+        return wrapper_path
 
     def run(self, keys=None, delay=0.04):
         wrapper = self._resolve_wrapper()
+        wrapper_args = getattr(self, '_wrapper_args', '')
         shell = self.shell
         stdin_data = b""
         if keys:
@@ -229,7 +243,7 @@ class PtyRunner:
 
         cmd = [
             "script", "-q", "-c",
-            f"COLUMNS={self.cols} LINES={self.rows} {shell} '{wrapper}'",
+            f"COLUMNS={self.cols} LINES={self.rows} {shell} '{wrapper}'{wrapper_args}",
             "/dev/null"
         ]
 
@@ -244,7 +258,7 @@ class PtyRunner:
             env = os.environ.copy()
             env.update(COLUMNS=str(self.cols), LINES=str(self.rows))
             proc = subprocess.Popen(
-                [shell, wrapper],
+                [shell, wrapper] + (wrapper_args.strip().split() if wrapper_args.strip() else []),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
