@@ -34,6 +34,7 @@ class TestMsgbox(TuiTestCase):
                                  [KEY.ENTER])
         self.assert_exit(0, stdout)
         self.assert_in_output("two buttons", stdout)
+        self.assert_in_output("Let's Go!", stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -47,6 +48,26 @@ class TestYesno(TuiTestCase):
                                  [KEY.ENTER] * 11, timeout=10)
         self.assert_exit(0, stdout)
         self.assert_in_output("Thats all the modes", stdout)
+        self.assert_in_output("Indeed", stdout)
+        self.assert_in_output("Not really", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_custom_labels(self):
+        """Run theming demo only: custom YES_LABEL/NO_LABEL + default NO focus"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh yesno",
+                                 [KEY.ENTER] * 11, timeout=10)
+        self.assert_in_output("Indeed", stdout)
+        self.assert_in_output("Not really", stdout)
+
+    def test_left_right_focus(self):
+        """Run all modes, pressing RIGHT on first yesno switches to NO focus"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh yesno",
+                                 [KEY.ENTER,  KEY.RIGHT, KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -69,6 +90,13 @@ class TestInputbox(TuiTestCase):
         self.assert_result("bar", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_esc_cancel(self):
+        stdout, rc = self.runner("wrappers/inputbox_esc.sh",
+                                 [KEY.ESCAPE], timeout=6)
+        self.assert_in_output("EXIT=1", stdout)
+        self.assert_in_output("RESULT=", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 5.  Password Box
@@ -79,6 +107,21 @@ class TestPasswordbox(TuiTestCase):
                                  [KEY.ENTER])
         self.assert_exit(0, stdout)
         self.assert_result("ppp", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_type_text(self):
+        stdout, rc = self.runner("wrappers/passwordbox_type.sh",
+                                 [KEY.text("secret"), KEY.ENTER],
+                                 timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_result("secret", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_esc_cancel(self):
+        stdout, rc = self.runner("wrappers/passwordbox_esc.sh",
+                                 [KEY.ESCAPE], timeout=6)
+        self.assert_in_output("EXIT=1", stdout)
+        self.assert_in_output("RESULT=", stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -119,6 +162,28 @@ class TestChecklist(TuiTestCase):
         self.assert_result("Option 2", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_space_toggle(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.SPACE, KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_multi_select(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.DOWN, KEY.SPACE,
+                                  KEY.UP, KEY.SPACE,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_toggle_deselect(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.SPACE, KEY.SPACE,
+                                  KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("Option 2", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 8.  Radiolist (followed by msgbox)
@@ -131,6 +196,22 @@ class TestRadiolist(TuiTestCase):
         self.assert_result("Medium", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_space_select_first(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.UP, KEY.SPACE,
+                                  KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("Low", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_down_then_select(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.DOWN, KEY.SPACE,
+                                  KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("High", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 9.  Filtermenu (followed by msgbox)
@@ -141,6 +222,32 @@ class TestFiltermenu(TuiTestCase):
                                  [KEY.ENTER, KEY.ENTER])
         self.assert_exit(0, stdout)
         self.assert_result("Australia", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_type_to_filter(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("/"), KEY.text("United K"),
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_result("United Kingdom", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filter_then_down(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("/"), KEY.text("Can"),
+                                  KEY.DOWN, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_partial_match(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("/"), KEY.text("Alge"),
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_result("Algeria", stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -162,6 +269,21 @@ class TestTextbox(TuiTestCase):
     def test_enter_quit(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh textbox",
                                  [KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_scroll_down(self):
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.char("j")] * 5 + [KEY.ENTER],
+                                 timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_scroll_up(self):
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.char("j")] * 20
+                                 + [KEY.char("k")] * 10
+                                 + [KEY.ENTER], timeout=6)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -187,6 +309,27 @@ class TestTree(TuiTestCase):
         self.assert_result("usr/bin", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_q_quit(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.char("q"), KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_expand_node(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.RIGHT, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filter_typing(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.char("/"),
+                                  KEY.text("lib"),
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 14. Configtree (followed by msgbox)
@@ -195,6 +338,21 @@ class TestConfigtree(TuiTestCase):
     def test_default(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
                                  [KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_space_toggle(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.SPACE, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filter_typing(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.char("/"),
+                                  KEY.text("web"),
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -210,14 +368,39 @@ class TestForm(TuiTestCase):
         self.assert_in_output("User:", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_tab_cycling(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
+                                 [KEY.TAB, KEY.TAB,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("User:", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_dropdown_space(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
+                                 [KEY.TAB, KEY.TAB, KEY.TAB,
+                                  KEY.SPACE, KEY.DOWN, KEY.SPACE,
+                                  KEY.ENTER, KEY.ENTER], timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("User:", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 16. Filepicker (ESC to quit)
 # ────────────────────────────────────────────────────────────────────
 class TestFilepicker(TuiTestCase):
     def test_q_quit(self):
-        stdout, rc = self.runner("wrappers/demo_wrapper.sh filepicker",
-                                 [KEY.char("q")])
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.char("q")], timeout=6)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_toggle_hidden(self):
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.char("."), KEY.char("q")],
+                                 timeout=6)
+        self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -231,6 +414,20 @@ class TestTable(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_scroll_and_select(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.DOWN] * 5 + [KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_j_key_scroll(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.char("j")] * 10
+                                 + [KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 18. Filterable Table (followed by msgbox)
@@ -239,6 +436,24 @@ class TestFiltertable(TuiTestCase):
     def test_default(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
                                  [KEY.ENTER, KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_type_to_filter(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
+                                 [KEY.TAB, KEY.text("My"),
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("The table returned:", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_filter_then_scroll(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
+                                 [KEY.TAB, KEY.text("N"),
+                                  KEY.DOWN, KEY.DOWN,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -262,6 +477,20 @@ class TestFilemanager(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_toggle_hidden(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.char("."), KEY.char("q"),
+                                  KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_enter_dir(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.RIGHT, KEY.char("q"),
+                                  KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 20. Spreadsheet
@@ -275,6 +504,20 @@ class TestSpreadsheet(TuiTestCase):
         self.assert_in_output("Saved", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_arrow_nav(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.DOWN, KEY.RIGHT,
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_w_key_nav(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.char("w"), KEY.char("d"),
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 21. Kanban Board
@@ -283,6 +526,13 @@ class TestKanban(TuiTestCase):
     def test_q_quit(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh kanban",
                                  [KEY.char("q")], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_arrow_nav(self):
+        stdout, rc = self.runner("wrappers/kanban_nav.sh",
+                                 [KEY.DOWN, KEY.RIGHT,
+                                  KEY.char("q")], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
