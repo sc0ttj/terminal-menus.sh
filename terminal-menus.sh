@@ -705,7 +705,7 @@ _draw_form_field() {
 _draw_list() {
     _apply_layout
     local type=$1 title=$2 msg=$3 def_idx=$4; shift 4
-    local count=$# cur=$def_idx i
+    local count=$# cur=$def_idx top=0 i
 
     # Init selected booleans: sel_0, sel_1, ...
     i=0; while [ "$i" -lt "$count" ]; do eval "sel_$i=0"; i=$((i+1)); done
@@ -729,15 +729,19 @@ _draw_list() {
         local display_count=$count
         [ "$display_count" -gt "$max_h" ] && display_count=$max_h
 
+        [ "$cur" -lt "$top" ] && top=$cur
+        [ "$cur" -ge "$((top + display_count))" ] && top=$((cur - display_count + 1))
+
         # 3. RENDER LIST
         i=0; while [ "$i" -lt "$display_count" ]; do
+            local idx=$((top + i))
             row=$((list_top + i))
             _draw_at "$row"
             printf "  " >&2
-            local is_cur=0; [ "$i" -eq "$cur" ] && is_cur=1
+            local is_cur=0; [ "$idx" -eq "$cur" ] && is_cur=1
 
-            eval "sel_val=\$sel_$i"
-            eval "opt=\${$((i+1))}"
+            eval "sel_val=\$sel_$idx"
+            eval "opt=\${$((idx+1))}"
             _draw_item "$type" "$is_cur" "$sel_val" "$opt" "$width"
 
             _draw_line "" "$row"
@@ -761,6 +765,16 @@ _draw_list() {
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB") [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1)) ;;
+                "[5"|"[5~"|"5~")
+                    local pg=$((cur - display_count))
+                    [ "$pg" -lt 0 ] && pg=0
+                    cur=$pg ;;
+                "[6"|"[6~"|"6~")
+                    local pg=$((cur + display_count))
+                    [ "$pg" -ge "$count" ] && pg=$((count - 1))
+                    cur=$pg ;;
+                "[H") cur=0 ;;
+                "[F") cur=$((count - 1)) ;;
                 "[M"|"<0"|"<3"|"[<")
                     IFS=';' read -r m_btn < /dev/tty
                     IFS=';' read -r m_col < /dev/tty
@@ -768,7 +782,7 @@ _draw_list() {
                     local m_row="${m_last%[mM]}"
                     local idx=$(( m_row - PADDING_TOP - list_top ))
                     if [ "$idx" -ge 0 ] && [ "$idx" -lt "$display_count" ]; then
-                        cur=$idx
+                        cur=$((top + idx))
                         case "$m_last" in
                             *M)
                                 if [ "$type" = "menu" ]; then
@@ -1125,6 +1139,8 @@ textbox() {
                 "[B"|"OB") [ "$((top + height))" -lt "$count" ] && top=$((top+1)) ;;
                 "[5"|"[5~"|"5~") [ "$top" -gt 0 ] && top=$((top - height + 1)); [ "$top" -lt 0 ] && top=0 ;;
                 "[6"|"[6~"|"6~") [ "$((top + height))" -lt "$count" ] && top=$((top + height - 1)); [ "$top" -gt "$((count - height))" ] && top=$((count - height)) ;;
+                "[H") top=0 ;;
+                "[F") top=$((count - height)); [ "$top" -lt 0 ] && top=0 ;;
             esac
         elif [ "$KEY" = "k" ]; then
             [ "$top" -gt 0 ] && top=$((top-1))
@@ -2049,6 +2065,10 @@ Supported Expressions in cells:
                         "[B"|"OB") cur_r=$((cur_r+1)) ;;
                         "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
                         "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
+                        "[5~") cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1 ;;
+                        "[6~") cur_r=$((cur_r + v_h)) ;;
+                        "[H") cur_r=1; cur_c=1 ;;
+                        "[F") cur_r=9999 ; cur_c=$MAX_COLS ;;
                     esac
                 elif [[ "$mode" == "EDIT" ]]; then
                     case "$key" in
@@ -2208,6 +2228,10 @@ filtermenu() {
                     _read_str_timeout 1 _del_c
                     [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
                     ;;
+                "[5"|"[5~"|"5~") [ "$cur" -ge 0 ] && cur=$((cur - active_vh)); [ "$cur" -lt 0 ] && cur=0 ;;
+                "[6"|"[6~"|"6~") [ "$cur" -ge 0 ] && cur=$((cur + active_vh)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+                "[H") [ "$cur" -ge 0 ] && cur=0 ;;
+                "[F") [ "$cur" -ge 0 ] && cur=$((count - 1)) ;;
             esac
             continue
         fi
@@ -2518,6 +2542,10 @@ filepicker() {
                             [ -n "$TUI_CD_FILE" ] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
                             _init_tui
                         fi ;;
+                    "[5~") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                    "[6~") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+                    "[H") cur=0 ;;
+                    "[F") cur=$((count - 1)) ;;
                 esac ;;
         esac
     done
@@ -2856,6 +2884,10 @@ _tree_core() {
                         _read_str_timeout 1 _del_c
                         [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && { cursor_suffix="${cursor_suffix#?}"; filter_query="${cursor_prefix}${cursor_suffix}"; _update_tree_cache; _skip_header=1; }
                         ;;
+                    "[5~") [ $v_count -gt 0 ] && cur=0 ;;
+                    "[6~") [ $v_count -gt 0 ] && cur=$((v_count - 1)) ;;
+                    "[H") [ $v_count -gt 0 ] && cur=0 ;;
+                    "[F") [ $v_count -gt 0 ] && cur=$((v_count - 1)) ;;
                 esac
                 continue
             fi
@@ -2883,6 +2915,10 @@ _tree_core() {
                         scan_idx=$((scan_idx+1))
                     done
                     _update_tree_cache ;;
+                "[5~") cur=$((cur - view_height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                "[6~") cur=$((cur + view_height)); [ "$cur" -ge "$v_count" ] && cur=$((v_count - 1)) ;;
+                "[H") cur=0 ;;
+                "[F") cur=$((v_count - 1)) ;;
             esac
             continue
         fi
@@ -3167,6 +3203,10 @@ table() {
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
                 "[B"|"OB") [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1)) ;;
+                "[5"|"[5~"|"5~") local pg=$((cur - data_height)); [ "$pg" -lt 0 ] && pg=0; cur=$pg ;;
+                "[6"|"[6~"|"6~") local pg=$((cur + data_height)); [ "$pg" -ge "$count" ] && pg=$((count - 1)); cur=$pg ;;
+                "[H") cur=0 ;;
+                "[F") cur=$((count - 1)) ;;
             esac
         elif [ "$KEY" = "j" ]; then
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
@@ -3342,6 +3382,10 @@ filtertable() {
                     _read_str_timeout 1 _del_c
                     [ "$cur" -eq -1 ] && [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
                     ;;
+                "[5"|"[5~"|"5~") [ "$cur" -ge 0 ] && cur=$((cur - data_height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                "[6"|"[6~"|"6~") [ "$cur" -ge 0 ] && cur=$((cur + data_height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+                "[H") [ "$cur" -ge 0 ] && cur=0 ;;
+                "[F") [ "$cur" -ge 0 ] && cur=$((count - 1)) ;;
             esac
             continue
         fi
@@ -3680,6 +3724,26 @@ EOF
                             cursor_suffix="${cursor_suffix#?}"
                             filter_query="${cursor_prefix}${cursor_suffix}"
                         fi ;;
+                    "[5~")
+                        if [[ $focus -eq 0 ]]; then
+                            [[ $cur_side -gt 0 ]] && cur_side=0
+                        elif [[ $cur_table -gt 0 ]]; then
+                            local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg
+                        fi ;;
+                    "[6~")
+                        if [[ $focus -eq 0 ]]; then
+                            [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1))
+                        elif [[ $cur_table -lt $((f_count-1)) ]]; then
+                            local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg
+                        fi ;;
+                    "[H")
+                        if [[ $focus -eq 0 ]]; then cur_side=0
+                        elif [[ $cur_table -ge 0 ]]; then cur_table=0
+                        elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
+                    "[F")
+                        if [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1))
+                        elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1))
+                        elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
                 esac
                 continue ;;
         esac
@@ -4785,6 +4849,20 @@ EOF
                             [[ "$next_chars" == "[A" || "$next_chars" == "OA" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
                             [[ "$next_chars" == "[B" || "$next_chars" == "OB" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
                         fi ;;
+                    "[5~")
+                        if [[ "$ui_mode" == "NAV" ]]; then
+                            cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0
+                            preview_offset=0
+                        fi ;;
+                    "[6~")
+                        if [[ "$ui_mode" == "NAV" ]]; then
+                            cur=$((cur + height)); [ "$cur" -ge "$raw_count" ] && cur=$((raw_count - 1))
+                            preview_offset=0
+                        fi ;;
+                    "[H")
+                        if [[ "$ui_mode" == "NAV" ]]; then cur=0; preview_offset=0; fi ;;
+                    "[F")
+                        if [[ "$ui_mode" == "NAV" ]]; then cur=$((raw_count - 1)); preview_offset=0; fi ;;
                 esac
             fi
             continue
@@ -5515,6 +5593,23 @@ ${SB}q${SR}           Quit"
             
             case "$next_chars" in
                 "[A"|"OA") key="k" ;; "[B"|"OB") key="j" ;; "[C"|"OC") key="l" ;; "[D"|"OD") key="h" ;;
+                "[5~")
+                    sel_r=$((sel_r - view_h)); [ "$sel_r" -lt 0 ] && sel_r=0
+                    eval "col_top_$sel_c=$sel_r"
+                    continue ;;
+                "[6~")
+                    sel_r=$((sel_r + view_h))
+                    eval "c_max=\$count_$sel_c"; c_max=$((c_max - 1)); [ "$c_max" -lt 0 ] && c_max=0
+                    [ "$sel_r" -gt "$c_max" ] && sel_r=$c_max
+                    eval "col_top=\$col_top_$sel_c"
+                    [[ $sel_r -ge $((col_top + view_h)) ]] && eval "col_top_$sel_c=$((sel_r - view_h + 1))"
+                    continue ;;
+                "[H") sel_r=0; eval "col_top_$sel_c=0"; continue ;;
+                "[F")
+                    eval "c_len=\$count_$sel_c"
+                    sel_r=$((c_len - 1)); [ "$sel_r" -lt 0 ] && sel_r=0
+                    eval "col_top_$sel_c=$((sel_r - view_h + 1))"
+                    continue ;;
                 *) : ;;
             esac
             ;;
