@@ -44,7 +44,7 @@ echo ""
 echo "--- Widget integration tests ---"
 # Run all widget test modules via unittest
 echo "  Widget tests..."
-if python3 -m unittest discover -s test -p "test_widget_*.py" -v 2>&1; then
+if python3 -m unittest discover -s test -p "test_demo_widgets.py" -v 2>&1; then
     pass "widget tests: python3 -m unittest discover"
 else
     fail "widget tests: python3 -m unittest discover"
