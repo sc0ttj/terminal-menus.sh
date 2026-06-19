@@ -277,6 +277,21 @@ class TestFiltermenu(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.END, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 10. Gauge (auto-pipe, no keys needed)
@@ -384,6 +399,21 @@ class TestTree(TuiTestCase):
         self.assert_result("usr", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.END, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 14. Configtree (followed by msgbox)
@@ -413,6 +443,21 @@ class TestConfigtree(TuiTestCase):
     def test_page_down(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
                                  [KEY.PAGE_DOWN, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.END, KEY.ENTER, KEY.ENTER],
                                  timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
@@ -516,6 +561,22 @@ class TestTable(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.END, KEY.HOME,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 18. Filterable Table (followed by msgbox)
@@ -548,6 +609,21 @@ class TestFiltertable(TuiTestCase):
     def test_page_down(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
                                  [KEY.PAGE_DOWN, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
+                                 [KEY.END, KEY.ENTER, KEY.ENTER],
                                  timeout=8, init_delay=0.3)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
@@ -634,6 +710,20 @@ class TestSpreadsheet(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_page_down(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.PAGE_DOWN,
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 21. Kanban Board
@@ -674,5 +764,28 @@ class TestMainmenu(TuiTestCase):
     def test_q_quit(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
                                  [KEY.char("q")])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_down(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.PAGE_DOWN, KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.END, KEY.HOME,
+                                  KEY.char("q")],
+                                 timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)

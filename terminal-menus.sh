@@ -2065,8 +2065,8 @@ Supported Expressions in cells:
                         "[B"|"OB") cur_r=$((cur_r+1)) ;;
                         "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
                         "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
-                        "[5~") cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1 ;;
-                        "[6~") cur_r=$((cur_r + v_h)) ;;
+                        "[5"|"[5~") cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1 ;;
+                        "[6"|"[6~") cur_r=$((cur_r + v_h)) ;;
                         "[H") cur_r=1; cur_c=1 ;;
                         "[F") cur_r=9999 ; cur_c=$MAX_COLS ;;
                     esac
@@ -2542,8 +2542,8 @@ filepicker() {
                             [ -n "$TUI_CD_FILE" ] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
                             _init_tui
                         fi ;;
-                    "[5~") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
-                    "[6~") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+                    "[5"|"[5~") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                    "[6"|"[6~") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
                     "[H") cur=0 ;;
                     "[F") cur=$((count - 1)) ;;
                 esac ;;
@@ -2884,8 +2884,8 @@ _tree_core() {
                         _read_str_timeout 1 _del_c
                         [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && { cursor_suffix="${cursor_suffix#?}"; filter_query="${cursor_prefix}${cursor_suffix}"; _update_tree_cache; _skip_header=1; }
                         ;;
-                    "[5~") [ $v_count -gt 0 ] && cur=0 ;;
-                    "[6~") [ $v_count -gt 0 ] && cur=$((v_count - 1)) ;;
+                    "[5"|"[5~") [ $v_count -gt 0 ] && cur=0 ;;
+                    "[6"|"[6~") [ $v_count -gt 0 ] && cur=$((v_count - 1)) ;;
                     "[H") [ $v_count -gt 0 ] && cur=0 ;;
                     "[F") [ $v_count -gt 0 ] && cur=$((v_count - 1)) ;;
                 esac
@@ -2915,8 +2915,8 @@ _tree_core() {
                         scan_idx=$((scan_idx+1))
                     done
                     _update_tree_cache ;;
-                "[5~") cur=$((cur - view_height)); [ "$cur" -lt 0 ] && cur=0 ;;
-                "[6~") cur=$((cur + view_height)); [ "$cur" -ge "$v_count" ] && cur=$((v_count - 1)) ;;
+                "[5"|"[5~") cur=$((cur - view_height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                "[6"|"[6~") cur=$((cur + view_height)); [ "$cur" -ge "$v_count" ] && cur=$((v_count - 1)) ;;
                 "[H") cur=0 ;;
                 "[F") cur=$((v_count - 1)) ;;
             esac
@@ -3724,13 +3724,13 @@ EOF
                             cursor_suffix="${cursor_suffix#?}"
                             filter_query="${cursor_prefix}${cursor_suffix}"
                         fi ;;
-                    "[5~")
+                    "[5"|"[5~")
                         if [[ $focus -eq 0 ]]; then
                             [[ $cur_side -gt 0 ]] && cur_side=0
                         elif [[ $cur_table -gt 0 ]]; then
                             local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg
                         fi ;;
-                    "[6~")
+                    "[6"|"[6~")
                         if [[ $focus -eq 0 ]]; then
                             [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1))
                         elif [[ $cur_table -lt $((f_count-1)) ]]; then
@@ -4849,12 +4849,12 @@ EOF
                             [[ "$next_chars" == "[A" || "$next_chars" == "OA" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
                             [[ "$next_chars" == "[B" || "$next_chars" == "OB" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
                         fi ;;
-                    "[5~")
+                    "[5"|"[5~")
                         if [[ "$ui_mode" == "NAV" ]]; then
                             cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0
                             preview_offset=0
                         fi ;;
-                    "[6~")
+                    "[6"|"[6~")
                         if [[ "$ui_mode" == "NAV" ]]; then
                             cur=$((cur + height)); [ "$cur" -ge "$raw_count" ] && cur=$((raw_count - 1))
                             preview_offset=0
@@ -5593,11 +5593,11 @@ ${SB}q${SR}           Quit"
             
             case "$next_chars" in
                 "[A"|"OA") key="k" ;; "[B"|"OB") key="j" ;; "[C"|"OC") key="l" ;; "[D"|"OD") key="h" ;;
-                "[5~")
+                "[5"|"[5~")
                     sel_r=$((sel_r - view_h)); [ "$sel_r" -lt 0 ] && sel_r=0
                     eval "col_top_$sel_c=$sel_r"
                     continue ;;
-                "[6~")
+                "[6"|"[6~")
                     sel_r=$((sel_r + view_h))
                     eval "c_max=\$count_$sel_c"; c_max=$((c_max - 1)); [ "$c_max" -lt 0 ] && c_max=0
                     [ "$sel_r" -gt "$c_max" ] && sel_r=$c_max

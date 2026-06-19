@@ -1,12 +1,38 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
-## Fix filemanager
+## Fix typing into dropdown in `form` widget
 
-When leaving an empty command prompt with TAB key, the sidemenu re-renders wrong - it hides all items above the focused item.
-This sidemenu rendering bug has been fixed before, when leaving the command prompt with other keys. check the commit history.
+Typing into the dropown to filter it nearly works perfect, but it leaves rendering artifacts after choosing an item.
 
-------------------------------------------------------------------
+For example, I focused on the dropdown, I hit SPACE to open it, I type "us" and I focused on "USA" and hit SPACE to choose it.
+
+Then I see this (there is a "USA" artifact above "Deployment:"):
+
+                                            terminal-menus.sh demo 16 of 23 - form
+
+                                              User:
+                                               > root
+
+                                              Password:
+                                               > ****                       🔑
+
+                                              Country:
+                                              USA ▾
+
+                                              Enabled connections:
+                                              [ ] Ethernet
+                                              [x] Wifi
+                                              [ ] Fibre
+                                               USA
+                                              Deployment:
+                                              (*) Production
+                                              ( ) Staging
+
+
+                                              TAB/Arrows Nav | Space Toggle | Enter Submit
+
+
 
 ## Allow Nerd font icons
 
@@ -19,7 +45,7 @@ str="{icon_name} Foo bar"
 Example
 
 ```
-str="{folder} My Documents"
+item1="{folder} My Documents"
 ```
 
 Is it possible to support "Nerd fonts" in this way, without knowing which "Nerd font" is being used? 
@@ -33,14 +59,14 @@ The end goal would be for users to be able to easily, optionally, use nerd font 
 * Persist TAB selection when switching between normal and list view (by pressing the "," key) 
 * Persist TAB selection when changing directories:
   - all currently selected files and dirs (current selection) should remain selected after changing dir
-  - selecting more items should append them to the current selection 
+  - TAB selecting more items in the new dir should append them to the current selection 
   - this should include executable and hidden files and other files rendered with custom styles
 
 ------------------------------------------------------------------
 
 ## Support page up and page down keys in various widgets
 
-* In widgets with scrollable lists, add support for page up/page down keys
+* In widgets with scrollable lists (menus/tables), add support for page up/page down keys
 * For the `filemanager` and `filepicker` widgets:
   - the key bindings for page up/page down keys should move the sidebar focus up/down (like J/K)
 
