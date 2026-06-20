@@ -808,7 +808,7 @@ _draw_list() {
             fi
         elif [ "$KEY" = "?" ]; then
             local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Space${SR}      Toggle
@@ -816,9 +816,9 @@ ${SB}Enter${SR}      Confirm
 ${SB}q${SR}          Cancel / Quit"
             BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
             _init_tui
-        elif [ "$KEY" = "j" ]; then
+        elif [ "$KEY" = "j" ] || [ "$KEY" = "s" ]; then
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-        elif [ "$KEY" = "k" ]; then
+        elif [ "$KEY" = "k" ] || [ "$KEY" = "w" ]; then
             [ "$cur" -gt 0 ] && cur=$((cur-1))
         elif [ "$KEY" = "J" ]; then
             local pg=$((cur + display_count))
@@ -1175,9 +1175,9 @@ textbox() {
                 "[H") top=0 ;;
                 "[F") top=$((count - height)); [ "$top" -lt 0 ] && top=0 ;;
             esac
-        elif [ "$KEY" = "k" ]; then
+        elif [ "$KEY" = "k" ] || [ "$KEY" = "w" ]; then
             [ "$top" -gt 0 ] && top=$((top-1))
-        elif [ "$KEY" = "j" ]; then
+        elif [ "$KEY" = "j" ] || [ "$KEY" = "s" ]; then
             [ "$((top + height))" -lt "$count" ] && top=$((top+1))
         elif [ "$KEY" = "K" ]; then
             [ "$top" -gt 0 ] && top=$((top - height + 1)); [ "$top" -lt 0 ] && top=0
@@ -2336,7 +2336,7 @@ filtermenu() {
                 fi ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Tab${SR}         Toggle focus (list / filter)
@@ -2347,10 +2347,10 @@ ${SB}q${SR}           Cancel / Quit"
                 BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
-            "j"|"k")
+            "j"|"k"|"s"|"w")
                 if [ "$cur" -ge 0 ]; then
-                    [ "$KEY" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-                    [ "$KEY" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
+                    [ "$KEY" = "j" ] || [ "$KEY" = "s" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+                    [ "$KEY" = "k" ] || [ "$KEY" = "w" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
                 elif [ "$cur" -eq -1 ]; then
                     cursor_prefix="${cursor_prefix}${KEY}"
                 fi ;;
@@ -3176,18 +3176,18 @@ _tree_core() {
                     done
                     return 0
                 fi ;;
-            "j") [ "$cur" -ge 0 ] && [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1)) ;;
-            "k") [ "$cur" -ge 0 ] && [ $cur -gt 0 ] && cur=$((cur-1)) ;;
-            "l") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local rest="${node#*|}" && local k="${rest##*|}" && [ "$k" = "true" ] && { _tree_expand "${rest%%|*}"; _update_tree_cache; } ;;
-            "h") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local d="${node%%|*}" && local rest="${node#*|}" && local id="${rest%%|*}" && { _tree_remove_expanded "$id"; local scan_idx=$((g_idx + 1)); while [ $scan_idx -lt $count ]; do eval "snode=\"\$node_$scan_idx\""; [ "${snode%%|*}" -le "$d" ] && break; local sid="${snode#*|}"; sid="${sid%%|*}"; _tree_remove_expanded "$sid"; scan_idx=$((scan_idx+1)); done; _update_tree_cache; } ;;
+            "j"|"s") [ "$cur" -ge 0 ] && [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1)) ;;
+            "k"|"w") [ "$cur" -ge 0 ] && [ $cur -gt 0 ] && cur=$((cur-1)) ;;
+            "l"|"d") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local rest="${node#*|}" && local k="${rest##*|}" && [ "$k" = "true" ] && { _tree_expand "${rest%%|*}"; _update_tree_cache; } ;;
+            "h"|"a") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local d="${node%%|*}" && local rest="${node#*|}" && local id="${rest%%|*}" && { _tree_remove_expanded "$id"; local scan_idx=$((g_idx + 1)); while [ $scan_idx -lt $count ]; do eval "snode=\"\$node_$scan_idx\""; [ "${snode%%|*}" -le "$d" ] && break; local sid="${snode#*|}"; sid="${sid%%|*}"; _tree_remove_expanded "$sid"; scan_idx=$((scan_idx+1)); done; _update_tree_cache; } ;;
             "J") [ "$cur" -ge 0 ] && cur=$((cur + view_height)); [ "$cur" -ge "$v_count" ] && cur=$((v_count - 1)) ;;
             "K") [ "$cur" -ge 0 ] && cur=$((cur - view_height)); [ "$cur" -lt 0 ] && cur=0 ;;
             "g") [ "$cur" -ge 0 ] && cur=0 ;;
             "G") [ "$cur" -ge 0 ] && cur=$((v_count - 1)) ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}j${SR}/${SB}k${SR})
-${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand
+${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand (also ${SB}a${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}l${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Enter${SR}       Select node
@@ -3351,9 +3351,9 @@ table() {
                 "[H") cur=0 ;;
                 "[F") cur=$((count - 1)) ;;
             esac
-        elif [ "$KEY" = "j" ]; then
+        elif [ "$KEY" = "j" ] || [ "$KEY" = "s" ]; then
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-        elif [ "$KEY" = "k" ]; then
+        elif [ "$KEY" = "k" ] || [ "$KEY" = "w" ]; then
             [ "$cur" -gt 0 ] && cur=$((cur-1))
         elif [ "$KEY" = "J" ]; then
             local pg=$((cur + data_height)); [ "$pg" -ge "$count" ] && pg=$((count - 1)); cur=$pg
@@ -3365,7 +3365,7 @@ table() {
             cur=$((count - 1))
         elif [ "$KEY" = "?" ]; then
             local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Enter${SR}      Select row
@@ -3554,10 +3554,10 @@ filtertable() {
         fi
 
         case "$KEY" in
-            "j"|"k")
+            "j"|"k"|"s"|"w")
                 if [ "$cur" -ge 0 ]; then
-                    [ "$KEY" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-                    [ "$KEY" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
+                    [ "$KEY" = "j" ] || [ "$KEY" = "s" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+                    [ "$KEY" = "k" ] || [ "$KEY" = "w" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
                 elif [ "$cur" -eq -1 ]; then
                     cursor_prefix="${cursor_prefix}${KEY}"
                 fi ;;
@@ -3590,7 +3590,7 @@ filtertable() {
                 fi ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Tab${SR}         Toggle focus (list or filter)
@@ -3616,6 +3616,7 @@ ${SB}q${SR}           Cancel / Quit"
             "g") [ "$cur" -ge 0 ] && cur=0 || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
             "G") [ "$cur" -ge 0 ] && cur=$((count - 1)) || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
+            "/") [ "$cur" -ge 0 ] && cur=-1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
                     case "$KEY" in [[:print:]])
@@ -3951,7 +3952,7 @@ EOF
                 ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}Tab${SR}         Toggle sidebar / table focus
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -3963,8 +3964,8 @@ ${SB}q${SR}           Quit"
                 BG_MODAL=$BG_COLOR modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
             "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
-            "j") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
-            "k") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
+            "j"|"s") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
+            "k"|"w") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
             "J") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1)); elif [[ $cur_table -lt $((f_count-1)) ]]; then local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg; fi ;;
             "K") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=0; elif [[ $cur_table -gt 0 ]]; then local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg; fi ;;
             "g") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=0; elif [[ $cur_table -ge 0 ]]; then cur_table=0; elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
