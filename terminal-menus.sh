@@ -723,7 +723,8 @@ _draw_list() {
         _draw_header "$title" "$msg"
         local list_top=$row
 
-        local max_h=$(( MAX_HEIGHT - list_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local max_h=$(( MAX_HEIGHT - list_top - _fh ))
         [ "$max_h" -lt 3 ] && max_h=3
 
         local display_count=$count
@@ -752,8 +753,10 @@ _draw_list() {
         local hint=" ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
         [ "$type" = "menu" ] && hint=" ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}q${SR} Quit"
 
-        row=$((MAX_HEIGHT - 1))
-        _draw_controls "$hint"
+        if [ "$_fh" -ne 0 ]; then
+            row=$((MAX_HEIGHT - 1))
+            _draw_controls "$hint"
+        fi
         _draw_footer
 
         # --- INPUT HANDLING ---
@@ -950,7 +953,7 @@ yesno() {
         
         _draw_line "" "$row"
         row=$((MAX_HEIGHT - 1))
-        _draw_controls " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
         local key
@@ -1008,7 +1011,7 @@ _input_core() {
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_DISPLAY" "" >&2
         row=$((MAX_HEIGHT - 1))
-        _draw_controls " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
         _read_key char
@@ -1127,7 +1130,8 @@ textbox() {
             _draw_header "$title" "$msg"
 
             local view_top=$row
-            local height=$(( MAX_HEIGHT - view_top - 2 ))
+local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+            local height=$(( MAX_HEIGHT - view_top - _fh ))
             [ "$height" -lt 3 ] && height=3
 
             sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
@@ -1157,8 +1161,10 @@ textbox() {
             done
 
             row=$((view_top + height))
-            _draw_line "" 
-            _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}PgUp${SR}/${SB}PgDn${SR} Page | ${SB}Home${SR}/${SB}End${SR} Jump | ${SB}Enter${SR} Close"
+            if [ "$_fh" -ne 0 ]; then
+                _draw_line "" 
+                _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}PgUp${SR}/${SB}PgDn${SR} Page | ${SB}Home${SR}/${SB}End${SR} Jump | ${SB}Enter${SR} Close"
+            fi
             _draw_footer
             last_top=$top
         fi
@@ -1210,7 +1216,8 @@ tailbox() {
         _draw_header "$title" "$msg"
 
         local view_top=$row
-        local height=$(( MAX_HEIGHT - view_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local height=$(( MAX_HEIGHT - view_top - _fh ))
         [ "$height" -lt 3 ] && height=3
 
         local top=$(( count - height ))
@@ -1246,7 +1253,7 @@ tailbox() {
         _draw_at "$((row - 1))" 0
         printf "${BG_MAIN_ESC}%*s${RESET}" "$MAX_WIDTH" "" >&2
 
-        _draw_controls " Watching: ${src##*/} | ${SB}Enter${SR} Close"
+        [ "$_fh" -ne 0 ] && _draw_controls " Watching: ${src##*/} | ${SB}Enter${SR} Close"
         _draw_footer
 
         _read_key_esc
@@ -1469,7 +1476,7 @@ _EOF_
         fi
 
         row=$(( MAX_HEIGHT - 1 ))
-        _draw_controls " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
 
         local key
         _read_key key
@@ -2216,8 +2223,9 @@ filtermenu() {
             last_query="$filter_query"
         fi
 
-        local max_vh=$(( MAX_HEIGHT - 9 ))
-        [ "$TUI_MODE" = "fullscreen" ] && max_vh=$(( MAX_HEIGHT - 10 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local max_vh=$(( MAX_HEIGHT - 7 - _fh ))
+        [ "$TUI_MODE" = "fullscreen" ] && max_vh=$(( MAX_HEIGHT - 8 - _fh ))
         [ "$max_vh" -lt 3 ] && max_vh=3
 
         _draw_header "$title" "$msg"
@@ -2272,11 +2280,13 @@ filtermenu() {
         done
 
         row=$((list_top + max_vh))
-        _draw_at "$row"
-        _draw_spacer
-        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
-        _draw_spacer
-        row=$((row + 1))
+        if [ "$_fh" -ne 0 ]; then
+            _draw_at "$row"
+            _draw_spacer
+            _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
+            _draw_spacer
+            row=$((row + 1))
+        fi
         _draw_footer
 
         _read_key_esc
@@ -2458,7 +2468,8 @@ filepicker() {
         _draw_header "$title" "Path: $display_path"
 
         local list_top=$row
-        local height=$(( MAX_HEIGHT - list_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local height=$(( MAX_HEIGHT - list_top - _fh ))
         [ $height -lt 5 ] && height=5
 
         if [ $cur -lt $top ]; then
@@ -2539,8 +2550,10 @@ filepicker() {
         fi
 
         row=$((list_top + height))
-        _draw_spacer
-        _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Mark | ${SB}.${SR} Hidden | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            _draw_spacer
+            _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Mark | ${SB}.${SR} Hidden | ${SB}?${SR} Help"
+        fi
         _draw_footer
 
         _handle_selection() {
@@ -2888,8 +2901,9 @@ _tree_core() {
         fi
 
         local view_top=$row
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         # THE FIX: Anchor height to the bottom of the widget box
-        local view_height=$(( MAX_HEIGHT - view_top - 2 ))
+        local view_height=$(( MAX_HEIGHT - view_top - _fh ))
         [ $view_height -lt 5 ] && view_height=5
         local v_count=$visible_count
 
@@ -2937,13 +2951,15 @@ _tree_core() {
         done
 
         # --- FOOTER ANCHOR ---
-        row=$(( MAX_HEIGHT - 2 ))
-        local hint=" ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
-        [ "$mode" = "config" ] && hint=" ${SB}Arrows${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            row=$(( MAX_HEIGHT - 2 ))
+            local hint=" ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+            [ "$mode" = "config" ] && hint=" ${SB}Arrows${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
 
-        row=$((row+1))
-        if [ $_skip_header -eq 0 ]; then
-            _draw_controls "$hint"
+            row=$((row+1))
+            if [ $_skip_header -eq 0 ]; then
+                _draw_controls "$hint"
+            fi
         fi
         _draw_footer
 
@@ -3304,7 +3320,8 @@ table() {
         _draw_header "$title" "$msg"
 
         local view_top=$row
-        local total_table_area=$(( MAX_HEIGHT - view_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local total_table_area=$(( MAX_HEIGHT - view_top - _fh ))
         local data_height=$(( total_table_area - 1 ))
         [ "$data_height" -lt 3 ] && data_height=3
 
@@ -3335,8 +3352,10 @@ table() {
         done
 
         row=$((data_start_row + data_height))
-        _draw_line ""
-        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            _draw_line ""
+            _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+        fi
         _draw_footer
 
         _read_key_esc
@@ -3488,7 +3507,8 @@ filtertable() {
         _draw_line ""
 
         local view_top=$row
-        local view_height=$(( MAX_HEIGHT - view_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local view_height=$(( MAX_HEIGHT - view_top - _fh ))
         [ $view_height -lt 5 ] && view_height=5
 
         _draw_at "$row"
@@ -3524,8 +3544,10 @@ filtertable() {
 
         row=$((data_top + data_height))
         _draw_footer
-        _draw_spacer
-        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            _draw_spacer
+            _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
+        fi
 
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
@@ -3829,7 +3851,8 @@ EOF
         
         local list_top=$row
         
-        local view_h=$(( MAX_HEIGHT - list_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local view_h=$(( MAX_HEIGHT - list_top - _fh ))
         [[ $view_h -lt 5 ]] && view_h=5
         
         local data_h=$(( view_h - 3 ))
@@ -3894,8 +3917,10 @@ EOF
             i=$((i+1))
         done
 
-        local footer_row=$((list_top + view_h + 1))
-        frame="${frame}\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Switch | ${SB}1-9${SR} Sort | ${SB}q${SR} Quit | ${SB}?${SR} Help ${RESET}"
+        if [ "$_fh" -ne 0 ]; then
+            local footer_row=$((list_top + view_h + 1))
+            frame="${frame}\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Switch | ${SB}1-9${SR} Sort | ${SB}q${SR} Quit | ${SB}?${SR} Help ${RESET}"
+        fi
 
         LAST_FRAME="$frame"
         printf "%b" "$frame" >&2
@@ -4259,7 +4284,8 @@ _refresh_sidebar_only() {
 
     local list_top=$(( PADDING_TOP + row ))
     
-    local height=${1:-$(( MAX_HEIGHT - row - 2 ))}
+    local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+    local height=${1:-$(( MAX_HEIGHT - row - _fh ))}
     [[ $height -lt 1 ]] && height=1 
 
     i=0; while [ "$i" -lt "$height" ]; do
@@ -4766,7 +4792,8 @@ EOF
         [ $active_name_w -lt 8 ] && active_name_w=8
         [ $active_name_w -gt 50 ] && active_name_w=50
 
-        local height=$(( MAX_HEIGHT - list_top - 2 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local height=$(( MAX_HEIGHT - list_top - _fh ))
         [[ $cur -lt $top ]] && top=$cur
         [[ $cur -ge $((top + height)) ]] && top=$((cur - height + 1))
 
@@ -4904,9 +4931,10 @@ EOF
         fi
 
         row=$((list_top + height))
-        _draw_spacer
-
-        _draw_controls " ${SB}~${SR} Home | ${SB}Tab${SR} Mark | ${SB}x${SR}/${SB}c${SR}/${SB}v${SR} Cut/Copy/Paste | ${SB}r${SR} Rename | ${SB}q${SR} Quit | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            _draw_spacer
+            _draw_controls " ${SB}~${SR} Home | ${SB}Tab${SR} Mark | ${SB}x${SR}/${SB}c${SR}/${SB}v${SR} Cut/Copy/Paste | ${SB}r${SR} Rename | ${SB}q${SR} Quit | ${SB}?${SR} Help"
+        fi
         _draw_footer
         _hide_cursor
 
@@ -5196,7 +5224,7 @@ EOF
                             fi                            
                             list_top=$row
 
-                            local max_vh=$(( MAX_HEIGHT - row - 2 ))
+                            local max_vh=$(( MAX_HEIGHT - row - _fh ))
                             [[ $max_vh -lt 1 ]] && max_vh=1
                             _refresh_sidebar_only "$max_vh"
                             continue
@@ -5237,7 +5265,7 @@ EOF
 
                             # This prevents the sidebar from breaking out of the box
                             # We subtract the header rows and the 2 footer/control rows
-                            local max_vh=$(( MAX_HEIGHT - row - 2 ))
+                            local max_vh=$(( MAX_HEIGHT - row - _fh ))
                             [[ $max_vh -lt 1 ]] && max_vh=1
 
                             # Pass the explicit height to your sidebar refresher
@@ -5713,7 +5741,8 @@ ${SB}q${SR}           Quit"
         _draw_header "$title" "$msg"
         local list_top=$row
         
-        local view_h=$(( MAX_HEIGHT - list_top - 3 ))
+        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local view_h=$(( MAX_HEIGHT - list_top - 1 - _fh ))
         [[ $view_h -lt 3 ]] && view_h=3
 
         # --- 2. PRE-CALCULATE DYNAMIC WIDTHS ---
@@ -5773,11 +5802,13 @@ ${SB}q${SR}           Quit"
             c=$((c+1))
         done
 
-        row=$(( MAX_HEIGHT - 1 ))
-        _draw_footer
-        local sort_dir="▲"
-        [[ "$sort_rev" == "true" ]] && sort_dir="▼"
-        _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o${SR}/${SB}O${SR} Sort: $sort_mode $sort_dir | ${SB}z${SR}/${SB}Z${SR} Undo | ${SB}?${SR} Help"
+        if [ "$_fh" -ne 0 ]; then
+            row=$(( MAX_HEIGHT - 1 ))
+            _draw_footer
+            local sort_dir="▲"
+            [[ "$sort_rev" == "true" ]] && sort_dir="▼"
+            _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o${SR}/${SB}O${SR} Sort: $sort_mode $sort_dir | ${SB}z${SR}/${SB}Z${SR} Undo | ${SB}?${SR} Help"
+        fi
         printf "\e[1;1H" >&2
 
         # 5. Input Handling
