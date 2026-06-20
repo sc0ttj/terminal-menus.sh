@@ -238,7 +238,6 @@ For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
 ```bash
 RADIO=$(radiolist "Radiolist" "Choose:" --file /path/to/items.txt)
 ```
-```
 
 ### 9. Filtermenu (`filtermenu`)
 
