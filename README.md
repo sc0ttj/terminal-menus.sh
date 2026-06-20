@@ -170,9 +170,9 @@ A standard single-choice selection list. Also see `filtermenu`.
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select highlighted item
 - **q** — Cancel / Quit
 
@@ -196,9 +196,9 @@ Multiple-choice selection list. Returns each selected item on a new line.
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Space** — Toggle selection for current item
 - **Enter** — Confirm and return all selected items
 - **q** — Cancel / Quit
@@ -223,9 +223,9 @@ Mutually exclusive selection list.
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Space** — Select current item
 - **Enter** — Confirm selection
 - **q** — Cancel / Quit
@@ -251,13 +251,13 @@ A searchable, real-time filtered list for large datasets.
 
 **Controls:**
 - **Type** — Filter list in real-time
-- **Up** / **Down** or **k** / **j** — Navigate filtered results
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate filtered results
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Tab** — Toggle focus (list / filter)
 - **Left** / **Right** — Move cursor within filter input
 - **/** — Focus filter input (from list)
 - **Backspace** — Delete last filter character; when empty, focuses filter
-- **Down** — Focus first list item (from filter)
 - **Enter** — Select highlighted item
 - **q** — Cancel / Quit (when not in filter input)
 
@@ -291,9 +291,9 @@ A read-only scrollable file viewer.
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** or **j** / **k** — Scroll vertically
-- **Page Up** / **Page Down** or **[** / **]** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **j** / **k** — Scroll vertically
+- **Page Up** / **Page Down** or **J** / **K** or **[** / **]** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Close viewer
 
 ```bash
@@ -329,10 +329,10 @@ Deep hierarchical navigation. Returns the full path from root of the selected no
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** — Navigate tree
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
-- **Left** / **Right** — Collapse / Expand nodes
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Left** / **Right** or **a** / **d** or **h** / **l** — Collapse / Expand nodes
 - **Enter** — Select node (returns full path from root)
 - **Space** — Toggle selection (config mode only)
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
@@ -361,10 +361,10 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** — Navigate tree
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
-- **Left** / **Right** — Collapse / Expand nodes
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Left** / **Right** or **a** / **d** or **h** / **l** — Collapse / Expand nodes
 - **Space** — Toggle checkbox value
 - **Enter** — Confirm and return variable assignments
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
@@ -437,8 +437,8 @@ A lightweight file and directory picker, supports picking single or multiple ite
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
 - **Enter** or **Right** or **l** / **d** — Open directory / Select file
 - **Left** or **h** / **a** — Go to parent directory
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Tab** — Toggle mark on current item (for multiple selection)
 - **.** — Toggle hidden files
 - **q** — Cancel / Exit
@@ -458,9 +458,9 @@ Navigable table from CSV. Returns the command or text in the last (hidden) colum
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Scroll rows
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll rows
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
 - **q** — Cancel / Quit
 
@@ -480,11 +480,14 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 
 **Controls:**
 - **Type** — Filter rows in real-time
-- **Up** / **Down** or **k** / **j** — Scroll filtered results
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll filtered results
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Tab** — Toggle focus (list / filter)
+- **Left** / **Right** — Move cursor in filter
+- **/** — Focus filter input (from list)
 - **Enter** — Select row (returns last column value)
-- **Backspace** — Delete last filter character (when empty, exits widget)
+- **Backspace** — Delete last filter character; when empty, focuses filter
 - **q** — Cancel / Quit (when not in filter input)
 - **Esc** — Cancel / Exit
 
@@ -515,8 +518,8 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [f/F]     New file (f) or folder (F)
 [r]       Rename item
 [x/c/v]   Cut/copy/paste
-[PgUp] / [PgDn]   Scroll by page
-[Home] / [End]    Jump to top / bottom
+[PgUp] / [PgDn]   Scroll by page (also [J]/[K])
+[Home] / [End]    Jump to top / bottom (also [g]/[G])
 [~]       Go home
 [?]       Show help
 [[]/[]]   Preview scroll up/down
@@ -556,9 +559,9 @@ An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCA
 - `TUI_MODE` — Layout mode
 
 **Controls:**
-- **Arrows** or **w** / **a** / **s** / **d** — Navigate cells
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to first / last cell
+- **Arrows** or **w** / **a** / **s** / **d** or **h** / **j** / **k** / **l** — Navigate cells
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to first / last cell
 - **Enter** — Enter edit mode for current cell
 - **Right** / **Left** — Move cursor in edit mode
 - **?** — Toggle help popup (lists all expressions)
@@ -610,10 +613,10 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 
 **Controls:**
 - **Tab** — Toggle focus between sidebar and table
-- **Up** / **Down** or **k** / **j** — Navigate sidebar or table
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate sidebar or table
 - **Left** / **Right** — Switch focus to sidebar / table
-- **Page Up** / **Page Down** — Scroll by page
-- **Home** / **End** — Jump to top / bottom
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select item, or run command from selected table row
 - **/** — Focus filter input (when in table view)
 - **Backspace** — Focus filter input
