@@ -1779,8 +1779,8 @@ spreadsheet() {
     
     local CONTROLS_TXT=" 
  ${SB}Arrows${SR}          Navigate cells (also ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
-  ${SB}PgUp${SR}/${SB}PgDn${SR}    Page scroll (also ${SB}J${SR}/${SB}K${SR})
-  ${SB}Home${SR}/${SB}End${SR}     Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+ ${SB}PgUp${SR}/${SB}PgDn${SR}       Page scroll (also ${SB}J${SR}/${SB}K${SR})
+ ${SB}Home${SR}/${SB}End${SR}        Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
  ${SB}Enter${SR}           Enter edit mode for current cell
  ${SB}Right${SR}/${SB}Left${SR}      Move cursor in edit mode
  ${SB}q${SR}               Quit
