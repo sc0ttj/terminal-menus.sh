@@ -168,6 +168,7 @@ A standard single-choice selection list. Also see `filtermenu`.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -194,6 +195,7 @@ Multiple-choice selection list. Returns each selected item on a new line.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -221,6 +223,7 @@ Mutually exclusive selection list.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -248,6 +251,7 @@ A searchable, real-time filtered list for large datasets.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Type** — Filter list in real-time
@@ -275,6 +279,7 @@ Visual progress bar tracking piped input (0-100).
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 ```bash
 ( for i in {0..100..20}; do echo $i; sleep 0.3; done ) | gauge "Deploying" "Working..."
@@ -289,6 +294,7 @@ A read-only scrollable file viewer.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **j** / **k** — Scroll vertically
@@ -309,6 +315,7 @@ Live-monitoring of a file (similar to `tail -f`).
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Enter** — Close viewer
@@ -327,6 +334,7 @@ Deep hierarchical navigation. Returns the full path from root of the selected no
 - `ENABLE_FILTER` — Set to `true` to show a search/filter input (default: `false`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
@@ -359,6 +367,7 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 - `ENABLE_FILTER` — Set to `true` to show a search/filter input (default: `false`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
@@ -396,6 +405,7 @@ Advanced form builder. Returns shell-evaluable assignments.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Tab** — Cycle through interactive fields
@@ -432,6 +442,7 @@ A lightweight file and directory picker, supports picking single or multiple ite
 - `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
@@ -456,6 +467,7 @@ Navigable table from CSV. Returns the command or text in the last (hidden) colum
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll rows
@@ -477,6 +489,7 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Type** — Filter rows in real-time
@@ -500,6 +513,9 @@ RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "servi
 ![filemanager](screenshots/filemanager.png)
 
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, and more.
+
+**Environment Variables:**
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 
@@ -580,6 +596,7 @@ A multi-column kanban board, with a searchable table view.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate
@@ -610,6 +627,7 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 - `TUI_PERSISTENT_FILTERS` — Set to `true` to retain filter text when switching sidebar items
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
 
 **Controls:**
 - **Tab** — Toggle focus between sidebar and table
