@@ -749,11 +749,10 @@ _draw_list() {
         done
 
         # 4. CONTROLS & FOOTER
-        row=$((list_top + display_count))
-        local hint=" ${SB}Arrows${SR} Move | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select"
-        [ "$type" = "menu" ] && hint=" ${SB}Arrows${SR} Move | ${SB}Enter${SR} Select"
+        local hint=" ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+        [ "$type" = "menu" ] && hint=" ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}q${SR} Quit"
 
-        [ "$row" -lt "$((MAX_HEIGHT - 1))" ] && row=$((row+1))
+        row=$((MAX_HEIGHT - 1))
         _draw_controls "$hint"
         _draw_footer
 
@@ -807,6 +806,16 @@ _draw_list() {
                 j=0; while [ "$j" -lt "$count" ]; do eval "sel_$j=0"; j=$((j+1)); done
                 eval "sel_$cur=1"
             fi
+        elif [ "$KEY" = "?" ]; then
+            local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}Space${SR}      Toggle
+${SB}Enter${SR}      Confirm
+${SB}q${SR}          Cancel / Quit"
+            BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+            _init_tui
         elif [ "$KEY" = "q" ]; then
             TUI_RESULT=''
             return 1
@@ -924,6 +933,8 @@ yesno() {
         if [ "$cur" -eq 1 ]; then _draw_btn "$NO_LABEL" 1; else _draw_btn "$NO_LABEL" 0; fi
         
         _draw_line "" "$row"
+        row=$((MAX_HEIGHT - 1))
+        _draw_controls " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
         local key
@@ -980,6 +991,9 @@ _input_core() {
         _hide_cursor
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_DISPLAY" "" >&2
+        row=$((MAX_HEIGHT - 1))
+        _draw_controls " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
+        _draw_footer
 
         _read_key char
         _handle_extra_keys "$char" && continue
@@ -1128,7 +1142,7 @@ textbox() {
 
             row=$((view_top + height))
             _draw_line "" 
-            _draw_controls " ${SB}Up/Down/j/k${SR} Scroll | ${SB}PgUp/PgDn${SR} Page | ${SB}Enter${SR} Close"
+            _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}PgUp${SR}/${SB}PgDn${SR} Page | ${SB}Home${SR}/${SB}End${SR} Jump | ${SB}Enter${SR} Close"
             _draw_footer
             last_top=$top
         fi
@@ -1431,7 +1445,7 @@ _EOF_
         fi
 
         row=$(( MAX_HEIGHT - 1 ))
-        _draw_controls " ${SB}TAB/Arrows${SR} Nav | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit"
+        _draw_controls " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
 
         local key
         _read_key key
@@ -1681,6 +1695,18 @@ _EOF_
                 TUI_RESULT="${res%$'\n'}"
                 echo "$TUI_RESULT" | tr '\n' ' ' && return 0 ;;
 
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate fields (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Tab${SR}         Cycle fields
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in text input
+${SB}Space${SR}       Toggle checkbox/radio, open dropdown
+${SB}Enter${SR}       Submit form
+${SB}Esc${SR}         Close dropdown / Cancel
+${SB}q${SR}           Cancel / Quit"
+                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
+
             *)
                 eval "cf=\"\$fields_$cur\""
                 [ "$key" = "q" ] && ! _match "$cf" ">*" && TUI_RESULT='' && return 1
@@ -1729,9 +1755,9 @@ spreadsheet() {
     local tmp_csv=$(mktemp)
     
     local CONTROLS_TXT=" 
- ${SB}Arrows${SR} or ${SB}wasd${SR}  Navigate cells
+ ${SB}Arrows${SR}          Navigate cells (also ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
  ${SB}Enter${SR}           Enter edit mode for current cell
- ${SB}Right/Left${SR}      Move cursor in edit mode
+ ${SB}Right${SR}/${SB}Left${SR}      Move cursor in edit mode
  ${SB}q${SR}               Quit
  ${SB}?${SR}               Toggle this help
  
@@ -2219,7 +2245,7 @@ filtermenu() {
         row=$((list_top + max_vh))
         _draw_at "$row"
         _draw_spacer
-        _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Enter${SR} Select"
+        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
         _draw_spacer
         row=$((row + 1))
         _draw_footer
@@ -2279,6 +2305,18 @@ filtermenu() {
                     _saved_cur=$cur
                     cur=-1
                 fi ;;
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}Tab${SR}         Toggle focus (list / filter)
+${SB}/${SR}           Focus filter (from list)
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
+${SB}Enter${SR}       Select item
+${SB}q${SR}           Cancel / Quit"
+                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
@@ -2450,7 +2488,7 @@ filepicker() {
 
         row=$((list_top + height))
         _draw_spacer
-        _draw_controls " ${SB}TAB${SR} Mark | ${SB}.${SR} Toggle hidden | ${SB}Enter${SR} Select | ${SB}q${SR} Quit"
+        _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Mark | ${SB}.${SR} Hidden | ${SB}?${SR} Help"
         _draw_footer
 
         _handle_selection() {
@@ -2521,6 +2559,18 @@ filepicker() {
                 eval "last_path=\$raw_$cur"
                 last_path="${last_path%%|*}"
                 show_hidden=$(( 1 - show_hidden )); rebuild=1; cur=-2 ;;
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}Tab${SR}        Mark item
+${SB}Enter${SR}/${SB}d${SR}    Open dir / Select file
+${SB}Left${SR}/${SB}h${SR}/${SB}a${SR}   Parent dir
+${SB}.${SR}          Toggle hidden
+${SB}q${SR}          Cancel / Quit"
+                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
             "q") TUI_RESULT=''; return 1 ;;
 
             "k"|"w") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
@@ -2832,13 +2882,14 @@ _tree_core() {
 
         # --- FOOTER ANCHOR ---
         row=$(( MAX_HEIGHT - 2 ))
-        local hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Enter${SR} Select"
-        [ "$mode" = "config" ] && hint=" ${SB}Arrows${SR} Move/Expand | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Confirm"
+        local hint=" ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
+        [ "$mode" = "config" ] && hint=" ${SB}Arrows${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
 
         row=$((row+1))
         if [ $_skip_header -eq 0 ]; then
             _draw_controls "$hint"
         fi
+        _draw_footer
 
         # --- STEP 1: ATOMIC CAPTURE ---
         local key="" ESC_SEQ=""
@@ -3069,6 +3120,18 @@ _tree_core() {
                     done
                     return 0
                 fi ;;
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}Enter${SR}       Select node
+${SB}/${SR}           Focus filter (when enabled)
+${SB}Tab${SR}         Toggle filter/tree (when enabled)
+${SB}q${SR}           Quit"
+                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
             "q") TUI_RESULT=''; return 1 ;;
         esac
     done
@@ -3209,7 +3272,7 @@ table() {
 
         row=$((data_start_row + data_height))
         _draw_line ""
-        _draw_controls " ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
+        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}?${SR} Help"
         _draw_footer
 
         _read_key_esc
@@ -3228,6 +3291,15 @@ table() {
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
         elif [ "$KEY" = "k" ]; then
             [ "$cur" -gt 0 ] && cur=$((cur-1))
+        elif [ "$KEY" = "?" ]; then
+            local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}Enter${SR}      Select row
+${SB}q${SR}          Cancel / Quit"
+            BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+            _init_tui
         elif [ "$KEY" = "q" ]; then
             TUI_RESULT=''
             return 1
@@ -3381,7 +3453,7 @@ filtertable() {
         row=$((data_top + data_height))
         _draw_footer
         _draw_spacer
-        _draw_controls " ${SB}Tab${SR} Focus | ${SB}Left/Right${SR} Edit | ${SB}Arrows/jk${SR} Scroll | ${SB}Enter${SR} Select"
+        _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}Enter${SR} Select | ${SB}Tab${SR} Focus | ${SB}/${SR} Filter | ${SB}?${SR} Help"
 
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
@@ -3444,6 +3516,17 @@ filtertable() {
                     _saved_cur=$cur
                     cur=-1
                 fi ;;
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}Tab${SR}         Toggle focus (list or filter)
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
+${SB}Enter${SR}       Select row
+${SB}q${SR}           Cancel / Quit"
+                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
@@ -3723,7 +3806,7 @@ EOF
         done
 
         local footer_row=$((list_top + view_h + 1))
-        frame="${frame}\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Tab${SR} Switch | ${SB}1-9${SR} Sort | ${SB}Enter${SR} Select | ${SB}q${SR} Quit ${RESET}"
+        frame="${frame}\e[${footer_row};${PADDING_LEFT}H${FG_HINT_ESC}  ${SB}Arrows${SR} Navigate | ${SB}Enter${SR} Select | ${SB}Tab${SR} Switch | ${SB}1-9${SR} Sort | ${SB}q${SR} Quit | ${SB}?${SR} Help ${RESET}"
 
         LAST_FRAME="$frame"
         printf "%b" "$frame" >&2
@@ -3778,6 +3861,19 @@ EOF
                     cur_table=-1
                 fi
                 ;;
+            "?")
+                local _ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Tab${SR}         Toggle sidebar / table focus
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}/${SR}           Focus filter (in table view)
+${SB}1-9${SR}         Sort by column
+${SB}Enter${SR}       Select item / Run command
+${SB}q${SR}           Quit"
+                [[ "$TUI_MODE" == "fullscreen" ]] && BG_COLOR= || BG_COLOR=$BG_MAIN
+                BG_MODAL=$BG_COLOR modal "infobox 'Controls' \"$_ctxt\""
+                _init_tui ;;
             "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
             "j") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
             "k") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
@@ -4717,7 +4813,7 @@ EOF
         row=$((list_top + height))
         _draw_spacer
 
-        _draw_controls " ${SB}~${SR} Home | ${SB}x/c/v${SR} Cut/Copy/Paste | ${SB}r${SR} Rename | ${SB}?${SR} Help | ${SB}q${SR} Quit"
+        _draw_controls " ${SB}~${SR} Home | ${SB}Tab${SR} Mark | ${SB}x${SR}/${SB}c${SR}/${SB}v${SR} Cut/Copy/Paste | ${SB}r${SR} Rename | ${SB}q${SR} Quit | ${SB}?${SR} Help"
         _draw_footer
         _hide_cursor
 
@@ -5588,7 +5684,7 @@ ${SB}q${SR}           Quit"
         _draw_footer
         local sort_dir="▲"
         [[ "$sort_rev" == "true" ]] && sort_dir="▼"
-        _draw_controls " ${SB}wasd${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o/O${SR} Sort: $sort_mode $sort_dir | ${SB}z/Z${SR} Undo | ${SB}?${SR} Help"
+        _draw_controls " ${SB}Arrows${SR} Navigate | ${SB}WASD${SR} Move | ${SB}o${SR}/${SB}O${SR} Sort: $sort_mode $sort_dir | ${SB}z${SR}/${SB}Z${SR} Undo | ${SB}?${SR} Help"
         printf "\e[1;1H" >&2
 
         # 5. Input Handling

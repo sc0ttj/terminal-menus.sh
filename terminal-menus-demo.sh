@@ -726,6 +726,7 @@ run_widget() {
 # Main
 # ==============================================================================
 
+BACKTITLE="terminal-menus.sh demo"
 case "$0" in *terminal-menus-demo.sh)
     case "${1:-}" in
         "")
