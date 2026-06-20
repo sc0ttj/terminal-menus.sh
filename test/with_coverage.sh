@@ -22,11 +22,11 @@ python3 -c "import coverage" 2>/dev/null || {
 rm -f .coverage
 
 echo "Running test suite under coverage ..."
-python3 -m coverage run -m unittest discover -s test -p "test_widget_*.py" || true
+python3 -m coverage run -m unittest discover -s test -p "test_demo_widgets*" || true
 
 echo ""
 echo "=== Coverage Report ==="
-python3 -m coverage report -m terminal-menus.sh
+python3 -m coverage report -m
 
 if [ "$1" = "--html" ]; then
     python3 -m coverage html -d coverage_html

@@ -30,7 +30,7 @@ jobs:
 
       - name: Widget integration tests
         run: |
-          python3 -m unittest discover -s test -p "test_widget_*.py" -v
+          python3 -m unittest discover -s test -p "test_demo_widgets*" -v
 
       - name: Shell compatibility test runner
         run: |

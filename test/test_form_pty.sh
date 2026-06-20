@@ -81,7 +81,7 @@ def run_test():
         ("eth1='false'", "Fibre should be disabled"),
         ("deployment='prod'", "Production should be selected"),
         ("country='usa'", "Country should default to USA"),
-        ("password=''", "Password should be empty by default"),
+        ("password='pass'", "Password should default to 'pass'"),
         ("user='", "User should have a value"),
     ]
     

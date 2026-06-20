@@ -170,6 +170,45 @@ class TestMenu(TuiTestCase):
         self.assert_result("Cherry", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_j_key_page(self):
+        """'J' acts as Page Down"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.char("J"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_k_key_page_up(self):
+        """'K' acts as Page Up"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.PAGE_DOWN, KEY.char("K"),
+                                  KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_home(self):
+        """'g' jumps to first item (Apple)"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.char("g"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("Apple", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item (Cherry)"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.char("G"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("Cherry", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_s_key_down(self):
+        """'s' moves down one item (Banana -> Cherry)"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.char("s"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("Cherry", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 7.  Checklist (followed by msgbox)
@@ -626,6 +665,16 @@ class TestFiltertable(TuiTestCase):
                                  [KEY.END, KEY.ENTER, KEY.ENTER],
                                  timeout=8, init_delay=0.3)
         self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_slash_focus_filter(self):
+        """'/' focuses filter input in filtertable"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtertable",
+                                 [KEY.char("/"), KEY.text("My"),
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("The table returned:", stdout)
         self.assert_no_shell_errors(stdout)
 
 
