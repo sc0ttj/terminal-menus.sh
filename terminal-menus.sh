@@ -808,9 +808,9 @@ _draw_list() {
             fi
         elif [ "$KEY" = "?" ]; then
             local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Space${SR}      Toggle
 ${SB}Enter${SR}      Confirm
 ${SB}q${SR}          Cancel / Quit"
@@ -1721,7 +1721,6 @@ _EOF_
 
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate fields (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}Tab${SR}         Cycle fields
 ${SB}Left${SR}/${SB}Right${SR}  Move cursor in text input
 ${SB}Space${SR}       Toggle checkbox/radio, open dropdown
@@ -1780,6 +1779,8 @@ spreadsheet() {
     
     local CONTROLS_TXT=" 
  ${SB}Arrows${SR}          Navigate cells (also ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
+  ${SB}PgUp${SR}/${SB}PgDn${SR}    Page scroll (also ${SB}J${SR}/${SB}K${SR})
+  ${SB}Home${SR}/${SB}End${SR}     Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
  ${SB}Enter${SR}           Enter edit mode for current cell
  ${SB}Right${SR}/${SB}Left${SR}      Move cursor in edit mode
  ${SB}q${SR}               Quit
@@ -2335,9 +2336,9 @@ filtermenu() {
                 fi ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Tab${SR}         Toggle focus (list / filter)
 ${SB}/${SR}           Focus filter (from list)
 ${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
@@ -2613,8 +2614,8 @@ filepicker() {
             "?")
                 local _ctxt=" 
 ${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Tab${SR}        Mark item
 ${SB}Enter${SR}/${SB}d${SR}    Open dir / Select file
 ${SB}Left${SR}/${SB}h${SR}/${SB}a${SR}   Parent dir
@@ -3185,10 +3186,10 @@ _tree_core() {
             "G") [ "$cur" -ge 0 ] && cur=$((v_count - 1)) ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}j${SR}/${SB}k${SR})
 ${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Enter${SR}       Select node
 ${SB}/${SR}           Focus filter (when enabled)
 ${SB}Tab${SR}         Toggle filter/tree (when enabled)
@@ -3364,9 +3365,9 @@ table() {
             cur=$((count - 1))
         elif [ "$KEY" = "?" ]; then
             local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom
+${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Enter${SR}      Select row
 ${SB}q${SR}          Cancel / Quit"
             BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
@@ -3589,9 +3590,9 @@ filtertable() {
                 fi ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Tab${SR}         Toggle focus (list or filter)
 ${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
 ${SB}Enter${SR}       Select row
@@ -3950,10 +3951,10 @@ EOF
                 ;;
             "?")
                 local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}j${SR}/${SB}k${SR})
 ${SB}Tab${SR}         Toggle sidebar / table focus
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}/${SR}           Focus filter (in table view)
 ${SB}1-9${SR}         Sort by column
 ${SB}Enter${SR}       Select item / Run command
