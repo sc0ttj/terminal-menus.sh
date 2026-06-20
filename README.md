@@ -790,6 +790,7 @@ update_config "theme='dark'"
 
 | Variable | Widget | Purpose |
 |----------|--------|---------|
+| `TUI_HIDE_FOOTER=true` | All scrollable widgets | Hide the controls footer bar and add 2 extra lines to the scrollable content area |
 | `TUI_PERSISTENT_FILTERS=true` | `mainmenu` | Keep filter text when switching sidebar items |
 | `ENABLE_FILTER=true` | `tree`, `configtree` | Enable search/filter input |
 | `TREE_RETURN_VALUES=true` | `tree` | Return label paths instead of ID paths |
