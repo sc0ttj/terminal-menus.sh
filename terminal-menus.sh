@@ -816,6 +816,22 @@ ${SB}Enter${SR}      Confirm
 ${SB}q${SR}          Cancel / Quit"
             BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
             _init_tui
+        elif [ "$KEY" = "j" ]; then
+            [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+        elif [ "$KEY" = "k" ]; then
+            [ "$cur" -gt 0 ] && cur=$((cur-1))
+        elif [ "$KEY" = "J" ]; then
+            local pg=$((cur + display_count))
+            [ "$pg" -ge "$count" ] && pg=$((count - 1))
+            cur=$pg
+        elif [ "$KEY" = "K" ]; then
+            local pg=$((cur - display_count))
+            [ "$pg" -lt 0 ] && pg=0
+            cur=$pg
+        elif [ "$KEY" = "g" ]; then
+            cur=0
+        elif [ "$KEY" = "G" ]; then
+            cur=$((count - 1))
         elif [ "$KEY" = "q" ]; then
             TUI_RESULT=''
             return 1
@@ -1163,6 +1179,14 @@ textbox() {
             [ "$top" -gt 0 ] && top=$((top-1))
         elif [ "$KEY" = "j" ]; then
             [ "$((top + height))" -lt "$count" ] && top=$((top+1))
+        elif [ "$KEY" = "K" ]; then
+            [ "$top" -gt 0 ] && top=$((top - height + 1)); [ "$top" -lt 0 ] && top=0
+        elif [ "$KEY" = "J" ]; then
+            [ "$((top + height))" -lt "$count" ] && top=$((top + height - 1)); [ "$top" -gt "$((count - height))" ] && top=$((count - height))
+        elif [ "$KEY" = "g" ]; then
+            top=0
+        elif [ "$KEY" = "G" ]; then
+            top=$((count - height)); [ "$top" -lt 0 ] && top=0
         elif [ "$KEY" = "q" ]; then
             rm -f "$tmpf"
             return 0
@@ -1706,7 +1730,7 @@ ${SB}Esc${SR}         Close dropdown / Cancel
 ${SB}q${SR}           Cancel / Quit"
                 BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
-
+            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 eval "cf=\"\$fields_$cur\""
                 [ "$key" = "q" ] && ! _match "$cf" ">*" && TUI_RESULT='' && return 1
@@ -2096,6 +2120,10 @@ Supported Expressions in cells:
             "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
             "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
             "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "J") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r + v_h)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "K") [[ "$mode" == "NAV" ]] && { cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "g") [[ "$mode" == "NAV" ]] && { cur_r=1; cur_c=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
+            "G") [[ "$mode" == "NAV" ]] && { cur_r=9999; cur_c=$MAX_COLS; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
 
             $'\033')
                 _read_str_timeout 2 key
@@ -2318,6 +2346,29 @@ ${SB}q${SR}           Cancel / Quit"
                 BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
+            "j"|"k")
+                if [ "$cur" -ge 0 ]; then
+                    [ "$KEY" = "j" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+                    [ "$KEY" = "k" ] && [ "$cur" -gt 0 ] && cur=$((cur-1))
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${KEY}"
+                fi ;;
+            "J")
+                if [ "$cur" -ge 0 ]; then
+                    cur=$((cur + active_vh))
+                    [ "$cur" -ge "$count" ] && cur=$((count - 1))
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${KEY}"
+                fi ;;
+            "K")
+                if [ "$cur" -ge 0 ]; then
+                    cur=$((cur - active_vh))
+                    [ "$cur" -lt 0 ] && cur=0
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${KEY}"
+                fi ;;
+            "g") [ "$cur" -ge 0 ] && cur=0 || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
+            "G") [ "$cur" -ge 0 ] && cur=$((count - 1)) || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
             *)
                 if [ "$cur" -eq -1 ]; then
                     case "$KEY" in [[:print:]])
@@ -2571,6 +2622,10 @@ ${SB}.${SR}          Toggle hidden
 ${SB}q${SR}          Cancel / Quit"
                 BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
+            "J") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+            "K") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
+            "g") cur=0 ;;
+            "G") cur=$((count - 1)) ;;
             "q") TUI_RESULT=''; return 1 ;;
 
             "k"|"w") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
@@ -3120,6 +3175,14 @@ _tree_core() {
                     done
                     return 0
                 fi ;;
+            "j") [ "$cur" -ge 0 ] && [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1)) ;;
+            "k") [ "$cur" -ge 0 ] && [ $cur -gt 0 ] && cur=$((cur-1)) ;;
+            "l") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local rest="${node#*|}" && local k="${rest##*|}" && [ "$k" = "true" ] && { _tree_expand "${rest%%|*}"; _update_tree_cache; } ;;
+            "h") [ "$cur" -ge 0 ] && eval "g_idx=\"\$visible_$cur\"" && eval "node=\"\$node_$g_idx\"" && local d="${node%%|*}" && local rest="${node#*|}" && local id="${rest%%|*}" && { _tree_remove_expanded "$id"; local scan_idx=$((g_idx + 1)); while [ $scan_idx -lt $count ]; do eval "snode=\"\$node_$scan_idx\""; [ "${snode%%|*}" -le "$d" ] && break; local sid="${snode#*|}"; sid="${sid%%|*}"; _tree_remove_expanded "$sid"; scan_idx=$((scan_idx+1)); done; _update_tree_cache; } ;;
+            "J") [ "$cur" -ge 0 ] && cur=$((cur + view_height)); [ "$cur" -ge "$v_count" ] && cur=$((v_count - 1)) ;;
+            "K") [ "$cur" -ge 0 ] && cur=$((cur - view_height)); [ "$cur" -lt 0 ] && cur=0 ;;
+            "g") [ "$cur" -ge 0 ] && cur=0 ;;
+            "G") [ "$cur" -ge 0 ] && cur=$((v_count - 1)) ;;
             "?")
                 local _ctxt=" 
 ${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
@@ -3291,6 +3354,14 @@ table() {
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
         elif [ "$KEY" = "k" ]; then
             [ "$cur" -gt 0 ] && cur=$((cur-1))
+        elif [ "$KEY" = "J" ]; then
+            local pg=$((cur + data_height)); [ "$pg" -ge "$count" ] && pg=$((count - 1)); cur=$pg
+        elif [ "$KEY" = "K" ]; then
+            local pg=$((cur - data_height)); [ "$pg" -lt 0 ] && pg=0; cur=$pg
+        elif [ "$KEY" = "g" ]; then
+            cur=0
+        elif [ "$KEY" = "G" ]; then
+            cur=$((count - 1))
         elif [ "$KEY" = "?" ]; then
             local _ctxt=" 
 ${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
@@ -3527,6 +3598,22 @@ ${SB}Enter${SR}       Select row
 ${SB}q${SR}           Cancel / Quit"
                 BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
                 _init_tui ;;
+            "J")
+                if [ "$cur" -ge 0 ]; then
+                    cur=$((cur + data_height))
+                    [ "$cur" -ge "$count" ] && cur=$((count - 1))
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${KEY}"
+                fi ;;
+            "K")
+                if [ "$cur" -ge 0 ]; then
+                    cur=$((cur - data_height))
+                    [ "$cur" -lt 0 ] && cur=0
+                elif [ "$cur" -eq -1 ]; then
+                    cursor_prefix="${cursor_prefix}${KEY}"
+                fi ;;
+            "g") [ "$cur" -ge 0 ] && cur=0 || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
+            "G") [ "$cur" -ge 0 ] && cur=$((count - 1)) || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
@@ -3877,6 +3964,10 @@ ${SB}q${SR}           Quit"
             "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
             "j") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
             "k") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
+            "J") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1)); elif [[ $cur_table -lt $((f_count-1)) ]]; then local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg; fi ;;
+            "K") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=0; elif [[ $cur_table -gt 0 ]]; then local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg; fi ;;
+            "g") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=0; elif [[ $cur_table -ge 0 ]]; then cur_table=0; elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
+            "G") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1)); elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1)); elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
             "")  # Enter
                 if [[ $focus -eq 0 ]]; then
                     focus=1; cur_table=-1
