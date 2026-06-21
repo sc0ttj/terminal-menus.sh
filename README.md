@@ -847,7 +847,7 @@ cd test && SHELL=ash  python3 -m unittest test_demo_widgets
 
 ### 2. Widget integration tests (no X required)
 
-Run all 92 tests across 22 widgets:
+Run all 181 tests across 24 widgets:
 
 ```bash
 cd test && python3 -m unittest test_demo_widgets -v
@@ -860,7 +860,7 @@ python3 -m unittest test.test_demo_widgets.TestMenu
 python3 -m unittest test.test_demo_widgets.TestForm.test_full_flow
 ```
 
-Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`.
+Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`, `modal`, `extra_keys`.
 
 ### 3. Pty-based functional test (no X required)
 
@@ -902,7 +902,7 @@ syntax checks, form pty test, and all widget integration tests on every push/PR.
 | Path | Purpose |
 |------|---------|
 | `test/testlib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
-| `test/test_demo_widgets.py` | Python integration test module covering all 22 widgets (92 tests) |
+| `test/test_demo_widgets.py` | Python integration test module covering all 24 widgets (181 tests) |
 | `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
 | `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
