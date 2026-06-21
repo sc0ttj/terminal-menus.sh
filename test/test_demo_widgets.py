@@ -97,6 +97,14 @@ class TestInputbox(TuiTestCase):
         self.assert_in_output("RESULT=", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_cursor_movement(self):
+        """Left/Right cursor movement preserves the value"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh inputbox",
+                                 [KEY.LEFT, KEY.RIGHT, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_result("foo", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 5.  Password Box
@@ -209,6 +217,15 @@ class TestMenu(TuiTestCase):
         self.assert_result("Cherry", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_help(self):
+        """'?' opens help popup, dismiss with ENTER, then select default"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh menu",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_result("Banana", stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 7.  Checklist (followed by msgbox)
@@ -243,6 +260,57 @@ class TestChecklist(TuiTestCase):
         self.assert_result("Option 2", stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_page_down(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.PAGE_DOWN, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.END, KEY.HOME,
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_j_key_down(self):
+        """'j' moves down one item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.char("j"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_k_key_up(self):
+        """'k' moves up one item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.DOWN, KEY.char("k"),
+                                  KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.char("g"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.char("G"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup, dismiss with ENTER"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh checklist",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 8.  Radiolist (followed by msgbox)
@@ -269,6 +337,49 @@ class TestRadiolist(TuiTestCase):
                                   KEY.ENTER, KEY.ENTER])
         self.assert_exit(0, stdout)
         self.assert_result("High", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_down(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.PAGE_DOWN, KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_page_up(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.PAGE_DOWN, KEY.PAGE_UP,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_home_end(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.END, KEY.HOME,
+                                  KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.char("g"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.char("G"), KEY.ENTER, KEY.ENTER])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup, dismiss with ENTER"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh radiolist",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
 
@@ -331,6 +442,38 @@ class TestFiltermenu(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("g"), KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("G"), KEY.ENTER, KEY.ENTER],
+                                 timeout=8, init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_q_quit(self):
+        """'q' quits filtermenu, ENTER dismisses msgbox"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filtermenu",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8,
+                                 init_delay=0.3)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 10. Gauge (auto-pipe, no keys needed)
@@ -377,6 +520,35 @@ class TestTextbox(TuiTestCase):
     def test_home_end(self):
         stdout, rc = self.runner("wrappers/textbox_scroll.sh",
                                  [KEY.END, KEY.HOME, KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_arrow_up_down(self):
+        """Arrow keys scroll textbox"""
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.DOWN, KEY.UP, KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_top(self):
+        """'g' jumps to top"""
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.END, KEY.char("g"),
+                                  KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_bottom(self):
+        """'G' jumps to bottom"""
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.char("G"), KEY.ENTER], timeout=6)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_q_quit(self):
+        """'q' quits textbox"""
+        stdout, rc = self.runner("wrappers/textbox_scroll.sh",
+                                 [KEY.char("q")], timeout=6)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -453,6 +625,23 @@ class TestTree(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_collapse_node(self):
+        """Left arrow collapses expanded node"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.RIGHT, KEY.LEFT,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh tree",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 14. Configtree (followed by msgbox)
@@ -501,6 +690,23 @@ class TestConfigtree(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_collapse_node(self):
+        """Left arrow collapses expanded node"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.RIGHT, KEY.LEFT,
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh configtree",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 15. Form (followed by msgbox showing parsed data)
@@ -526,6 +732,16 @@ class TestForm(TuiTestCase):
                                  [KEY.TAB, KEY.TAB, KEY.TAB,
                                   KEY.SPACE, KEY.DOWN, KEY.SPACE,
                                   KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("User:", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8,
+                                 init_delay=0.3)
         self.assert_exit(0, stdout)
         self.assert_in_output("User:", stdout)
         self.assert_no_shell_errors(stdout)
@@ -559,6 +775,38 @@ class TestFilepicker(TuiTestCase):
         stdout, rc = self.runner("wrappers/filepicker_nav.sh",
                                  [KEY.END, KEY.PAGE_UP,
                                   KEY.char("q")], timeout=6)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_arrow_nav(self):
+        """Arrow keys navigate file list"""
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.DOWN, KEY.UP, KEY.char("q")],
+                                 timeout=6)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.END, KEY.char("g"),
+                                  KEY.char("q")], timeout=6)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.char("G"), KEY.char("q")],
+                                 timeout=6)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/filepicker_nav.sh",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.char("q")], timeout=8)
         self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -613,6 +861,55 @@ class TestTable(TuiTestCase):
                                  [KEY.END, KEY.HOME,
                                   KEY.ENTER, KEY.ENTER],
                                  timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_k_key_up(self):
+        """'k' scrolls up in table"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.DOWN, KEY.char("k"),
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_w_key_up(self):
+        """'w' scrolls up in table"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.DOWN, KEY.char("w"),
+                                  KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.char("g"), KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.char("G"), KEY.ENTER, KEY.ENTER],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_q_quit(self):
+        """'q' quits table"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.char("q")], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh table",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
@@ -725,6 +1022,38 @@ class TestFilemanager(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_g_key_home(self):
+        """'g' jumps to first item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.END, KEY.char("g"),
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_G_key_end(self):
+        """'G' jumps to last item"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.char("G"), KEY.char("q"),
+                                  KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_toggle_details(self):
+        """',' toggles detailed list view"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.char(","), KEY.char("q"),
+                                  KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh filemanager",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 20. Spreadsheet
@@ -773,6 +1102,30 @@ class TestSpreadsheet(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_h_key_left(self):
+        """'h' moves left in spreadsheet"""
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.char("h"), KEY.char("q"),
+                                  KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_a_key_left(self):
+        """'a' moves left in spreadsheet"""
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.char("a"), KEY.char("q"),
+                                  KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/spreadsheet_nav.sh",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.char("q"), KEY.ENTER], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 21. Kanban Board
@@ -813,6 +1166,38 @@ class TestKanban(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_j_key_down(self):
+        """'j' moves down in kanban"""
+        stdout, rc = self.runner("wrappers/kanban_nav.sh",
+                                 [KEY.char("j"), KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_k_key_up(self):
+        """'k' moves up in kanban"""
+        stdout, rc = self.runner("wrappers/kanban_nav.sh",
+                                 [KEY.DOWN, KEY.char("k"),
+                                  KEY.char("q")], timeout=8)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_h_key_left(self):
+        """'h' moves left column in kanban"""
+        stdout, rc = self.runner("wrappers/kanban_nav.sh",
+                                 [KEY.char("h"), KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_l_key_right(self):
+        """'l' moves right column in kanban"""
+        stdout, rc = self.runner("wrappers/kanban_nav.sh",
+                                 [KEY.char("l"), KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(1, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 22. Main Menu (Kodi-style split pane)
@@ -842,6 +1227,33 @@ class TestMainmenu(TuiTestCase):
     def test_home_end(self):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
                                  [KEY.END, KEY.HOME,
+                                  KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_tab_focus_toggle(self):
+        """Tab toggles between sidebar and table"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.TAB, KEY.TAB,
+                                  KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_arrow_nav(self):
+        """Arrow keys navigate sidebar"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.DOWN, KEY.UP,
+                                  KEY.char("q")],
+                                 timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_help(self):
+        """'?' opens help popup"""
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh mainmenu",
+                                 [KEY.char("?"), KEY.ENTER,
                                   KEY.char("q")],
                                  timeout=8)
         self.assert_exit(0, stdout)

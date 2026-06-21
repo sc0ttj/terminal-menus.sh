@@ -111,7 +111,6 @@ Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No
 **Controls:**
 - **Left** / **Right** — Switch focus between Yes/No
 - **Enter** — Confirm selection
-- **Esc** — Cancel (returns exit code 1)
 
 ```bash
 if yesno "Question" "Do you want to continue?" 2; then
