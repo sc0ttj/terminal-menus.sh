@@ -100,21 +100,20 @@ sleep 1
 echo "Starting terminal with: $SCRIPT"
 echo "Terminal command: $TERMINAL_CMD"
 # Use sh -c to avoid eval issues with command substitution
-sh -c "$TERMINAL_CMD -e \"$SCRIPT\"" 2>/dev/null &
+# Use ash explicitly as xterm may not handle scripts with shebangs under Xvfb
+sh -c "$TERMINAL_CMD -e ash \"$SCRIPT\"" 2>/dev/null &
 TERM_PID=$!
 sleep 2
 
 # ---- Wait for window ----
 
 WIN_ID=""
-for i in 1 2 3 4 5; do
+for i in 1 2 3 4 5 6 7 8 9 10; do
     # Search by PID to ensure we get the right xterm
     WIN_ID=$(xdotool search --pid "$TERM_PID" 2>/dev/null | tail -1)
-    echo "[DEBUG] xdotool search --pid returned: $WIN_ID" >&2
     if [ -z "$WIN_ID" ]; then
         # Fallback to classname search
         WIN_ID=$(xdotool search --classname "xterm" 2>/dev/null | tail -1)
-        echo "[DEBUG] xdotool search --classname returned: $WIN_ID" >&2
     fi
     [ -n "$WIN_ID" ] && break
     sleep 1
