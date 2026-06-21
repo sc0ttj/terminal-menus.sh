@@ -419,6 +419,16 @@ _apply_layout() {
     # Safety Clamping (Ensures UI never draws off-screen)
     [ "$MAX_WIDTH" -gt "$term_w" ] && MAX_WIDTH=$term_w && PADDING_LEFT=0
     [ "$MAX_HEIGHT" -gt "$term_h" ] && MAX_HEIGHT=$term_h && PADDING_TOP=0
+
+    # Derived layout constants (recomputed on resize)
+    INDENT="  "
+    CONTENT_WIDTH=$(( MAX_WIDTH - 6 ))
+    CONTENT_WIDTH_WIDE=$(( MAX_WIDTH - 4 ))
+    CONTROLS_ROW=$(( MAX_HEIGHT - 1 ))
+    FOOTER_HEIGHT=2
+    MIN_CONTENT_HEIGHT=3
+    INPUT_WIDTH=34
+    FILTER_WIDTH=25
 }
 
 # Initial call to set global variables based on default mode
@@ -490,7 +500,7 @@ _draw_header() {
     fi
     # 1. Title Row - Only draw if not empty
     if [ -n "$title" ]; then
-        _draw_line "  ${FG_TEXT_ESC}=== $title ===${RESET}${BG_MAIN_ESC}"
+        _draw_line "${INDENT}${FG_TEXT_ESC}=== $title ===${RESET}${BG_MAIN_ESC}"
     fi
     
     # 2. Message Rows - Only draw if not empty
@@ -503,7 +513,7 @@ _draw_header() {
             # Using your existing target_row/target_col logic
             local target_row=$(( row + PADDING_TOP ))
             local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-            printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}  %s" "$target_row" "$target_col" "$line" >&2
+            printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}${INDENT}%s" "$target_row" "$target_col" "$line" >&2
             _draw_line ""
         done
         IFS="$old_ifs"
@@ -529,6 +539,96 @@ _draw_controls() {
     # We use _draw_line to ensure the background fills the MAX_WIDTH 
     # and respects PADDING_LEFT
     _draw_line " ${FG_HINT_ESC}${hints}${RESET}${BG_MAIN_ESC}"
+}
+
+# Draw controls at the bottom row of the UI
+_draw_controls_at_bottom() {
+    row=$CONTROLS_ROW
+    _draw_controls "$@"
+}
+
+# Show context-sensitive help popup for a widget type
+_help_popup() {
+    local widget="$1"
+    local ctxt=""
+    case "$widget" in
+        list)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Space${SR}      Toggle
+${SB}Enter${SR}      Confirm
+${SB}q${SR}          Cancel / Quit" ;;
+        form)
+            ctxt=" 
+${SB}Tab${SR}         Cycle fields
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in text input
+${SB}Space${SR}       Toggle checkbox/radio, open dropdown
+${SB}Enter${SR}       Submit form
+${SB}Esc${SR}         Close dropdown / Cancel
+${SB}q${SR}           Cancel / Quit" ;;
+        filtermenu)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Tab${SR}         Toggle focus (list / filter)
+${SB}/${SR}           Focus filter (from list)
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
+${SB}Enter${SR}       Select item
+${SB}q${SR}           Cancel / Quit" ;;
+        filepicker)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Tab${SR}        Mark item
+${SB}Enter${SR}/${SB}d${SR}    Open dir / Select file
+${SB}Left${SR}/${SB}h${SR}/${SB}a${SR}   Parent dir
+${SB}.${SR}          Toggle hidden
+${SB}q${SR}          Cancel / Quit" ;;
+        tree)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand (also ${SB}a${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}l${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Enter${SR}       Select node
+${SB}/${SR}           Focus filter (when enabled)
+${SB}Tab${SR}         Toggle filter/tree (when enabled)
+${SB}q${SR}           Quit" ;;
+        table)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Enter${SR}      Select row
+${SB}q${SR}          Cancel / Quit" ;;
+        filtertable)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}Tab${SR}         Toggle focus (list or filter)
+${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
+${SB}Enter${SR}       Select row
+${SB}q${SR}           Cancel / Quit" ;;
+        mainmenu)
+            ctxt=" 
+${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
+${SB}Tab${SR}         Toggle sidebar / table focus
+${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
+${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
+${SB}/${SR}           Focus filter (in table view)
+${SB}1-9${SR}         Sort by column
+${SB}Enter${SR}       Select item / Run command
+${SB}q${SR}           Quit" ;;
+        *)
+            return 1 ;;
+    esac
+    BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$ctxt\""
+    _init_tui
 }
 
 _draw_footer() {
@@ -642,7 +742,7 @@ _draw_form_field() {
 
     # --- 2. STANDALONE CHECKBOX OR RADIO ---
     elif _match "$label" "\[ \]*" || _match "$label" "(*"; then
-        local marker="" indent="  "
+        local marker="" indent="$INDENT"
         style=$([ "$is_active" -eq 1 ] && echo "${HL_WHITE_BOLD}" || echo "${BG_MAIN_ESC}${FG_TEXT_ESC}")
         
         if _match "$label" "\[ \]*"; then
@@ -652,7 +752,7 @@ _draw_form_field() {
             content="${label/( ) /}"
             marker=$([ "$value" = "1" ] && echo "(*) " || echo "( ) ")
         fi
-        indent="  "
+        indent="$INDENT"
 
         _draw_line "${indent}${style}${marker}${content}${RESET}${BG_MAIN_ESC}"
         
@@ -717,15 +817,15 @@ _draw_list() {
     TUI_RESULT=$def_idx
 
     _init_tui
-    local width=$(( MAX_WIDTH - 6 ))
+    local width=$CONTENT_WIDTH
 
     while true; do
         _draw_header "$title" "$msg"
         local list_top=$row
 
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local max_h=$(( MAX_HEIGHT - list_top - _fh ))
-        [ "$max_h" -lt 3 ] && max_h=3
+        [ "$max_h" -lt $MIN_CONTENT_HEIGHT ] && max_h=$MIN_CONTENT_HEIGHT
 
         local display_count=$count
         [ "$display_count" -gt "$max_h" ] && display_count=$max_h
@@ -738,7 +838,7 @@ _draw_list() {
             local idx=$((top + i))
             row=$((list_top + i))
             _draw_at "$row"
-            printf "  " >&2
+            printf "$INDENT" >&2
             local is_cur=0; [ "$idx" -eq "$cur" ] && is_cur=1
 
             eval "sel_val=\$sel_$idx"
@@ -754,8 +854,7 @@ _draw_list() {
         [ "$type" = "menu" ] && hint=" ${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Enter${SR} Select | ${SB}q${SR} Quit"
 
         if [ "$_fh" -ne 0 ]; then
-            row=$((MAX_HEIGHT - 1))
-            _draw_controls "$hint"
+            _draw_controls_at_bottom "$hint"
         fi
         _draw_footer
 
@@ -810,15 +909,7 @@ _draw_list() {
                 eval "sel_$cur=1"
             fi
         elif [ "$KEY" = "?" ]; then
-            local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Space${SR}      Toggle
-${SB}Enter${SR}      Confirm
-${SB}q${SR}          Cancel / Quit"
-            BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-            _init_tui
+            _help_popup list
         elif [ "$KEY" = "j" ] || [ "$KEY" = "s" ]; then
             [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
         elif [ "$KEY" = "k" ] || [ "$KEY" = "w" ]; then
@@ -926,7 +1017,7 @@ msgbox() {
         _draw_header "$title" "$msg"
         
         _draw_at "$row"
-        printf "  " >&2
+        printf "$INDENT" >&2
         _draw_btn "$OK_LABEL" 1
         _draw_line ""
         _draw_footer
@@ -946,14 +1037,13 @@ yesno() {
         _draw_header "$title" "$msg"
         
         _draw_at "$row"
-        printf "  " >&2
+        printf "$INDENT" >&2
         if [ "$cur" -eq 0 ]; then _draw_btn "$YES_LABEL" 1; else _draw_btn "$YES_LABEL" 0; fi
-        printf "  " >&2
+        printf "$INDENT" >&2
         if [ "$cur" -eq 1 ]; then _draw_btn "$NO_LABEL" 1; else _draw_btn "$NO_LABEL" 0; fi
         
         _draw_line "" "$row"
-        row=$((MAX_HEIGHT - 1))
-        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
         local key
@@ -1004,14 +1094,13 @@ _input_core() {
 
         _render_cursor_display "$_dp" "$_ds"
 
-        local _pad=$(( 34 - _VIS_LEN ))
+        local _pad=$(( INPUT_WIDTH - _VIS_LEN ))
         [ "$_pad" -lt 0 ] && _pad=0
 
         _hide_cursor
         _draw_at "$input_row"
         printf "  ${BG_INPUT_ESC}${FG_INPUT_ESC} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_DISPLAY" "" >&2
-        row=$((MAX_HEIGHT - 1))
-        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
         _read_key char
@@ -1044,8 +1133,8 @@ _input_core() {
         fi
 
         local _combined="${cursor_prefix}${cursor_suffix}"
-        if [ "${#_combined}" -gt 34 ]; then
-            local _suffix_room=$(( 34 - ${#cursor_prefix} ))
+        if [ "${#_combined}" -gt $INPUT_WIDTH ]; then
+            local _suffix_room=$(( INPUT_WIDTH - ${#cursor_prefix} ))
             [ "$_suffix_room" -lt 0 ] && _suffix_room=0
             cursor_suffix="${cursor_suffix:0:$_suffix_room}"
         fi
@@ -1094,7 +1183,7 @@ gauge() {
 
         # 3. Render Progress Bar Zone
         _draw_at "$start_row" 0
-        printf "  " >&2 # Left margin
+        printf "$INDENT" >&2 # Left margin
         
         # Draw Fill (Blue) and Empty (Grey)
         printf "${BG_BLUE_ESC}%*s${BG_WID_ESC}%*s${RESET}" "$fill" "" "$empty" "" >&2
@@ -1107,7 +1196,7 @@ gauge() {
         _draw_line "" 
 
         # 6. Position footer at the bottom
-        row=$(( MAX_HEIGHT - 1 ))
+        row=$CONTROLS_ROW
         _draw_footer
     done
     return 0
@@ -1124,15 +1213,15 @@ textbox() {
     local tmpf=$(mktemp /tmp/tui_tb.XXXXXX)
 
     _init_tui
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local box_width=$CONTENT_WIDTH
     while true; do
         if [ "$top" -ne "$last_top" ]; then
             _draw_header "$title" "$msg"
 
             local view_top=$row
-local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
             local height=$(( MAX_HEIGHT - view_top - _fh ))
-            [ "$height" -lt 3 ] && height=3
+            [ "$height" -lt $MIN_CONTENT_HEIGHT ] && height=$MIN_CONTENT_HEIGHT
 
             sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
 
@@ -1140,7 +1229,7 @@ local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
                 local current_view_row=$((view_top + i))
 
                 _draw_at "$current_view_row"
-                printf "  " >&2
+                printf "$INDENT" >&2
 
                 local content="${rl//$'\t'/    }"
                 content="${content:0:$box_width}"
@@ -1154,7 +1243,7 @@ local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
             while [ "$i" -lt "$height" ]; do
                 local current_view_row=$((view_top + i))
                 _draw_at "$current_view_row"
-                printf "  " >&2
+                printf "$INDENT" >&2
                 _draw_item "text" 0 0 "" "$box_width"
                 _draw_line "" "$current_view_row"
                 i=$((i+1))
@@ -1210,15 +1299,15 @@ tailbox() {
     local count=$(wc -l < "$src")
 
     _init_tui
-    local box_width=$(( MAX_WIDTH - 4 ))
+    local box_width=$CONTENT_WIDTH_WIDE
     local tmpf=$(mktemp /tmp/tui_tail.XXXXXX)
     while true; do
         _draw_header "$title" "$msg"
 
         local view_top=$row
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local height=$(( MAX_HEIGHT - view_top - _fh ))
-        [ "$height" -lt 3 ] && height=3
+        [ "$height" -lt $MIN_CONTENT_HEIGHT ] && height=$MIN_CONTENT_HEIGHT
 
         local top=$(( count - height ))
         [ "$top" -lt 0 ] && top=0
@@ -1236,7 +1325,7 @@ tailbox() {
             printf "${BG_WID_ESC}${FG_TEXT_ESC}%-${box_width}.${box_width}s${RESET}" "$content" >&2
 
             printf "${BG_MAIN_ESC}  ${RESET}" >&2
-            row=$(( MAX_HEIGHT - 1 ))
+            row=$CONTROLS_ROW
             i=$((i+1))
         done < "$tmpf"
 
@@ -1246,7 +1335,7 @@ tailbox() {
             printf "${BG_MAIN_ESC}  " >&2
             printf "${BG_WID_ESC}%${box_width}s${RESET}" "" >&2
             printf "${BG_MAIN_ESC}  ${RESET}" >&2
-            row=$(( MAX_HEIGHT - 1 ))
+            row=$CONTROLS_ROW
             i=$((i+1))
         done
 
@@ -1430,7 +1519,7 @@ _EOF_
                 eval "drow=\$((field_rows_$cur + 1))"
                 j=0; while [ "$j" -lt "$FILTERED_COUNT" ]; do
                     _draw_at "$drow"
-                    printf "  " >&2
+                    printf "$INDENT" >&2
                     eval "odisp=\"\$filtered_$j\""
                     local opt_display="${odisp%:*}"
                     local is_active=0; [ "$j" -eq "$s_idx" ] && is_active=1
@@ -1475,8 +1564,7 @@ _EOF_
             _dd_was_open=0
         fi
 
-        row=$(( MAX_HEIGHT - 1 ))
-        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
+        [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
 
         local key
         _read_key key
@@ -1727,15 +1815,7 @@ _EOF_
                 echo "$TUI_RESULT" | tr '\n' ' ' && return 0 ;;
 
             "?")
-                local _ctxt=" 
-${SB}Tab${SR}         Cycle fields
-${SB}Left${SR}/${SB}Right${SR}  Move cursor in text input
-${SB}Space${SR}       Toggle checkbox/radio, open dropdown
-${SB}Enter${SR}       Submit form
-${SB}Esc${SR}         Close dropdown / Cancel
-${SB}q${SR}           Cancel / Quit"
-                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+            _help_popup form ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 eval "cf=\"\$fields_$cur\""
@@ -2202,7 +2282,7 @@ filtermenu() {
     local start_row=$(_get_start_row)
 
     _init_tui
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local box_width=$CONTENT_WIDTH
     while true; do
         row=$start_row
         filter_query="${cursor_prefix}${cursor_suffix}"
@@ -2223,10 +2303,10 @@ filtermenu() {
             last_query="$filter_query"
         fi
 
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local max_vh=$(( MAX_HEIGHT - 7 - _fh ))
         [ "$TUI_MODE" = "fullscreen" ] && max_vh=$(( MAX_HEIGHT - 8 - _fh ))
-        [ "$max_vh" -lt 3 ] && max_vh=3
+        [ "$max_vh" -lt $MIN_CONTENT_HEIGHT ] && max_vh=$MIN_CONTENT_HEIGHT
 
         _draw_header "$title" "$msg"
         _draw_at "$row"
@@ -2241,7 +2321,7 @@ filtermenu() {
             _display="$_DISPLAY"
             _vis_len=$_VIS_LEN
         fi
-        local _pad=$(( 25 - _vis_len ))
+        local _pad=$(( FILTER_WIDTH - _vis_len ))
         [ "$_pad" -lt 0 ] && _pad=0
         printf "  Filter: ${style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}%$((MAX_WIDTH - 39))s" "$_display" "" "" >&2
         _draw_line "" "$row"
@@ -2265,7 +2345,7 @@ filtermenu() {
             local idx=$((scroll_offset + i))
             local current_row=$((list_top + i))
             _draw_at "$current_row"
-            printf "  " >&2
+            printf "$INDENT" >&2
             local is_cur=0; [ "$cur" -eq "$idx" ] && is_cur=1
 
             if [ "$idx" -lt "$count" ]; then
@@ -2345,17 +2425,7 @@ filtermenu() {
                     cur=-1
                 fi ;;
             "?")
-                local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Tab${SR}         Toggle focus (list / filter)
-${SB}/${SR}           Focus filter (from list)
-${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
-${SB}Enter${SR}       Select item
-${SB}q${SR}           Cancel / Quit"
-                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+            _help_popup filtermenu ;;
             "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             "j"|"k"|"s"|"w")
                 if [ "$cur" -ge 0 ]; then
@@ -2468,7 +2538,7 @@ filepicker() {
         _draw_header "$title" "Path: $display_path"
 
         local list_top=$row
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local height=$(( MAX_HEIGHT - list_top - _fh ))
         [ $height -lt 5 ] && height=5
 
@@ -2482,7 +2552,7 @@ filepicker() {
             local v_idx=$((top + i))
             local current_row=$((list_top + i))
             _draw_at "$current_row"
-            printf "  " >&2
+            printf "$INDENT" >&2
             
             if [ $v_idx -lt $count ]; then
                 eval "node=\$raw_$v_idx"
@@ -2625,17 +2695,7 @@ filepicker() {
                 last_path="${last_path%%|*}"
                 show_hidden=$(( 1 - show_hidden )); rebuild=1; cur=-2 ;;
             "?")
-                local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Tab${SR}        Mark item
-${SB}Enter${SR}/${SB}d${SR}    Open dir / Select file
-${SB}Left${SR}/${SB}h${SR}/${SB}a${SR}   Parent dir
-${SB}.${SR}          Toggle hidden
-${SB}q${SR}          Cancel / Quit"
-                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+                _help_popup filepicker ;;
             "J") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
             "K") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
             "g") cur=0 ;;
@@ -2870,7 +2930,7 @@ _tree_core() {
 
     _update_tree_cache
 
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local box_width=$CONTENT_WIDTH
 
     _init_tui
     local _skip_header=0 _post_header_row=0
@@ -2894,14 +2954,14 @@ _tree_core() {
                 _display="$_DISPLAY"
                 _vis_len=$_VIS_LEN
             fi
-            local _pad=$(( 25 - _vis_len ))
+            local _pad=$(( FILTER_WIDTH - _vis_len ))
             [ "$_pad" -lt 0 ] && _pad=0
             printf "  Filter: ${f_style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
             row=$((row+2))
         fi
 
         local view_top=$row
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         # THE FIX: Anchor height to the bottom of the widget box
         local view_height=$(( MAX_HEIGHT - view_top - _fh ))
         [ $view_height -lt 5 ] && view_height=5
@@ -2919,7 +2979,7 @@ _tree_core() {
             local v_idx=$((top + i))
             local current_view_row=$((view_top + i))
             _draw_at "$current_view_row" 0
-            printf "  " >&2
+            printf "$INDENT" >&2
             
             if [ $v_idx -lt $v_count ]; then
                 local is_cur=0; [ $v_idx -eq $cur ] && is_cur=1
@@ -2928,7 +2988,7 @@ _tree_core() {
                 local content_line="${line_data%|*}"
                 local item_disabled="${line_data##*|}"
                 
-                local item_w=$(( MAX_WIDTH - 6 ))
+                local item_w=$CONTENT_WIDTH
                 
                 if _match "$content_line" "*▶*" || _match "$content_line" "*▼*"; then
                     item_w=$((item_w + 2))
@@ -3201,17 +3261,7 @@ _tree_core() {
             "g") [ "$cur" -ge 0 ] && cur=0 ;;
             "G") [ "$cur" -ge 0 ] && cur=$((v_count - 1)) ;;
             "?")
-                local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand (also ${SB}a${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}l${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Enter${SR}       Select node
-${SB}/${SR}           Focus filter (when enabled)
-${SB}Tab${SR}         Toggle filter/tree (when enabled)
-${SB}q${SR}           Quit"
-                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+                _help_popup tree ;;
             "q") TUI_RESULT=''; return 1 ;;
         esac
     done
@@ -3298,7 +3348,7 @@ table() {
 
     _init_tui
 
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local box_width=$CONTENT_WIDTH
     local first=true
     local w1=$(( box_width * 33 / 100 ))
     local w2=$(( box_width * 26 / 100 ))
@@ -3320,10 +3370,10 @@ table() {
         _draw_header "$title" "$msg"
 
         local view_top=$row
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local total_table_area=$(( MAX_HEIGHT - view_top - _fh ))
         local data_height=$(( total_table_area - 1 ))
-        [ "$data_height" -lt 3 ] && data_height=3
+        [ "$data_height" -lt $MIN_CONTENT_HEIGHT ] && data_height=$MIN_CONTENT_HEIGHT
 
         [ "$cur" -lt "$top" ] && top=$cur
         [ "$cur" -ge "$((top + data_height))" ] && top=$((cur - data_height + 1))
@@ -3340,7 +3390,7 @@ table() {
             local current_view_row=$((data_start_row + i))
 
             _draw_at "$current_view_row"
-            printf "  " >&2
+            printf "$INDENT" >&2
 
             if [ "$v_idx" -lt "$count" ]; then
                 local is_cur=0; [ "$v_idx" -eq "$cur" ] && is_cur=1
@@ -3383,14 +3433,7 @@ table() {
         elif [ "$KEY" = "G" ]; then
             cur=$((count - 1))
         elif [ "$KEY" = "?" ]; then
-            local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Enter${SR}      Select row
-${SB}q${SR}          Cancel / Quit"
-            BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-            _init_tui
+            _help_popup table
         elif [ "$KEY" = "q" ]; then
             TUI_RESULT=''
             return 1
@@ -3414,7 +3457,7 @@ filtertable() {
     [ ! -f "$src" ] && { msgbox "Error" "File not found: $src"; return 1; }
 
     _init_tui
-    local box_width=$(( MAX_WIDTH - 6 ))
+    local box_width=$CONTENT_WIDTH
     local w1=$(( box_width * 33 / 100 ))
     local w2=$(( box_width * 26 / 100 ))
     local w3=$(( box_width - w1 - w2 - 2 ))
@@ -3499,7 +3542,7 @@ filtertable() {
             _display="$_DISPLAY"
             _vis_len=$_VIS_LEN
         fi
-        local _pad=$(( 25 - _vis_len ))
+        local _pad=$(( FILTER_WIDTH - _vis_len ))
         [ "$_pad" -lt 0 ] && _pad=0
         printf "  Filter: ${style} > %s%${_pad}s ${RESET}${BG_MAIN_ESC}" "$_display" "" >&2
 
@@ -3507,7 +3550,7 @@ filtertable() {
         _draw_line ""
 
         local view_top=$row
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local view_height=$(( MAX_HEIGHT - view_top - _fh ))
         [ $view_height -lt 5 ] && view_height=5
 
@@ -3529,7 +3572,7 @@ filtertable() {
             local v_idx=$((top + i))
             local current_view_row=$((data_top + i))
             _draw_at "$current_view_row"
-            printf "  " >&2
+            printf "$INDENT" >&2
 
             if [ $v_idx -lt $count ]; then
                 local is_cur=0; [ $v_idx -eq $cur ] && is_cur=1
@@ -3611,16 +3654,7 @@ filtertable() {
                     cur=-1
                 fi ;;
             "?")
-                local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}Tab${SR}         Toggle focus (list or filter)
-${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
-${SB}Enter${SR}       Select row
-${SB}q${SR}           Cancel / Quit"
-                BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+                _help_popup filtertable ;;
             "J")
                 if [ "$cur" -ge 0 ]; then
                     cur=$((cur + data_height))
@@ -3851,7 +3885,7 @@ EOF
         
         local list_top=$row
         
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local view_h=$(( MAX_HEIGHT - list_top - _fh ))
         [[ $view_h -lt 5 ]] && view_h=5
         
@@ -3976,18 +4010,7 @@ EOF
                 fi
                 ;;
             "?")
-                local _ctxt=" 
-${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
-${SB}Tab${SR}         Toggle sidebar / table focus
-${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
-${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
-${SB}/${SR}           Focus filter (in table view)
-${SB}1-9${SR}         Sort by column
-${SB}Enter${SR}       Select item / Run command
-${SB}q${SR}           Quit"
-                [[ "$TUI_MODE" == "fullscreen" ]] && BG_COLOR= || BG_COLOR=$BG_MAIN
-                BG_MODAL=$BG_COLOR modal "infobox 'Controls' \"$_ctxt\""
-                _init_tui ;;
+                _help_popup mainmenu ;;
             "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
             "j"|"s") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
             "k"|"w") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
@@ -4225,7 +4248,7 @@ _get_prompt_msg() {
         "NEW_D")     symbol="Dir name: ";      content=" $prompt_buffer" ;; 
     esac
 
-    local total_w=$(( MAX_WIDTH - 4 ))
+    local total_w=$CONTENT_WIDTH_WIDE
     
     if [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
         if [[ "$ui_mode" == "SUDO_CMD" ]]; then
@@ -4284,7 +4307,7 @@ _refresh_sidebar_only() {
 
     local list_top=$(( PADDING_TOP + row ))
     
-    local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+    local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
     local height=${1:-$(( MAX_HEIGHT - row - _fh ))}
     [[ $height -lt 1 ]] && height=1 
 
@@ -4736,13 +4759,13 @@ EOF
         case "$ui_mode" in
             "CMD"|"SUDO_CMD")
                 local sym="$ "; [[ "$ui_mode" == "SUDO_CMD" ]] && sym="# "
-                local fill_w=$(( MAX_WIDTH - 4 ))
+                local fill_w=$CONTENT_WIDTH_WIDE
                 header_msg=$(printf "${BG_INPUT_ESC}\e[1;37m%-${fill_w}s${RESET}${BG_MAIN_ESC}" "${sym}${prompt_buffer}")
                 ;;
             "SEARCH"|"RENAME"|"NEW_F"|"NEW_D")
                 local sym="Search: > "; [[ "$ui_mode" == "RENAME" ]] && sym="Rename: "
                 [[ "$ui_mode" == "NEW_F" ]] && sym="File name: "; [[ "$ui_mode" == "NEW_D" ]] && sym="Dir name: "
-                local fill_w=$(( MAX_WIDTH - 4 - ${#sym} ))
+                local fill_w=$(( CONTENT_WIDTH_WIDE - ${#sym} ))
                 header_msg=$(printf "${sym}${BG_INPUT_ESC}\e[1;37m%-${fill_w}s${RESET}${BG_MAIN_ESC}" "$prompt_buffer")
                 ;;
             "SUDO_PASS") 
@@ -4784,7 +4807,7 @@ EOF
         # Only widen if details are ON AND help is OFF.
         local active_menu_w=$menu_w
         if [[ $show_details -eq 1 && $show_help -eq 0 ]]; then
-            active_menu_w=$(( MAX_WIDTH - 6 ))
+            active_menu_w=$CONTENT_WIDTH
         fi
 
         # --- NEW: Dynamic Filename Column Width ---
@@ -4792,7 +4815,7 @@ EOF
         [ $active_name_w -lt 8 ] && active_name_w=8
         [ $active_name_w -gt 50 ] && active_name_w=50
 
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local height=$(( MAX_HEIGHT - list_top - _fh ))
         [[ $cur -lt $top ]] && top=$cur
         [[ $cur -ge $((top + height)) ]] && top=$((cur - height + 1))
@@ -4801,7 +4824,7 @@ EOF
             local v_idx=$((top + i))
             local current_row=$((list_top + i))
             _draw_at "$current_row"
-            printf "  " >&2 
+            printf "$INDENT" >&2 
 
             # --- FIX 2: FULL-SCREEN HELP SAFETY ---
             if [[ $show_help -eq 1 && $show_details -eq 1 ]]; then
@@ -4893,7 +4916,7 @@ EOF
                 
                 if [[ $show_details -eq 1 ]]; then
                     wipe_x=2
-                    total_wipe_w=$(( MAX_WIDTH - 4 ))
+                    total_wipe_w=$CONTENT_WIDTH_WIDE
                 fi
 
                 # 2. THE CLEAN SLATE
@@ -5586,19 +5609,6 @@ _get_simple_date() {
 
 
 kanban() {
-    local CONTROLS_TXT="
-  
-${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR}     Navigate (also ${SB}Arrows${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
-${SB}W${SR}/${SB}A${SR}/${SB}S${SR}/${SB}D${SR}     Move item (also ${SB}H${SR}/${SB}J${SR}/${SB}K${SR}/${SB}L${SR})
-${SB}/${SR}           Search items
-${SB}o${SR}           Cycle sort (by rank, modified, created, completed)
-${SB}O${SR}           Toggle ascending/descending
-${SB}Enter${SR}/${SB}e${SR}     Edit note in \\\$EDITOR
-${SB}n${SR}           New note
-${SB}t${SR}           Append tag
-${SB}z${SR}/${SB}Z${SR}         Undo/redo
-${SB}q${SR}           Quit"
-
     local title=$1
     local msg=$2
     local dir="$3" config="$dir/.project-config"
@@ -5626,9 +5636,7 @@ ${SB}q${SR}           Quit"
     _init_tui && _hide_cursor
 
     local num_cols=$kanban_cols_count
-    local usable_w=$(( MAX_WIDTH - 4 ))
-    local col_w=$(( usable_w / num_cols ))
-    local remainder=$(( usable_w % num_cols ))
+    local usable_w=$CONTENT_WIDTH_WIDE
 
     local pad_w=$(( col_w - 3 )) 
     local sel_c=0 sel_r=0 
@@ -5741,14 +5749,14 @@ ${SB}q${SR}           Quit"
         _draw_header "$title" "$msg"
         local list_top=$row
         
-        local _fh=2; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local view_h=$(( MAX_HEIGHT - list_top - 1 - _fh ))
-        [[ $view_h -lt 3 ]] && view_h=3
+        [[ $view_h -lt $MIN_CONTENT_HEIGHT ]] && view_h=$MIN_CONTENT_HEIGHT
 
         # --- 2. PRE-CALCULATE DYNAMIC WIDTHS ---
         local num_cols=$kanban_cols_count
         local total_gap_space=$(( num_cols - 1 ))
-        local usable_w=$(( MAX_WIDTH - 4 - total_gap_space ))
+        local usable_w=$(( CONTENT_WIDTH_WIDE - total_gap_space ))
         
         local base_col_w=$(( usable_w / num_cols ))
         local remainder=$(( usable_w % num_cols ))
@@ -5803,7 +5811,7 @@ ${SB}q${SR}           Quit"
         done
 
         if [ "$_fh" -ne 0 ]; then
-            row=$(( MAX_HEIGHT - 1 ))
+            row=$CONTROLS_ROW
             _draw_footer
             local sort_dir="▲"
             [[ "$sort_rev" == "true" ]] && sort_dir="▼"
@@ -6095,8 +6103,7 @@ ${SB}q${SR}           Quit"
             "z") _save_redo; cp "$undo_dir"/*.md "$dir/" 2>/dev/null ;;
             "Z") cp "$redo_dir"/*.md "$dir/" 2>/dev/null ;;
             "?") 
-                [[ "$TUI_MODE" == "fullscreen" ]] && BG_COLOR= || BG_COLOR=$BG_MAIN
-                BG_MODAL=$BG_COLOR modal "infobox 'Controls' \"$CONTROLS_TXT\""; _init_tui ;;
+                _help_popup kanban ;;
         esac
 
         eval "max_r=\$count_$sel_c"
