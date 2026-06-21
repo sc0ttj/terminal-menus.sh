@@ -364,16 +364,16 @@ _apply_layout() {
             PADDING_TOP=$(( (term_h - 10) / 2 ))
             ;;
         "top")
-            MAX_WIDTH=$term_w;   MAX_HEIGHT=8
+            MAX_WIDTH=$term_w;   MAX_HEIGHT=10
             PADDING_LEFT=0;       PADDING_TOP=0
             ;;
         "bottom")
-            MAX_WIDTH=$term_w;   MAX_HEIGHT=8
+            MAX_WIDTH=$term_w;   MAX_HEIGHT=9
             PADDING_LEFT=0;       PADDING_TOP=$(( term_h - MAX_HEIGHT ))
             ;;
         "toast")
             MAX_WIDTH=${TOAST_WIDTH:-35}
-            MAX_HEIGHT=${TOAST_HEIGHT:-4}
+            MAX_HEIGHT=5
             PADDING_TOP=1
             PADDING_LEFT=$(( term_w - MAX_WIDTH - 2 ))
             ;;
@@ -544,6 +544,7 @@ _draw_controls() {
 # Draw controls at the bottom row of the UI
 _draw_controls_at_bottom() {
     row=$CONTROLS_ROW
+    case "$TUI_MODE" in popup|toast|palette) return ;; esac
     _draw_controls "$@"
 }
 
