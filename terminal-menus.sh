@@ -624,6 +624,18 @@ ${SB}/${SR}           Focus filter (in table view)
 ${SB}1-9${SR}         Sort by column
 ${SB}Enter${SR}       Select item / Run command
 ${SB}q${SR}           Quit" ;;
+        kanban)
+            ctxt=" 
+${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR}     Navigate (also ${SB}Arrows${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
+${SB}W${SR}/${SB}A${SR}/${SB}S${SR}/${SB}D${SR}     Move item (also ${SB}H${SR}/${SB}J${SR}/${SB}K${SR}/${SB}L${SR})
+${SB}/${SR}           Search items
+${SB}o${SR}           Cycle sort (by rank, modified, created, completed)
+${SB}O${SR}           Toggle ascending/descending
+${SB}Enter${SR}/${SB}e${SR}     Edit note in \\\$EDITOR
+${SB}n${SR}           New note
+${SB}t${SR}           Append tag
+${SB}z${SR}/${SB}Z${SR}         Undo/redo
+${SB}q${SR}           Quit" ;;
         *)
             return 1 ;;
     esac

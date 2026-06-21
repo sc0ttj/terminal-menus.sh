@@ -806,6 +806,13 @@ class TestKanban(TuiTestCase):
         self.assert_exit(1, stdout)
         self.assert_no_shell_errors(stdout)
 
+    def test_help_popup(self):
+        stdout, rc = self.runner("wrappers/demo_wrapper.sh kanban",
+                                 [KEY.char("?"), KEY.ENTER,
+                                  KEY.char("q")], timeout=8)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
 
 # ────────────────────────────────────────────────────────────────────
 # 22. Main Menu (Kodi-style split pane)
