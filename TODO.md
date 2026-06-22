@@ -1,6 +1,26 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
+## Fix `kanban`
+
+### Allow choosing the default selected item on startup
+* Pass in column number ($2) and item number ($3) at the end, like mainmenu.
+* Example: `kanban "Project" "" ~/my_project 2 4` selects the 4th item in column 2
+* If the item doesn't exist, or options not given, default to 1 1
+
+### Handle completion dates better
+* Completion dates should be empty when creating a note
+* Completion date should be added to the note (yyyy-mm-dd-hh:mm:ss) when moved into the final column in the kanban
+* Completion date should be removed from the note when the note is moved out of the final column of the kanban
+
+
+### Add due date
+* Due date should be empty when creating a note
+* Items should be sortable by due date ("o" key)
+* Due date should be a visibile column in the filtertable 
+
+------------------------------------------------------------------
+
 ## Allow Nerd font icons
 
 I want a way to support using Nerd font icons in input data, using placeholders like so:
