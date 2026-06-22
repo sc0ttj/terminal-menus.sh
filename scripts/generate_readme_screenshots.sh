@@ -59,6 +59,19 @@ echo ""
 for entry in "${WIDGETS[@]}"; do
     read -r name wrapper driver <<< "$entry"
 
+    # Set geometry: fullscreen widgets get a larger terminal
+    case "$name" in
+        kanban|mainmenu)
+            GEOMETRY="100x30"
+            ;;
+        *)
+            GEOMETRY="75x22"
+            ;;
+    esac
+
+    export TERMINAL_CMD="xterm -bw 0 -bg '#222222' -fa 'DejaVu Sans Mono' -fs 12 -geometry $GEOMETRY"
+    export TERM_GEOMETRY="$GEOMETRY"
+
     if [ -f "$SCREENSHOT_DIR/${name}.png" ]; then
         echo "SKIP $name (already exists)"
         RESULTS+=("SKIP  $name")

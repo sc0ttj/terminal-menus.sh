@@ -56,7 +56,7 @@ screenshot() {
     local child_win=$(xwininfo -id "$_XDO_WIN" -tree 2>/dev/null | grep -E "^\s+0x" | head -1 | awk '{print $1}')
     if [ -n "$child_win" ]; then
         xwd -id "$child_win" -out "/tmp/xwd_capture_$$.xwd" 2>/dev/null
-        convert "/tmp/xwd_capture_$$.xwd" -trim -bordercolor '#222222' -border 4x4 "$file" 2>/dev/null
+        convert "/tmp/xwd_capture_$$.xwd" "$file" 2>/dev/null
         rm -f "/tmp/xwd_capture_$$.xwd"
     fi
     # Fallback: scrot -u on parent window if child capture failed
