@@ -72,6 +72,7 @@ Displays a standard modal with an OK button.
 - `OK_LABEL` — Custom OK button text (default: `"OK"`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode (centered, fullscreen, classic, popup, top, bottom, toast, palette)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Confirm / Close
@@ -107,6 +108,7 @@ Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No
 - `NO_LABEL` — Custom No button text (default: `"NO"`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Left** / **Right** — Switch focus between Yes/No
@@ -128,6 +130,7 @@ Captures a single line of text from the user.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_RESULT` — Empty string on cancel
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Left** / **Right** — Move cursor within input
@@ -149,6 +152,7 @@ Masked input for sensitive tokens or passwords.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_RESULT` — Empty string on cancel
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Confirm input
@@ -168,6 +172,7 @@ A standard single-choice selection list. Also see `filtermenu`.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -195,6 +200,7 @@ Multiple-choice selection list. Returns each selected item on a new line.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -223,6 +229,7 @@ Mutually exclusive selection list.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
@@ -251,6 +258,7 @@ A searchable, real-time filtered list for large datasets.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Type** — Filter list in real-time
@@ -279,6 +287,7 @@ Visual progress bar tracking piped input (0-100).
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 ```bash
 ( for i in {0..100..20}; do echo $i; sleep 0.3; done ) | gauge "Deploying" "Working..."
@@ -294,6 +303,7 @@ A read-only scrollable file viewer.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **j** / **k** — Scroll vertically
@@ -315,6 +325,7 @@ Live-monitoring of a file (similar to `tail -f`).
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Close viewer
@@ -334,6 +345,7 @@ Deep hierarchical navigation. Returns the full path from root of the selected no
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
@@ -367,6 +379,7 @@ Hierarchical configuration toggle. Returns a list of variable assignments. Optio
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
@@ -405,6 +418,7 @@ Advanced form builder. Returns shell-evaluable assignments.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Tab** — Cycle through interactive fields
@@ -438,10 +452,11 @@ eval "$FORM_OUT"
 A lightweight file and directory picker, supports picking single or multiple items. Also see `filemanager`.
 
 **Environment Variables:**
-- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
@@ -467,6 +482,7 @@ Navigable table from CSV. Returns the command or text in the last (hidden) colum
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll rows
@@ -489,6 +505,7 @@ Filterable table from CSV. Returns the command or text in the last (hidden) colu
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Type** — Filter rows in real-time
@@ -514,7 +531,11 @@ RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "servi
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, and more.
 
 **Environment Variables:**
+- `BACKTITLE` — Background title text
+- `TUI_MODE` — Layout mode
+- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 
@@ -572,6 +593,7 @@ An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCA
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** or **h** / **j** / **k** / **l** — Navigate cells
@@ -596,6 +618,7 @@ A multi-column kanban board, with a searchable table view.
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate
@@ -627,6 +650,7 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Tab** — Toggle focus between sidebar and table
