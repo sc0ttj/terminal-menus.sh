@@ -2283,7 +2283,18 @@ filtermenu() {
 
     local all_options
     all_options=$(echo "$input_string" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//')
-    local all_opt_count=0
+
+    local _fm_n=0 _fm_i=0
+    local old_ifs="$IFS"; IFS=$'\n'
+    for _fm_opt in $all_options; do
+        [ $_fm_i -ge $MAX_FILTER_ITEMS ] && break
+        local _fm_lo=$(echo "$_fm_opt" | _tolower)
+        eval "_fm_o_$_fm_i=\$_fm_opt"
+        eval "_fm_l_$_fm_i=\$_fm_lo"
+        _fm_i=$((_fm_i+1))
+    done
+    IFS="$old_ifs"
+    _fm_n=$_fm_i
 
     local cursor_prefix=""
     local cursor_suffix=""
@@ -2301,17 +2312,16 @@ filtermenu() {
         filter_query="${cursor_prefix}${cursor_suffix}"
 
         if [ "$filter_query" != "$last_query" ]; then
-            local f_idx=0
+            local f_idx=0 _fm_i=0
             local lq=$(echo "$filter_query" | _tolower)
-            local old_ifs="$IFS"; IFS=$'\n'
-            for opt in $all_options; do
-                local lo=$(echo "$opt" | _tolower)
+            while [ $_fm_i -lt $_fm_n ]; do
+                eval "lo=\$_fm_l_$_fm_i"
                 if [ -z "$filter_query" ] || _match "$lo" "*${lq}*"; then
-                    eval "filtered_$f_idx='$opt'"
+                    eval "filtered_$f_idx=\$_fm_o_$_fm_i"
                     f_idx=$((f_idx+1))
                 fi
+                _fm_i=$((_fm_i+1))
             done
-            IFS="$old_ifs"
             count=$f_idx
             last_query="$filter_query"
         fi
