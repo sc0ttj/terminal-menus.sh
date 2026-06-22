@@ -31,6 +31,14 @@ BOLD="\e[1m"     # Set text to bold weight
 CLR_EOL="\e[K"   # Clear line from cursor to right edge
 CLR_DOWN="\e[J"  # Clear screen from cursor to bottom
 
+# Cached escape chars (computed once to avoid per-keypress forks)
+_ESC=$(printf '\e')
+_TAB=$(printf '\t')
+_DEL=$(printf '\177')
+_BS=$(printf '\10')
+_CR=$(printf '\r')
+_LF=$(printf '\n')
+
 _esc() { printf "\e[%s;2;%sm" "$1" "$2"; }
 
 # --- POSIX helper functions (for ash/busybox compat) ---
@@ -39,7 +47,7 @@ _match() { case $1 in $2) return 0;; esac; return 1; }
 
 _is_numeric() { case $1 in ''|*[!0-9]*) return 1;; esac; return 0; }
 
-_tolower() { tr '[:upper:]' '[:lower:]'; }
+_tolower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 _is_interactive_field() { _match "$1" ">*" || _match "$1" "[*" || _match "$1" "(*" || _match "$1" "{*"; }
 
@@ -98,7 +106,7 @@ _render_cursor_display() {
 _read_key_esc() {
     ESC_SEQ=""; KEY=""
     _read_key KEY
-    [ "$KEY" = "$(printf '\e')" ] && _read_str_timeout 2 ESC_SEQ
+    [ "$KEY" = "$_ESC" ] && _read_str_timeout 2 ESC_SEQ
 }
 
 # --- Extra keys parser and handler ---
@@ -349,8 +357,8 @@ _init_tui() {
 
 _apply_layout() {
     # Use local variables for the current terminal state to support resizing
-    local term_w=$(tput cols)
-    local term_h=$(tput lines)
+    local term_w="${COLUMNS:-$(tput cols)}"
+    local term_h="${LINES:-$(tput lines)}"
     local mode="${TUI_MODE:-centered}"
 
     case "$mode" in
@@ -702,7 +710,6 @@ _draw_form_field() {
         local suffix=""
         local box_w=$(( width - 5 ))
 
-        # Check if password field (starts with ">*")
         local _is_pw=0
         case "$label" in ">*"*)
             _is_pw=1
@@ -729,19 +736,20 @@ _draw_form_field() {
                 fi
             fi
         elif [ "$_is_pw" -eq 1 ]; then
-            display_val=$(printf '%*s' "${#value}" '' | tr ' ' '*')
+            local _pw_i=0 _pw_stars=""
+            while [ "$_pw_i" -lt "${#value}" ]; do _pw_stars="${_pw_stars}*"; _pw_i=$((_pw_i+1)); done
+            display_val="$_pw_stars"
         fi
 
-        style=$([ "$is_active" -eq 1 ] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
+        if [ "$is_active" -eq 1 ]; then style="$FG_BLUE_BOLD"; else style="$FG_TEXT_ESC"; fi
         _draw_line "  ${style}${clean_lbl}:${RESET}${BG_MAIN_ESC}"
 
-        style=$([ "$is_active" -eq 1 ] && echo "${BG_INPUT_ESC}${FG_BLUE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
+        if [ "$is_active" -eq 1 ]; then style="${BG_INPUT_ESC}${FG_BLUE_BOLD}"; else style="${BG_WID_ESC}${FG_TEXT_ESC}"; fi
 
         local _vlen=${#display_val}
         if [ "$is_active" -eq 1 ]; then
-            _e=$(printf '\x1b')
-            _vlen=$(printf "%s" "$display_val" | sed "s/${_e}\[[0-9;]*m//g" 2>/dev/null)
-            _vlen=${#_vlen}
+            _vlen=$(( ${#_cp} + ${#_cs} ))
+            [ -z "$_cs" ] && _vlen=$((_vlen + 1))
         fi
         local _pad=$(( box_w - _vlen ))
         [ "$_pad" -lt 0 ] && _pad=0
@@ -757,14 +765,14 @@ _draw_form_field() {
     # --- 2. STANDALONE CHECKBOX OR RADIO ---
     elif _match "$label" "\[ \]*" || _match "$label" "(*"; then
         local marker="" indent="$INDENT"
-        style=$([ "$is_active" -eq 1 ] && echo "${HL_WHITE_BOLD}" || echo "${BG_MAIN_ESC}${FG_TEXT_ESC}")
+        if [ "$is_active" -eq 1 ]; then style="$HL_WHITE_BOLD"; else style="${BG_MAIN_ESC}${FG_TEXT_ESC}"; fi
         
         if _match "$label" "\[ \]*"; then
             content="${label#\[ \] }"
-            marker=$([ "$value" = "1" ] && echo "[x] " || echo "[ ] ")
+            if [ "$value" = "1" ]; then marker="[x] "; else marker="[ ] "; fi
         else
             content="${label/( ) /}"
-            marker=$([ "$value" = "1" ] && echo "(*) " || echo "( ) ")
+            if [ "$value" = "1" ]; then marker="(*) "; else marker="( ) "; fi
         fi
         indent="$INDENT"
 
@@ -778,14 +786,13 @@ _draw_form_field() {
 
     # --- 3. DROPDOWNS ---
     elif _match "$label" "{*"; then
-        # Split pipe-delimited value using POSIX parameter expansion
         local v_rest="$value"
         local state="${v_rest%%|*}"; v_rest="${v_rest#*|}"
         local sel_idx="${v_rest%%|*}"; v_rest="${v_rest#*|}"
         local query="${v_rest%%|*}"; v_rest="${v_rest#*|}"
         local opt_str="$v_rest"
         
-        local arrow=$([ "$state" = "OPEN" ] && echo "▴" || echo "▾")
+        if [ "$state" = "OPEN" ]; then local arrow="▴"; else local arrow="▾"; fi
         local header=""
         local label_text="${label#*\}}"
         label_text="${label_text# }"
@@ -794,7 +801,6 @@ _draw_form_field() {
             header="${header}[ $query ] $arrow"
         else
             local opt_display="${opt_str#*,}"
-            # Extract sel_idx-th option from comma-separated list
             _opt_idx=0; _opt_rest="$opt_str"
             while [ "$_opt_idx" -lt "$sel_idx" ] && _match "$_opt_rest" "*,*"; do
                 _opt_rest="${_opt_rest#*,}"
@@ -804,9 +810,10 @@ _draw_form_field() {
             opt_display="${opt_display%:*}"
             header="${header}${opt_display} $arrow"
         fi
-        header=$(printf "%-${width}s" "$header")
+        # Pure shell padding
+        while [ "${#header}" -lt "$width" ]; do header="${header} "; done
         
-        style=$([ "$is_active" -eq 1 ] && echo "${FG_BLUE_BOLD}" || echo "${FG_TEXT_ESC}")
+        if [ "$is_active" -eq 1 ]; then style="$FG_BLUE_BOLD"; else style="$FG_TEXT_ESC"; fi
         _draw_line "  ${style}${header}${RESET}${BG_MAIN_ESC}"
         _draw_spacer
 
@@ -1064,7 +1071,7 @@ yesno() {
         _read_key key
         _handle_extra_keys "$key" && continue
         
-        if [ "$key" = "$(printf '\e')" ]; then
+        if [ "$key" = "$_ESC" ]; then
             _read_str_timeout 2 key
             if [ "$key" = "[C" ] || [ "$key" = "[D" ] || [ "$key" = "OC" ] || [ "$key" = "OD" ]; then
                 cur=$(( 1 - cur ))
@@ -1097,7 +1104,7 @@ _input_core() {
     local phys_row=$((input_row + PADDING_TOP))
     local _dp _ds
 
-    _escape=$(printf '\e')
+    _escape="$_ESC"
 
     while true; do
         if [ "$_is_pw" -eq 1 ]; then
@@ -1138,9 +1145,9 @@ _input_core() {
             continue
         elif [ -z "$char" ]; then
             break
-        elif [ "$char" = "$(printf '\t')" ]; then
+        elif [ "$char" = "$_TAB" ]; then
             continue
-        elif [ "$char" = "$(printf '\177')" ] || [ "$char" = "$(printf '\10')" ]; then
+        elif [ "$char" = "$_DEL" ] || [ "$char" = "$_BS" ]; then
             cursor_prefix="${cursor_prefix%?}"
         else
             cursor_prefix="${cursor_prefix}${char}"
@@ -1371,12 +1378,12 @@ tailbox() {
 # Filter comma-separated options against a query, sets filtered_N globals and FILTERED_COUNT
 _filter_opts() {
     local _fq="$1" _opts="$2"
-    local _lq=$(echo "$_fq" | _tolower)
+    local _lq=$(_tolower "$_fq")
     local _fi=0
     local _old_ifs="$IFS"; IFS=','
     set -- $_opts
     for _o do
-        local _lo=$(echo "$_o" | _tolower)
+        local _lo=$(_tolower "$_o")
         if [ -z "$_fq" ] || _match "$_lo" "*${_lq}*"; then
             eval "filtered_$_fi='$_o'"
             _fi=$((_fi+1))
@@ -1414,7 +1421,7 @@ form() {
 
             local lbl="${label_var%%:*}"
             local var="${label_var#*:}"
-            [ "$var" = "$lbl" ] && var=$(echo "$lbl" | _tolower)
+            [ "$var" = "$lbl" ] && var=$(_tolower "$lbl")
 
             eval "fields_$i='${prefix}${lbl}'"
             eval "values_$i='$val'"
@@ -1584,7 +1591,7 @@ _EOF_
         _read_key key
         _handle_extra_keys "$key" && continue
 
-        if [ "$key" = "$(printf '\e')" ]; then
+        if [ "$key" = "$_ESC" ]; then
             _read_str_timeout 2 key
 
             eval "v_cur=\"\$values_$cur\""
@@ -1661,9 +1668,9 @@ _EOF_
             continue
         fi
 
-        _tab=$(printf '\t')
-        _bs=$(printf '\177')
-        _del=$(printf '\10')
+        _tab="$_TAB"
+        _bs="$_DEL"
+        _del="$_BS"
 
         case "$key" in
             "$_tab")
@@ -1783,7 +1790,7 @@ _EOF_
                     eval "field_raw=\"\$fields_$i\""
                     case "$type" in
                         "text")
-                            local clean=$(echo "${field_raw%%:*}" | _tolower | tr ' ' '_')
+                            local clean=$(_tolower "${field_raw%%:*}" | tr ' ' '_')
                             last_label="$clean"
                             ;;
                         "input")
@@ -1915,7 +1922,7 @@ Supported Expressions in cells:
 
     local cur_r=1 cur_c=1 top_r=1 top_c=1
     local mode="NAV" _cursor_prefix="" _cursor_suffix=""
-    local cr=$(printf '\r') lf=$(printf '\n')
+    local cr="$_CR" lf="$_LF"
 
     # handle shifting viewport up a line if $title is empty
     local shift=0
@@ -2323,7 +2330,7 @@ filtermenu() {
 
         if [ "$filter_query" != "$last_query" ]; then
             local f_idx=0 _fm_i=0
-            local lq=$(echo "$filter_query" | _tolower)
+            local lq=$(_tolower "$filter_query")
             while [ $_fm_i -lt $_fm_n ]; do
                 eval "lo=\$_fm_l_$_fm_i"
                 if [ -z "$filter_query" ] || _match "$lo" "*${lq}*"; then
@@ -2438,18 +2445,18 @@ filtermenu() {
                     return 0
                 fi ;;
             "/") [ "$cur" -ge 0 ] && cur=-1 ;;
-            "$(printf '\177')"|"$(printf '\10')")
+"$_DEL"|"$_BS")
                 if [ "$cur" -eq -1 ]; then
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
                     else
                         cur=${_saved_cur:-0}
-                        [ "$cur" -ge "$count" ] && cur=$((count - 1))
+
                     fi
                 elif [ "$cur" -ge 0 ]; then
                     cur=-1
                 fi ;;
-            "$(printf '\t')")
+            "$_TAB")
                 if [ "$cur" -eq -1 ]; then
                     cur=${_saved_cur:-0}
                     [ "$cur" -ge "$count" ] && cur=$((count - 1))
@@ -2809,8 +2816,8 @@ _tree_core() {
         local remaining="${node#*|}"
         local nid="${remaining%%|*}"; remaining="${remaining#*|}"
         local nlbl="${remaining%%|*}"
-        local _nlcl=$(printf "%s" "$nlbl" | _tolower)
-        local _nicl=$(printf "%s" "$nid" | _tolower)
+        local _nlcl=$(_tolower "$nlbl")
+        local _nicl=$(_tolower "$nid")
         eval "nlc_$i='$_nlcl'"
         eval "nic_$i='$_nicl'"
         i=$((i+1))
@@ -2825,7 +2832,7 @@ _tree_core() {
 
         if [ $is_filtering -eq 1 ]; then
             # --- PHASE 1: DIRECT MATCH CHECK ---
-            _fq_lc=$(printf "%s" "$filter_query" | _tolower)
+            _fq_lc=$(_tolower "$filter_query")
             local di=0; while [ "$di" -lt "$count" ]; do
                 [ $di -ge $MAX_FILTER_ITEMS ] && break
                 eval "nm_$di=0"
@@ -3060,13 +3067,13 @@ _tree_core() {
         local key="" ESC_SEQ=""
         _read_key key
         _handle_extra_keys "$key" && continue
-        [ "$key" = "$(printf '\e')" ] && { _read_str_timeout 2 ESC_SEQ; }
+        [ "$key" = "$_ESC" ] && { _read_str_timeout 2 ESC_SEQ; }
 
         # --- STEP 2: FILTER INPUT (Focus at -1) ---
         if [ "$ENABLE_FILTER" = "true" ] && [ $cur -eq -1 ]; then
             if [ -z "$ESC_SEQ" ]; then
                 case "$key" in
-                    $(printf '\177')|$(printf '\b'))
+                    $_DEL|$_BS)
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
                         filter_query="${cursor_prefix}${cursor_suffix}"
@@ -3076,13 +3083,13 @@ _tree_core() {
                         [ $v_count -gt 0 ] && cur=0
                     fi
                     continue ;;
-                $(printf '\t'))
+                $_TAB)
                     [ -z "$filter_query" ] && [ $v_count -gt 0 ] && cur=0
                     continue ;;
                     "") # ENTER: JUMP TO MATCH
                         if [ $visible_count -gt 0 ]; then
                             cur=0
-                            _fq_lc=$(printf "%s" "$filter_query" | _tolower)
+_fq_lc=$(_tolower "$filter_query")
                             idx=0; while [ "$idx" -lt "$visible_count" ]; do
                                 eval "g_idx=\"\$visible_$idx\""
                                 eval "glc=\"\$nlc_$g_idx\""; eval "gic=\"\$nic_$g_idx\""
@@ -3156,7 +3163,7 @@ _tree_core() {
 
         case "$key" in
             "/") [ "$ENABLE_FILTER" = "true" ] && [ "$cur" -ge 0 ] && cur=-1 ;;
-            $(printf '\t')) # TAB toggle filter
+            $_TAB) # TAB toggle filter
                 if [ "$ENABLE_FILTER" = "true" ]; then
                     if [ $cur -eq -1 ]; then
                         [ $v_count -gt 0 ] && cur=0
@@ -3164,7 +3171,7 @@ _tree_core() {
                         cur=-1
                     fi
                 fi ;;
-            $(printf '\177')|$(printf '\b')) # Backspace Jump
+            $_DEL|$_BS) # Backspace Jump
                 [ "$ENABLE_FILTER" = "true" ] && cur=-1 ;;
             " ") # Space Toggle
                 eval "g_idx=\"\$visible_$cur\""
@@ -3526,7 +3533,7 @@ filtertable() {
             eval "cmd_val=\"\${$_cmd_idx}\""
             eval "master_line_$master_count=\"\$formatted\""
             eval "master_search_$master_count=\"\$line\""
-            eval "master_search_lc_$master_count=\"\$(printf \"%s\" \"\$line\" | _tolower)\""
+            eval "master_search_lc_$master_count=\"\$(_tolower \"\$line\")\""
             eval "master_cmd_$master_count=\"\$cmd_val\""
             master_count=$((master_count+1))
         fi
@@ -3541,7 +3548,7 @@ filtertable() {
             i=0
             local max_i=$master_count
             [ $max_i -gt $MAX_FILTER_ITEMS ] && max_i=$MAX_FILTER_ITEMS
-            _flow=$(echo "$filter_query" | _tolower)
+            _flow=$(_tolower "$filter_query")
             while [ "$i" -lt "$max_i" ]; do
                 if [ -n "$filter_query" ]; then
                     eval "_slow=\"\$master_search_lc_$i\""
@@ -3663,7 +3670,7 @@ filtertable() {
                 else
                     [ $count -gt 0 ] && cur=0
                 fi ;;
-            "$(printf '\177')"|"$(printf '\10')") # BACKSPACE
+            "$_DEL"|"$_BS") # BACKSPACE
                 if [ "$cur" -eq -1 ]; then
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
@@ -3673,7 +3680,7 @@ filtertable() {
                 elif [ "$cur" -ge 0 ]; then
                     cur=-1
                 fi ;;
-            "$(printf '\t')") # TAB
+            "$_TAB") # TAB
                 if [ "$cur" -eq -1 ]; then
                     [ -z "$cursor_prefix" ] && [ "$count" -gt 0 ] && cur=0
                 else
@@ -3843,7 +3850,7 @@ EOF
                         done
                         fmt="${fmt% }"
                         eval "master_line_$master_count=\"\$fmt\""
-                        eval "master_line_lc_$master_count=\"\$(printf \"%s\" \"\$fmt\" | _tolower)\""
+                        eval "master_line_lc_$master_count=\"\$(_tolower \"\$fmt\")\""
                         _cmd_safe="$cmd"; eval "master_cmd_$master_cmd_count=\"\$_cmd_safe\""
                         rd=""
                         i=0; while [ "$i" -lt "$col_count" ]; do
@@ -3872,7 +3879,7 @@ EOF
         # 4. CONDITIONAL FILTER
         if [[ "$filter_query" != "$last_query" || $force_refilter -gt 0 ]]; then
             filtered_count=0; filtered_cmd_count=0
-            q_lower=$(echo "$filter_query" | _tolower)
+            q_lower=$(_tolower "$filter_query")
             sp="*${q_lower}*"
             i=0; while [ "$i" -lt "$master_count" ]; do
                 [ $i -ge $MAX_FILTER_ITEMS ] && break
@@ -4303,7 +4310,7 @@ _refresh_sidebar_only() {
     local f_idx=0
 
     local lc_query=""
-    [ -n "$clean_query" ] && lc_query=$(echo "$clean_query" | _tolower)
+    [ -n "$clean_query" ] && lc_query=$(_tolower "$clean_query")
 
     local si=0; while [ "$si" -lt "$master_raw_count" ]; do
         eval "item=\$master_raw_$si"
@@ -4569,7 +4576,7 @@ EOF
         # 2. DATA REBUILD
         if [[ "$root_dir" != "$last_dir" || $rebuild -eq 1 ]]; then
             raw_count=0; detail_count=0
-            local l_query=$(echo "$search_query" | _tolower)
+            local l_query=$(_tolower "$search_query")
 
             # --- THE FINAL SURGICAL FIX: IGNORE CACHE ---
             local ignored_cache="|"
@@ -4637,21 +4644,21 @@ EOF
                     case "$ignored_cache" in *"|$name|"*) continue ;; esac
                 fi
 
-                if [[ -n "$search_query" ]]; then
-                    local l_name=$(echo "$name" | _tolower)
-                    case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
-                fi
+if [[ -n "$search_query" ]]; then
+                        local l_name=$(_tolower "$name")
+                        case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
+                    fi
 
-                eval "raw_$raw_count='$_entry|$name|true'"
-                eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
-                raw_count=$((raw_count+1))
+                    eval "raw_$raw_count='$_entry|$name|true'"
+                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
+                    raw_count=$((raw_count+1))
 
-                if [[ $show_details -eq 1 ]]; then
-                    local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
-                    local varname="META_F_$safe_lookup"
-                    eval "detail_$((raw_count-1))=\${$varname}"
-                fi
-            done < "$_fm_tmpf"
+                    if [[ $show_details -eq 1 ]]; then
+                        local safe_lookup="${name//[^a-zA-Z0-9_]/_}"
+                        local varname="META_F_$safe_lookup"
+                        eval "detail_$((raw_count-1))=\${$varname}"
+                    fi
+                done < "$_fm_tmpf"
 
             # Hidden directories
             if [[ $show_hidden -eq 1 ]]; then
@@ -4666,12 +4673,12 @@ EOF
                     fi
 
                     if [[ -n "$search_query" ]]; then
-                        local l_name=$(echo "$name" | _tolower)
+                        local l_name=$(_tolower "$name")
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
 
                     eval "raw_$raw_count='$_entry|$name|true'"
-                    eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
+                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
                     raw_count=$((raw_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
@@ -4693,12 +4700,12 @@ EOF
                 fi
 
                 if [[ -n "$search_query" ]]; then
-                    local l_name=$(echo "$name" | _tolower)
+                    local l_name=$(_tolower "$name")
                     case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
 
                 eval "raw_$raw_count='$_entry|$name|false'"
-                eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
+                eval "raw_lc_$raw_count='$(_tolower "$name")'"
                 raw_count=$((raw_count+1))
 
                 if [[ $show_details -eq 1 ]]; then
@@ -4721,12 +4728,12 @@ EOF
                     fi
 
                     if [[ -n "$search_query" ]]; then
-                        local l_name=$(echo "$name" | _tolower)
+                        local l_name=$(_tolower "$name")
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
 
                     eval "raw_$raw_count='$_entry|$name|false'"
-                    eval "raw_lc_$raw_count='$(printf "%s" "$name" | _tolower)'"
+                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
                     raw_count=$((raw_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
