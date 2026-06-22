@@ -485,9 +485,10 @@ _draw_line() {
     local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
     
     if [ -n "$1" ]; then
-        # Clear full width first, then draw content (prevents stale text)
+        local _cw=$(( MAX_WIDTH - ${COL_START:-0} ))
+        [ "$_cw" -lt 0 ] && _cw=0
         printf "\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}%*s\e[%d;%dH${FG_TEXT_ESC}${BG_MAIN_ESC}%b" \
-            "$target_row" "$target_col" "$MAX_WIDTH" "" \
+            "$target_row" "$target_col" "$_cw" "" \
             "$target_row" "$target_col" "$1" >&2
     fi
     row=$((row+1))
@@ -714,7 +715,6 @@ _draw_form_field() {
         case "$label" in ">*"*)
             _is_pw=1
             suffix=" 🔑 "
-            box_w=$(( box_w - 4 ))
         ;; esac
 
         local display_val="$value"
@@ -752,6 +752,7 @@ _draw_form_field() {
             [ -z "$_cs" ] && _vlen=$((_vlen + 1))
         fi
         local _pad=$(( box_w - _vlen ))
+        [ -n "$suffix" ] && _pad=$(( _pad - 4 ))
         [ "$_pad" -lt 0 ] && _pad=0
 
         local _tr=$(( row + PADDING_TOP ))
@@ -1475,6 +1476,30 @@ _EOF_
         i=$((i+1))
     done
 
+    # Pre-compute field heights for two-column split logic
+    i=0; while [ "$i" -lt "$count" ]; do
+        eval "f=\"\$fields_$i\""
+        local _fh=1
+        if _match "$f" "---"; then
+            _fh=2
+        elif _match "$f" ">*" || _match "$f" "> "; then
+            _fh=3
+        elif _match "$f" "{*"; then
+            _fh=2
+        elif _match "$f" "\[ \]*"; then
+            _fh=1
+            local _ni=$((i + 1))
+            if [ "$_ni" -lt "$count" ]; then
+                eval "_nf=\"\$fields_$_ni\""
+                ! _match "$_nf" "\[ \]*" && _fh=2
+            else
+                _fh=2
+            fi
+        fi
+        eval "field_height_$i=$_fh"
+        i=$((i+1))
+    done
+
     # Initialize cursor state for first field
     eval "cf=\"\$fields_0\""
     if _match "$cf" ">*"; then
@@ -1493,31 +1518,109 @@ _EOF_
     local _dd_was_open=0
     local _dd_field=0
     local _dd_count=0
+    local _dd_col_start=0
     local _dd_open_row=0
 
     while true; do
         _draw_header "$title" "$msg"
-        
-        i=0; while [ "$i" -lt "$count" ]; do
-            local active=0
-            [ "$i" -eq "$cur" ] && active=1
-            eval "field_rows_$i=$row"
-            eval "f=\"\$fields_$i\""
-            eval "v=\"\$values_$i\""
+        local _header_row=$row
 
-            if _match "$f" "---"; then
-                 _draw_at "$row"
-                 local box_w=$(( form_width - 2 ))
-                 local dashes
-                 dashes=$(printf "%*s" "$box_w" "")
-                 dashes="${dashes// /-}"
-                 printf "  ${FG_HINT_ESC}%s${RESET}${BG_MAIN_ESC}" "$dashes" >&2
-                 row=$((row+2))
-            else
-                 _draw_form_field "$f" "$v" "$active" "$i" "$form_width" "$COL_START" "$_cursor_prefix" "$_cursor_suffix"
-            fi
+        # Determine if 2-column mode is needed
+        local total_h=0
+        i=0; while [ "$i" -lt "$count" ]; do
+            eval "h=\$field_height_$i"
+            total_h=$((total_h + h))
             i=$((i+1))
         done
+        local avail_h=$(( CONTROLS_ROW - _header_row - 1 ))
+        local two_column=0
+        local split_idx=$count
+        local left_end=$row
+        if [ "$total_h" -gt "$avail_h" ] && [ "$count" -gt 2 ]; then
+            two_column=1
+            local right_col_start=$(( ((MAX_WIDTH + 1) / 2) - 3 ))
+            local right_width=$form_width
+            local col_h=0
+            i=0; while [ "$i" -lt "$count" ]; do
+                eval "h=\$field_height_$i"
+                [ $((col_h + h)) -gt "$avail_h" ] && { split_idx=$i; break; }
+                col_h=$((col_h + h))
+                i=$((i+1))
+            done
+        fi
+
+        if [ "$two_column" -eq 1 ]; then
+            local left_width=$(( form_width - 2 ))
+            # Render left column (0..split_idx-1)
+            i=0; while [ "$i" -lt "$split_idx" ]; do
+                local active=0
+                [ "$i" -eq "$cur" ] && active=1
+                eval "field_rows_$i=$row"
+                eval "field_colstart_$i=$COL_START"
+                eval "f=\"\$fields_$i\""
+                eval "v=\"\$values_$i\""
+                if _match "$f" "---"; then
+                    _draw_at "$row"
+                    local box_w=$(( left_width - 2 ))
+                    local dashes
+                    dashes=$(printf "%*s" "$box_w" "")
+                    dashes="${dashes// /-}"
+                    printf "  ${FG_HINT_ESC}%s${RESET}${BG_MAIN_ESC}" "$dashes" >&2
+                    row=$((row+2))
+                else
+                    _draw_form_field "$f" "$v" "$active" "$i" "$left_width" "$COL_START" "$_cursor_prefix" "$_cursor_suffix"
+                fi
+                i=$((i+1))
+            done
+            left_end=$row
+
+            # Render right column (split_idx..count-1)
+            row=$_header_row
+            i=$split_idx; while [ "$i" -lt "$count" ]; do
+                local active=0
+                [ "$i" -eq "$cur" ] && active=1
+                eval "field_rows_$i=$row"
+                eval "field_colstart_$i=$right_col_start"
+                eval "f=\"\$fields_$i\""
+                eval "v=\"\$values_$i\""
+                if _match "$f" "---"; then
+                    _draw_at "$row" "$right_col_start"
+                    local box_w=$(( right_width - 2 ))
+                    local dashes
+                    dashes=$(printf "%*s" "$box_w" "")
+                    dashes="${dashes// /-}"
+                    printf "  ${FG_HINT_ESC}%s${RESET}${BG_MAIN_ESC}" "$dashes" >&2
+                    row=$((row+2))
+                else
+                    _draw_form_field "$f" "$v" "$active" "$i" "$right_width" "$right_col_start" "$_cursor_prefix" "$_cursor_suffix"
+                fi
+                i=$((i+1))
+            done
+            local right_end=$row
+            row=$(( left_end > right_end ? left_end : right_end ))
+        else
+            # Single column (original behavior)
+            i=0; while [ "$i" -lt "$count" ]; do
+                local active=0
+                [ "$i" -eq "$cur" ] && active=1
+                eval "field_rows_$i=$row"
+                eval "field_colstart_$i=$COL_START"
+                eval "f=\"\$fields_$i\""
+                eval "v=\"\$values_$i\""
+                if _match "$f" "---"; then
+                    _draw_at "$row"
+                    local box_w=$(( form_width - 2 ))
+                    local dashes
+                    dashes=$(printf "%*s" "$box_w" "")
+                    dashes="${dashes// /-}"
+                    printf "  ${FG_HINT_ESC}%s${RESET}${BG_MAIN_ESC}" "$dashes" >&2
+                    row=$((row+2))
+                else
+                    _draw_form_field "$f" "$v" "$active" "$i" "$form_width" "$COL_START" "$_cursor_prefix" "$_cursor_suffix"
+                fi
+                i=$((i+1))
+            done
+        fi
         
         _draw_footer
 
@@ -1531,15 +1634,16 @@ _EOF_
             opts="$_v_rest"
 
             if [ "$state" = "OPEN" ]; then
+                eval "fc=\$field_colstart_$cur"
                 oi=0; while [ "$oi" -lt "$_dd_count" ]; do
                     local cr=$((_dd_open_row + oi))
-                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr" "$fc"; local _cw=$(( MAX_WIDTH - fc )); [ "$_cw" -lt 0 ] && _cw=0; printf "%*s" "$_cw" "" >&2; }
                     oi=$((oi+1))
                 done
                 _filter_opts "$query" "$opts"
                 eval "drow=\$((field_rows_$cur + 1))"
                 j=0; while [ "$j" -lt "$FILTERED_COUNT" ]; do
-                    _draw_at "$drow"
+                    _draw_at "$drow" "$fc"
                     printf "$INDENT" >&2
                     eval "odisp=\"\$filtered_$j\""
                     local opt_display="${odisp%:*}"
@@ -1552,11 +1656,12 @@ _EOF_
                 _dd_field=$cur
                 _dd_count=$FILTERED_COUNT
                 eval "_dd_open_row=\$((field_rows_$cur + 1))"
+                _dd_col_start=$fc
                 _dd_was_open=1
             elif [ "$_dd_was_open" -eq 1 ]; then
                 oi=0; while [ "$oi" -lt "$_dd_count" ]; do
                     local cr=$((_dd_open_row + oi))
-                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr" "$_dd_col_start"; local _cw=$(( MAX_WIDTH - _dd_col_start )); [ "$_cw" -lt 0 ] && _cw=0; printf "%*s" "$_cw" "" >&2; }
                     oi=$((oi+1))
                 done
                 local saved_row=$row
@@ -1567,7 +1672,8 @@ _EOF_
                         row=$fr
                         eval "fv=\"\$fields_$i\""
                         eval "vv=\"\$values_$i\""
-                        _draw_form_field "$fv" "$vv" 0 "$i" "$form_width" "$COL_START"
+                        eval "fc=\$field_colstart_$i"
+                        _draw_form_field "$fv" "$vv" 0 "$i" "$form_width" "$fc"
                     fi
                     i=$((i+1))
                 done
@@ -1579,7 +1685,7 @@ _EOF_
         elif [ "$_dd_was_open" -eq 1 ]; then
             oi=0; while [ "$oi" -lt "$_dd_count" ]; do
                 local cr=$((_dd_open_row + oi))
-                [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr" "$_dd_col_start"; local _cw=$(( MAX_WIDTH - _dd_col_start )); [ "$_cw" -lt 0 ] && _cw=0; printf "%*s" "$_cw" "" >&2; }
                 oi=$((oi+1))
             done
             _dd_was_open=0
@@ -1704,7 +1810,7 @@ _EOF_
             if [ "$state" = "OPEN" ]; then
                 oi=0; while [ "$oi" -lt "$_dd_count" ]; do
                     local cr=$((_dd_open_row + oi))
-                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr"; printf "%*s" "$MAX_WIDTH" "" >&2; }
+                    [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr" "$_dd_col_start"; local _cw=$(( MAX_WIDTH - _dd_col_start )); [ "$_cw" -lt 0 ] && _cw=0; printf "%*s" "$_cw" "" >&2; }
                     oi=$((oi+1))
                 done
                 _filter_opts "$query" "$opts"

@@ -795,7 +795,7 @@ class TestForm(TuiTestCase):
         stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
                                  [KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
-        self.assert_in_output("User:", stdout)
+        self.assert_in_output("First name:", stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_tab_cycling(self):
@@ -803,7 +803,7 @@ class TestForm(TuiTestCase):
                                  [KEY.TAB, KEY.TAB,
                                   KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
-        self.assert_in_output("User:", stdout)
+        self.assert_in_output("First name:", stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_dropdown_space(self):
@@ -812,7 +812,7 @@ class TestForm(TuiTestCase):
                                   KEY.SPACE, KEY.DOWN, KEY.SPACE,
                                   KEY.ENTER, KEY.ENTER, KEY.ENTER], timeout=10)
         self.assert_exit(0, stdout)
-        self.assert_in_output("User:", stdout)
+        self.assert_in_output("First name:", stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_help(self):
@@ -822,7 +822,7 @@ class TestForm(TuiTestCase):
                                   KEY.ENTER, KEY.ENTER], timeout=8,
                                  init_delay=0.3)
         self.assert_exit(0, stdout)
-        self.assert_in_output("User:", stdout)
+        self.assert_in_output("First name:", stdout)
         self.assert_no_shell_errors(stdout)
 
     def test_q_quit(self):

@@ -326,37 +326,49 @@ demo_configtree() {
     TUI_RESULT=$CONFIG_OUT
 }
 
-# 16. Form (Advanced DSL)
+# 16. Form (Advanced DSL) — two-column when fields exceed available height
 demo_form() {
-    BACKTITLE="terminal-menus.sh demo 16 of 23 - form"
+    BACKTITLE="terminal-menus.sh demo 16 of 23 - form (two-column)"
     FORM_OUT=$(form "" "" \
-        "> User:user=$(whoami)" \
+        "> First name:firstname=$(whoami)" \
+        "> Last name:lastname=Tester" \
+        "> Email:email=test@example.com" \
         ">* Password:password=pass" \
+        "> Phone:phone=555-0100" \
+        "Address:" \
+        "> Street:street=123 Main St" \
+        "> City:city=Springfield" \
         "Country:" \
-        "{ } France:france,Ireland:ireland,Thailand:thailand,Denmark:denmark,United Kingdom:uk,=USA:usa,South Africa:southafrica" \
-        "Enabled connections:" \
-        "[ ] Ethernet:eth0" \
-        "[x] Wifi:wlan0" \
-        "[ ] Fibre:eth1" \
-        "Deployment:" \
-        "(*) Production:prod" \
-        "( ) Staging:stage")
+        "{ } =USA:usa,Canada:canada,Mexico:mexico,UK:uk,France:france,Germany:germany,Japan:japan" \
+        "Preferences:" \
+        "[x] Newsletter:newsletter" \
+        "[ ] Email notif:email_notif" \
+        "[ ] SMS notif:sms_notif" \
+        "Account type:" \
+        "(*) Free:acct_free" \
+        "( ) Pro:acct_pro")
 
-eval "$FORM_OUT"
+    eval "$FORM_OUT"
+
+    local _acct="Free"
+    [ "$acct_pro" = 1 ] && _acct="Pro"
 
     msgbox "Data Received" "
   
-User: $user
-Password: $password
+First name: $firstname
+Last name: $lastname
+Email: $email
+Phone: $phone
   
+Address: $street, $city
 Country: $country
   
-Enable connections:
-Ethernet: $eth0
-Wifi: $wlan0
-Fiber: $eth1
+Account type: $_acct
   
-Deployment: $deployment
+Preferences:
+Newsletter: $newsletter
+Email notif: $email_notif
+SMS notif: $sms_notif
 "
     TUI_RESULT=$FORM_OUT
 }
