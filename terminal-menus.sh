@@ -640,7 +640,8 @@ ${SB}q${SR}           Quit" ;;
         *)
             return 1 ;;
     esac
-    BG_MODAL=$BG_MAIN modal "infobox 'Controls' \"$ctxt\""
+    [ "$TUI_MODE" != "fullscreen" ] && BG_MODAL=$BG_MAIN
+    modal "infobox 'Controls' \"$ctxt\""
     _init_tui
 }
 
@@ -2211,8 +2212,7 @@ Supported Expressions in cells:
                 ;;
 
             "?") # Help
-                _bg=""; [ "$TUI_MODE" != "fullscreen" ] && _bg="$BG_MAIN"
-                BG_MODAL="$_bg" modal "infobox 'Spreadsheet Help' \"$CONTROLS_TXT\""
+                modal "infobox 'Spreadsheet Help' \"$CONTROLS_TXT\""
                 _init_tui
                 ;;
 
@@ -3701,34 +3701,31 @@ modal() {
     local _saved_backtitle="$BACKTITLE"
     local BACKTITLE=
     local _saved_bg_main="$BG_MAIN"
-    
-    # 1. Shadow BG_MAIN locally. 
-    # Uses prefixed value if present, otherwise defaults to a dark/med grey
-    # (slightly lighter than defatul $BG_MAIN)
-    local BG_MAIN="50;50;50"
-
-    # Allow overriding the modal background colour by setting BG_MODAL='255;0;0' (etc)
-    if [[ ! -z "$BG_MODAL" ]];then
-        BG_MAIN="$BG_MODAL"
-    fi
-    
-    # 3. Mode Logic
-    local target_mode="$TUI_MODE"
-    if [[ "$target_mode" == "fullscreen" || -z "$target_mode" ]]; then
-        target_mode="centered"
-    fi
-    
     local old_mode="$TUI_MODE"
     local old_modal="$TUI_MODAL"
     
-    TUI_MODE="$target_mode" 
+    local _user_set_bg_modal="${BG_MODAL:+1}"
+
+    if [ -n "$_user_set_bg_modal" ]; then
+        local BG_MAIN="$BG_MODAL"
+    elif [ "$old_mode" = "fullscreen" ]; then
+        local BG_MAIN="${BG_MODAL:-50;50;50}"
+    else
+        local BG_MAIN="$_saved_bg_main"
+    fi
+
+    local target_mode="$TUI_MODE"
+    if [ "$target_mode" = "fullscreen" ] || [ -z "$target_mode" ]; then
+        target_mode="centered"
+    fi
+    
+    TUI_MODE="$target_mode"
     TUI_MODAL="true"
 
     stty sane; stty -echo
 
     eval "$1"
 
-    # 4. Restore state
     TUI_MODE="$old_mode"
     TUI_MODAL="$old_modal"
     
