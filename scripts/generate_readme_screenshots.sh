@@ -64,6 +64,9 @@ for entry in "${WIDGETS[@]}"; do
         kanban|mainmenu)
             GEOMETRY="100x30"
             ;;
+        filtermenu)
+            GEOMETRY="75x23"
+            ;;
         *)
             GEOMETRY="75x22"
             ;;
