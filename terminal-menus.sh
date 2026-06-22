@@ -2285,20 +2285,26 @@ filtermenu() {
         input_string=$3
     fi
 
-    local all_options
-    all_options=$(echo "$input_string" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//')
+    local _fm_tmp=$(mktemp /tmp/tui_fm.XXXXXX)
+    echo "$input_string" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//' > "$_fm_tmp"
 
-    local _fm_n=0 _fm_i=0
-    local old_ifs="$IFS"; IFS=$'\n'
-    for _fm_opt in $all_options; do
-        [ $_fm_i -ge $MAX_FILTER_ITEMS ] && break
-        local _fm_lo=$(echo "$_fm_opt" | _tolower)
+    local _fm_n
+    _fm_n=$(wc -l < "$_fm_tmp")
+    [ $_fm_n -gt $MAX_FILTER_ITEMS ] && _fm_n=$MAX_FILTER_ITEMS
+
+    local _fm_lc_tmp=$(mktemp /tmp/tui_fm_lc.XXXXXX)
+    head -n $_fm_n "$_fm_tmp" | tr '[:upper:]' '[:lower:]' > "$_fm_lc_tmp"
+
+    exec 3<"$_fm_tmp" 4<"$_fm_lc_tmp"
+    _fm_i=0
+    while [ $_fm_i -lt $_fm_n ]; do
+        IFS= read -r _fm_opt <&3 && IFS= read -r _fm_lc <&4
         eval "_fm_o_$_fm_i=\$_fm_opt"
-        eval "_fm_l_$_fm_i=\$_fm_lo"
+        eval "_fm_l_$_fm_i=\$_fm_lc"
         _fm_i=$((_fm_i+1))
     done
-    IFS="$old_ifs"
-    _fm_n=$_fm_i
+    exec 3<&- 4<&-
+    rm -f "$_fm_tmp" "$_fm_lc_tmp"
 
     local cursor_prefix=""
     local cursor_suffix=""
