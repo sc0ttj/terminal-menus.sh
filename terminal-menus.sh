@@ -3529,23 +3529,17 @@ filtertable() {
         if [ "$filter_query" != "$last_query" ]; then
             filter_count=0
             i=0
+            local max_i=$master_count
+            [ $max_i -gt $MAX_FILTER_ITEMS ] && max_i=$MAX_FILTER_ITEMS
             _flow=$(echo "$filter_query" | _tolower)
-            while [ "$i" -lt "$master_count" ]; do
-                [ $i -ge $MAX_FILTER_ITEMS ] && break
-                _match=""
-                if [ -z "$filter_query" ]; then
-                    _match=1
-                else
+            while [ "$i" -lt "$max_i" ]; do
+                if [ -n "$filter_query" ]; then
                     eval "_slow=\"\$master_search_lc_$i\""
-                    case "$_slow" in
-                        *$_flow*) _match=1 ;;
-                    esac
+                    case "$_slow" in *$_flow*) ;; *) i=$((i+1)); continue ;; esac
                 fi
-                if [ -n "$_match" ]; then
-                    eval "filtered_line_$filter_count=\"\$master_line_$i\""
-                    eval "filtered_cmd_$filter_count=\"\$master_cmd_$i\""
-                    filter_count=$((filter_count+1))
-                fi
+                eval "filtered_line_$filter_count=\"\$master_line_$i\""
+                eval "filtered_cmd_$filter_count=\"\$master_cmd_$i\""
+                filter_count=$((filter_count+1))
                 i=$((i+1))
             done
             count=$filter_count
