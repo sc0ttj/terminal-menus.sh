@@ -630,7 +630,7 @@ ${SB}q${SR}           Quit" ;;
 ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR}     Navigate (also ${SB}Arrows${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
 ${SB}W${SR}/${SB}A${SR}/${SB}S${SR}/${SB}D${SR}     Move item (also ${SB}H${SR}/${SB}J${SR}/${SB}K${SR}/${SB}L${SR})
 ${SB}/${SR}           Search items
-${SB}o${SR}           Cycle sort (by rank, modified, created, completed)
+${SB}o${SR}           Cycle sort (by rank, modified, created, completed, due)
 ${SB}O${SR}           Toggle ascending/descending
 ${SB}Enter${SR}/${SB}e${SR}     Edit note in \\\$EDITOR
 ${SB}n${SR}           New note
@@ -5649,7 +5649,9 @@ kanban() {
     local usable_w=$CONTENT_WIDTH_WIDE
 
     local pad_w=$(( col_w - 3 )) 
-    local sel_c=0 sel_r=0 
+    local sel_c=$((${4:-1} - 1)) sel_r=$((${5:-1} - 1))
+    [ "$sel_c" -lt 0 ] && sel_c=0
+    [ "$sel_r" -lt 0 ] && sel_r=0
     local c=0; while [ "$c" -lt "$num_cols" ]; do
         eval "col_top_$c=0"
         c=$((c+1))
@@ -5753,6 +5755,10 @@ kanban() {
             done
         done < "$_kb_mftmp"
         rm -f "$_kb_mftmp"
+
+        eval "first_max=\$count_$sel_c"
+        [ "$sel_c" -ge "$num_cols" ] && sel_c=0
+        [ "$sel_r" -ge "${first_max:-0}" ] && sel_r=0
 
         row=2
         [[ $PADDING_TOP -eq 0 && -n "$BACKTITLE" ]] && row=3
@@ -5896,24 +5902,25 @@ kanban() {
                     fi
                 done | sort -t '|' -k1${rev_flag})
 
-                echo "Title,Tags,Author,Owner,Created,Modified,Command" > "$filter_csv"
+                echo "Title,Tags,Author,Created,Modified,Due,Command" > "$filter_csv"
                 
                 for entry in $sorted_files; do
                     local fname="${entry#*|}"
                     local f="$dir/$fname"
                     
-                    local r_title=$(_get_fm "$f" "title")
+local r_title=$(_get_fm "$f" "title")
                     local r_tags=$(_get_fm "$f" "tags")
                     local r_auth=$(_get_fm "$f" "author")
-                    local r_own=$(_get_fm "$f" "owner")
                     local r_cre=$(_get_fm "$f" "created")
-                    
+                    local r_due=$(_get_fm "$f" "due")
+
                     local r_mod=$(date -r $(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null) +%Y-%m-%d-%H:%M:%S)
-                    
+
                     local display_cre=$(_get_simple_date "$r_cre" "$NOW_FULL")
                     local display_mod=$(_get_simple_date "$r_mod" "$NOW_FULL")
+                    local display_due=$(_get_simple_date "$r_due" "$NOW_FULL")
 
-                    echo "${r_title//,/;},${r_tags//,/;},$r_auth,$r_own,$display_cre,$display_mod,$f" >> "$filter_csv"
+                    echo "${r_title//,/;},${r_tags//,/;},$r_auth,$display_cre,$display_mod,$display_due,$f" >> "$filter_csv"
                 done
                 IFS="$old_ifs"
 
@@ -6032,6 +6039,7 @@ kanban() {
                     local target_col=$((sel_c - 1))
                     eval "kc=\$kanban_cols_$target_col"
                     _set_fm "$target" "status" "$kc"
+                    [[ $sel_c -eq $((num_cols - 1)) ]] && _set_fm "$target" "completed" ""
 
                     sel_c=$target_col
                     c=0; while [ "$c" -lt "$num_cols" ]; do eval "count_$c=0"; c=$((c+1)); done
@@ -6094,7 +6102,7 @@ kanban() {
                     [[ $sel_r -ge $((col_top + view_h)) ]] && eval "col_top_$sel_c=$((sel_r - view_h + 1))"
                 fi ;;
 
-            "o") case "$sort_mode" in "rank") sort_mode="modified" ;; "modified") sort_mode="created" ;; "created") sort_mode="completed" ;; *) sort_mode="rank" ;; esac ;;
+            "o") case "$sort_mode" in "rank") sort_mode="modified" ;; "modified") sort_mode="created" ;; "created") sort_mode="completed" ;; "completed") sort_mode="due" ;; *) sort_mode="rank" ;; esac ;;
             "O") [[ "$sort_rev" == "true" ]] && sort_rev="false" || sort_rev="true" ;;
             "e"|"") [[ -n "$cur_file" ]] && { ${EDITOR:-vi} "$target"; _init_tui; } ;;
             "n") 
@@ -6104,7 +6112,7 @@ kanban() {
                     _save_undo
                     local d=$(date +%Y-%m-%d-%H:%M:%S)
                     eval "kc=\$kanban_cols_$sel_c"
-                    printf "title: %s\ncreated: %s\ncompleted: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
+                    printf "title: %s\ncreated: %s\ncompleted: \ndue: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
                            "$name" "$d" "$kc" "$USER" "$USER" > "$dir/${name}.md"
                 fi 
                 _init_tui 
