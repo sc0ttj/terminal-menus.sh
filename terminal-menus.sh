@@ -2449,7 +2449,7 @@ filtermenu() {
                 fi ;;
             "?")
             _help_popup filtermenu ;;
-            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
+            "q") if [ "$cur" -eq -1 ]; then cursor_prefix="${cursor_prefix}${KEY}"; else TUI_RESULT=''; return 1; fi ;;
             "j"|"k"|"s"|"w")
                 if [ "$cur" -ge 0 ]; then
                     [ "$KEY" = "j" ] || [ "$KEY" = "s" ] && [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
@@ -3688,7 +3688,7 @@ filtertable() {
                 fi ;;
             "g") [ "$cur" -ge 0 ] && cur=0 || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
             "G") [ "$cur" -ge 0 ] && cur=$((count - 1)) || { [ "$cur" -eq -1 ] && cursor_prefix="${cursor_prefix}${KEY}"; } ;;
-            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
+            "q") if [ "$cur" -eq -1 ]; then cursor_prefix="${cursor_prefix}${KEY}"; else TUI_RESULT=''; return 1; fi ;;
             "/") [ "$cur" -ge 0 ] && cur=-1 ;;
             *)
                 if [ "$cur" -eq -1 ]; then
