@@ -253,7 +253,7 @@ cleanup() {
 # Combined: This ensures the terminal is restored (via cleanup) even if the 
 #           script crashes or the user exits unexpectedly, preventing a 
 #           permanently "broken" terminal state.
-trap cleanup 0
+trap cleanup 0 2
 
 # Define a function to refresh the TUI on resize
 handle_resize() {
