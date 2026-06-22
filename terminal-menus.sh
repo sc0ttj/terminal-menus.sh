@@ -2251,7 +2251,11 @@ Supported Expressions in cells:
                 ;;
 
             "q"|"Q") 
-                [[ "$mode" == "NAV" ]] && break
+                if [[ "$mode" == "NAV" ]]; then
+                    break
+                else
+                    _cursor_prefix="${_cursor_prefix}${key}"
+                fi
                 ;;
 
             $'\177'|$'\010')
