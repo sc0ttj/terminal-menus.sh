@@ -1,6 +1,6 @@
 # terminal-menus.sh
 
-A high-performance, dependency-free TUI (Terminal User Interface) library written entirely in **Pure Bash 3.2+**, with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
+A high-performance, dependency-free TUI (Terminal User Interface) library, supports **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
 
 Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern alternative to `whiptail` and `dialog` with support for TrueColor and modular layouts.
 
@@ -8,45 +8,71 @@ See the demos :)
 
 ## Screenshots
 
+Screenshots of each widget are included throughout this document, alongside their descriptions.
+
 The **`filemanager`** in fullscreen mode:
 
-![mainmenu](screenshots/file_manager.png)
+![filemanager](screenshots/filemanager.png)
 
 The **`mainmenu`** in fullscreen mode:
 
-![file_manager](screenshots/mainmenu.png)
+![mainmenu](screenshots/mainmenu.png)
 
 ---
 
 ## 🚀 Features
 
-- **Pure Bash 3.2**: Works out of the box on macOS and legacy Linux systems.
+- **Bash 3.2+ & BusyBox Ash**: Works on old, modern & embedded systems (Mac and Linux).
 - **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
 - **TrueColor (24-bit)**: Customisable RGB themes.
-- **Adaptive Layouts**: Modal popups, full-screen dashboards, toast notifications, and command palettes.
-- **High Performance**: Minimal use of subshells; uses internal bash built-ins for all logic.
+- **Many Layouts**: Modal popups, full-screen UIs, toast notifications, and command palettes.
+- **High Performance**: Pre-computed lowercase caches, viewport file reading (no `sed` per row), `find`-based directory listing (no shell glob ARG_MAX), shell parameter expansion over `awk`/`cut`/`tr` forks, and `MAX_FILTER_ITEMS` safety cap.
+
+> **Shell requirements**: The library requires `[[ ]]`, `read -n`, and `$'...'` support.  
+> Bash 3.2+ works natively. BusyBox Ash needs `ASH_BASH_COMPAT` enabled at build time.  
+> The library checks these on startup and exits with a clear error if any are missing.
 
 ---
 
 ## 📦 Installation
 
-Simply source the script in your bash project:
+Simply source the script:
 
 ```bash
-source ./terminal-menus.sh
+. ./terminal-menus.sh     # Portable (ash, bash)
+source ./terminal-menus.sh  # Bash-specific
 ```
 
 ---
 
-## 🛠 Basic Usage
+## 🎮 Demo Script
 
+The included demo script (`terminal-menus-demo.sh`) exercises every widget. Three ways to use it:
+
+```bash
+./terminal-menus-demo.sh                # Interactive widget picker menu
+./terminal-menus-demo.sh all            # Run all 23 demos sequentially
+./terminal-menus-demo.sh filemanager    # Run one widget demo and exit
+```
+
+Valid widget names: `infobox`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `table`, `filtertable`, `filemanager`, `spreadsheet`, `kanban`, `mainmenu`.
+
+When run with no arguments, the script shows a `filtermenu` listing all widgets. Select "All widgets" to run everything in order, or pick individual widgets to run one at a time (returns to the picker after each).
+
+---
+
+## 🛠 Basic Usage
 ### 1. Message Box (`msgbox`)
+
+![msgbox](screenshots/msgbox.png)
+
 Displays a standard modal with an OK button.
 
 **Environment Variables:**
 - `OK_LABEL` — Custom OK button text (default: `"OK"`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode (centered, fullscreen, classic, popup, top, bottom, toast, palette)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Confirm / Close
@@ -57,6 +83,9 @@ msgbox "Welcome" "This is a standard message box.\nEnjoy!"
 ```
 
 ### 2. Info Box (`infobox`)
+
+![infobox](screenshots/infobox.png)
+
 A non-blocking message window without buttons. Ideal for background tasks.
 
 **Environment Variables:**
@@ -69,6 +98,9 @@ sleep 2
 ```
 
 ### 3. Yes/No Menu (`yesno`)
+
+![yesno](screenshots/yesno_theme.png)
+
 Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No).
 
 **Environment Variables:**
@@ -76,11 +108,11 @@ Standard boolean choice. Includes support for default focus (1 for Yes, 2 for No
 - `NO_LABEL` — Custom No button text (default: `"NO"`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Left** / **Right** — Switch focus between Yes/No
 - **Enter** — Confirm selection
-- **Esc** — Cancel (returns exit code 1)
 
 ```bash
 if yesno "Question" "Do you want to continue?" 2; then
@@ -89,12 +121,16 @@ fi
 ```
 
 ### 4. Input Box (`inputbox`)
+
+![inputbox](screenshots/inputbox.png)
+
 Captures a single line of text from the user.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_RESULT` — Empty string on cancel
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Left** / **Right** — Move cursor within input
@@ -107,12 +143,16 @@ USER_NAME=$(inputbox "Identity" "Enter your username:" "foo")
 ```
 
 ### 5. Password Box (`passwordbox`)
+
+![passwordbox](screenshots/passwordbox.png)
+
 Masked input for sensitive tokens or passwords.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
 - `TUI_RESULT` — Empty string on cancel
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Confirm input
@@ -123,63 +163,114 @@ PASS=$(passwordbox "Security" "Enter a secret token:" "ppp")
 ```
 
 ### 6. Menu (`menu`)
+
+![menu](screenshots/menu.png)
+
 A standard single-choice selection list. Also see `filtermenu`.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select highlighted item
+- **q** — Cancel / Quit
 
 ```bash
 CHOICE=$(menu "Simple Menu" "Pick a fruit:" 2 "Apple" "Banana" "Cherry")
 ```
 
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+CHOICE=$(menu "Menu" "Pick one:" --file /path/to/items.txt)
+```
+
 ### 7. Checklist (`checklist`)
+
+![checklist](screenshots/checklist.png)
+
 Multiple-choice selection list. Returns each selected item on a new line.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Space** — Toggle selection for current item
 - **Enter** — Confirm and return all selected items
+- **q** — Cancel / Quit
 
 ```bash
 CHKS=$(checklist "Checklist" "Select multiple options:" 2 "Option 1" "Option 2" "Option 3")
 ```
 
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+CHKS=$(checklist "Checklist" "Select:" --file /path/to/items.txt)
+```
+
 ### 8. Radiolist (`radiolist`)
+
+![radiolist](screenshots/radiolist.png)
+
 Mutually exclusive selection list.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Navigate
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Space** — Select current item
 - **Enter** — Confirm selection
+- **q** — Cancel / Quit
 
 ```bash
 RADIO=$(radiolist "Radiolist" "Choose exactly one:" 2 "Low" "Medium" "High")
 ```
 
+For large item sets, use `--file` to read items from a file (avoids ARG_MAX):
+```bash
+RADIO=$(radiolist "Radiolist" "Choose:" --file /path/to/items.txt)
+```
+
 ### 9. Filtermenu (`filtermenu`)
+
+![filtermenu](screenshots/filtermenu.png)
+
 A searchable, real-time filtered list for large datasets.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Type** — Filter list in real-time
-- **Up** / **Down** or **k** / **j** — Navigate filtered results
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate filtered results
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Tab** — Toggle focus (list / filter)
+- **Left** / **Right** — Move cursor within filter input
+- **/** — Focus filter input (from list)
+- **Backspace** — Delete last filter character; when empty, focuses filter
 - **Enter** — Select highlighted item
+- **q** — Cancel / Quit (when not in filter input)
 
 ```bash
 COUNTRIES="Argentina\nAustralia\nBrazil\nCanada"
@@ -187,25 +278,37 @@ SEARCH=$(filtermenu "Search" "Type to filter:" 1 "$COUNTRIES")
 ```
 
 ### 10. Gauge (`gauge`)
+
+![gauge](screenshots/gauge.png)
+
 Visual progress bar tracking piped input (0-100).
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 ```bash
 ( for i in {0..100..20}; do echo $i; sleep 0.3; done ) | gauge "Deploying" "Working..."
 ```
 
 ### 11. Textbox (`textbox`)
+
+![textbox](screenshots/textbox.png)
+
 A read-only scrollable file viewer.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** or **j** / **k** — Scroll vertically
+- **Up** / **Down** or **w** / **s** or **j** / **k** — Scroll vertically
+- **Page Up** / **Page Down** or **J** / **K** or **[** / **]** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Close viewer
 
 ```bash
@@ -213,11 +316,16 @@ textbox "Source view" "File: terminal-menus.sh" "./terminal-menus.sh"
 ```
 
 ### 12. Tailbox (`tailbox`)
+
+![tailbox](screenshots/tailbox.png)
+
 Live-monitoring of a file (similar to `tail -f`).
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Enter** — Close viewer
@@ -227,19 +335,27 @@ tailbox "Log Monitor" "File: server.log" "server.log"
 ```
 
 ### 13. Tree (`tree`)
+
+![tree](screenshots/tree.png)
+
 Deep hierarchical navigation. Returns the full path from root of the selected node. Optional search/filter input.
 
 **Environment Variables:**
 - `ENABLE_FILTER` — Set to `true` to show a search/filter input (default: `false`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** — Navigate tree
-- **Left** / **Right** — Collapse / Expand nodes
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Left** / **Right** or **a** / **d** or **h** / **l** — Collapse / Expand nodes
 - **Enter** — Select node (returns full path from root)
 - **Space** — Toggle selection (config mode only)
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
+- **Tab** — Toggle focus between filter and tree (when `ENABLE_FILTER=true`)
 - **q** — Quit
 
 ```bash
@@ -247,26 +363,47 @@ TREE_DATA=("0|usr|/usr|true" "1|bin|bin/|true" "2|bash|bash|false")
 TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" 1 "${TREE_DATA[@]}")
 ```
 
+For large tree data, use `--file` to read nodes from a file (one node per line, avoids ARG_MAX):
+```bash
+TREE_RES=$(ENABLE_FILTER=true tree "Browser" "Select path:" --file /path/to/nodes.txt)
+```
+
 ### 14. Configtree (`configtree`)
+
+![configtree](screenshots/configtree.png)
+
 Hierarchical configuration toggle. Returns a list of variable assignments. Optional search/filter input. Children of unchecked parents are automatically excluded.
 
 **Environment Variables:**
 - `ENABLE_FILTER` — Set to `true` to show a search/filter input (default: `false`)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** — Navigate tree
-- **Left** / **Right** — Collapse / Expand nodes
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate tree
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Left** / **Right** or **a** / **d** or **h** / **l** — Collapse / Expand nodes
 - **Space** — Toggle checkbox value
 - **Enter** — Confirm and return variable assignments
 - **/** — Focus filter input (when `ENABLE_FILTER=true`)
+- **Tab** — Toggle focus between filter and tree (when `ENABLE_FILTER=true`)
 
 ```bash
 CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" 1 "${CONFIG_DATA[@]}")
 ```
 
+For large tree data, use `--file` to read nodes from a file (avoids ARG_MAX):
+```bash
+CONFIG_OUT=$(ENABLE_FILTER=true configtree "Settings" "Configure System" --file /path/to/nodes.txt)
+```
+
 ### 15. Form (`form`)
+
+![form](screenshots/form.png)
+
 Advanced form builder. Returns shell-evaluable assignments.
 
 **Field Types:**
@@ -280,6 +417,8 @@ Advanced form builder. Returns shell-evaluable assignments.
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Tab** — Cycle through interactive fields
@@ -287,6 +426,7 @@ Advanced form builder. Returns shell-evaluable assignments.
 - **Left** / **Right** — Move cursor in text/password inputs
 - **Space** — Toggle checkbox/radio, open/close dropdown
 - **Enter** — Submit form
+- **q** — Cancel / Quit
 - **Esc** — Close dropdown or cancel
 
 **Dropdown Specifics:**
@@ -306,17 +446,24 @@ eval "$FORM_OUT"
 ```
 
 ### 16. File Picker (`filepicker`)
+
+![filepicker](screenshots/filepicker.png)
+
 A lightweight file and directory picker, supports picking single or multiple items. Also see `filemanager`.
 
 **Environment Variables:**
-- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Up** / **Down** or **k** / **j** / **w** / **s** — Navigate
 - **Enter** or **Right** or **l** / **d** — Open directory / Select file
 - **Left** or **h** / **a** — Go to parent directory
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Tab** — Toggle mark on current item (for multiple selection)
 - **.** — Toggle hidden files
 - **q** — Cancel / Exit
@@ -326,32 +473,51 @@ FILE_PICK=$(filepicker "File picker" "Choose a file" "." 2)
 ```
 
 ### 17. Table (`table`)
+
+![table](screenshots/table.png)
+
 Navigable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Up** / **Down** or **k** / **j** — Scroll rows
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll rows
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select row (returns last column value)
+- **q** — Cancel / Quit
 
 ```bash
 RESULT_CMD=$(table "Action Center" "Pick an item" "data.csv" 1)
 ```
 
 ### 18. Filtertable (`filtertable`)
+
+![filtertable](screenshots/filtertable.png)
+
 Filterable table from CSV. Returns the command or text in the last (hidden) column of the selected row.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Type** — Filter rows in real-time
-- **Up** / **Down** or **k** / **j** — Scroll filtered results
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Scroll filtered results
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
+- **Tab** — Toggle focus (list / filter)
+- **Left** / **Right** — Move cursor in filter
+- **/** — Focus filter input (from list)
 - **Enter** — Select row (returns last column value)
-- **Backspace** — Delete last filter character (when empty, exits widget)
+- **Backspace** — Delete last filter character; when empty, focuses filter
+- **q** — Cancel / Quit (when not in filter input)
 - **Esc** — Cancel / Exit
 
 ```bash
@@ -359,7 +525,17 @@ RESULT_CMD=$(filtertable "Service Search" "Type to search, pick an item." "servi
 ```
 
 ### 19. File Manager (`filemanager`)
+
+![filemanager](screenshots/filemanager.png)
+
 A fast, full-featured file manager, with search & filter, file previews, multiple select, command prompts, and more.
+
+**Environment Variables:**
+- `BACKTITLE` — Background title text
+- `TUI_MODE` — Layout mode
+- `TUI_CD_FILE` — File path to write `cd "dir"` commands to (for external shell integration)
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 
@@ -367,6 +543,7 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [Arrows]  Navigate (also w/a/s/d and h/j/k/l)
 [ENTER]   Open / Select
 [TAB]     Toggle add to selection (sel/{})
+[SPACE]   Toggle current selection
 [.]       Toggle hidden files
 [,]       Toggle detailed list
 [i]       Toggle ignored (.gitignore)
@@ -377,10 +554,17 @@ A fast, full-featured file manager, with search & filter, file previews, multipl
 [f/F]     New file (f) or folder (F)
 [r]       Rename item
 [x/c/v]   Cut/copy/paste
-[h/j/k/l] Left/down/up/right (vim)
-[J/K/g/G] PageDown/PageUp/top/bottom
+[PgUp] / [PgDn]   Scroll by page (also [J]/[K])
+[Home] / [End]    Jump to top / bottom (also [g]/[G])
+[~]       Go home
+[?]       Show help
+[[]/[]]   Preview scroll up/down
 [q/ESC]   Exit / Cancel
 ```
+
+**Notes:**
+- **TAB selections persist** across view toggles (`,`), directory changes, and cross-directory navigation. Select files in one directory, navigate to another, and TAB-select more — all selections are returned on exit.
+- **Tab** highlights selected items in yellow. Selected items remain highlighted when switching between normal and detailed list views.
 
 **Usage:**
 
@@ -390,18 +574,34 @@ filemanager "Home" "$HOME"
 
 You can highlight multiple items using **Tab**, and hit **`:`** to launch a command prompt (**`!`** for root prompt), and then run `rm {}` or `rm sel` to delete the selected files.
 
+**`TUI_CD_FILE` integration** — Use `filemanager` as a "cd on exit" directory picker:
+
+```bash
+export TUI_CD_FILE=/tmp/tui_cd.txt
+filemanager "Browse" "$HOME"
+if [ -f "$TUI_CD_FILE" ]; then
+    cd "$(cat "$TUI_CD_FILE")"
+fi
+```
+
 ### 20. Spreadsheet (`spreadsheet`)
+
+![spreadsheet](screenshots/spreadsheet.png)
+
 An Excel-like sheet, supports formulas (SUM|AVG|MIN|MAX|COUNT|COUNTA|ROUND|CONCAT|IF), horizontal/vertical scrolling, and undo/redo.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
-- **Arrows** or **w** / **a** / **s** / **d** — Navigate cells
-- **Enter** — Select / confirm
-- **z** — Undo
-- **Z** — Redo
+- **Arrows** or **w** / **a** / **s** / **d** or **h** / **j** / **k** / **l** — Navigate cells
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to first / last cell
+- **Enter** — Enter edit mode for current cell
+- **Right** / **Left** — Move cursor in edit mode
+- **?** — Toggle help popup (lists all expressions)
 - **q** — Quit
 
 ```bash
@@ -409,14 +609,21 @@ FINAL_DATA=$(spreadsheet "budget.csv")
 ```
 
 ### 21. Project Manager (`kanban`)
+
+![kanban](screenshots/kanban.png)
+
 A multi-column kanban board, with a searchable table view.
 
 **Environment Variables:**
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Arrows** or **w** / **a** / **s** / **d** — Navigate
+- **Page Up** / **Page Down** — Scroll by page
+- **Home** / **End** — Jump to top / bottom
 - **W** / **A** / **S** / **D** or **H** / **J** / **K** / **L** — Move item
 - **/** — Search items
 - **o** — Cycle sort (by rank, modified, created, completed)
@@ -433,17 +640,24 @@ kanban "Awesome Project" "Manage notes & tickets" ./some-folder
 ```
 
 ### 22. Main Menu (`mainmenu`)
+
+![mainmenu](screenshots/mainmenu.png)
+
 A sidebar menu on the left, where each menu item loads a navigable table, which can launch commands and other widgets.
 
 **Environment Variables:**
 - `TUI_PERSISTENT_FILTERS` — Set to `true` to retain filter text when switching sidebar items
 - `BACKTITLE` — Background title text
 - `TUI_MODE` — Layout mode
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar (adds 2 extra content rows)
+- `TUI_EXTRA_KEYS` — Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys))
 
 **Controls:**
 - **Tab** — Toggle focus between sidebar and table
-- **Up** / **Down** or **k** / **j** — Navigate sidebar or table
+- **Up** / **Down** or **w** / **s** or **k** / **j** — Navigate sidebar or table
 - **Left** / **Right** — Switch focus to sidebar / table
+- **Page Up** / **Page Down** or **J** / **K** — Scroll by page
+- **Home** / **End** or **g** / **G** — Jump to top / bottom
 - **Enter** — Select item, or run command from selected table row
 - **/** — Focus filter input (when in table view)
 - **Backspace** — Focus filter input
@@ -571,6 +785,39 @@ Delete,Action,modal "yesno 'Confirm' 'Are you sure?'" && rm file.tmp
 
 ---
 
+### ⌨️ Custom Keybindings (`TUI_EXTRA_KEYS`)
+
+Add custom keyboard shortcuts to any interactive widget. Bind a key to arbitrary shell code — typically a `modal` call — to overlay popups without leaving the current widget.
+
+**Format:** one `key=command` per line in the env var.
+
+| Key syntax | Example | Effect |
+|------------|---------|--------|
+| Literal char | `?=modal "infobox 'Help' '...'"` | Triggers on `?` |
+| `ctrl_<c>` | `ctrl_x=modal "yesno 'Quit?' '...'"` | Control+X |
+| `shift_<c>` | `shift_u=modal "msgbox '…'"` | Uppercase U |
+
+**Controls:**
+- Keys are checked **before** the widget's native handler, so you can shadow built-in keys.
+- The value is any shell code (typically `modal "widget 'title' 'body'"`).
+- Control codes use `_` separator: `ctrl_c`, `ctrl_x`, etc.
+- Single quotes inside values are automatically escaped; avoid unescaped double quotes in message text.
+
+**Example — filemanager with help, info, and about modals:**
+
+```bash
+export TUI_EXTRA_KEYS="
+shift_u=modal \"msgbox 'Help' 'Navigate with arrows/j/k.\nTab to select.\nq to quit.'\"
+2=modal \"infobox 'System Info' 'terminal-menus.sh v1.0'\"
+3=modal \"msgbox 'About TUI_EXTRA_KEYS' 'Set TUI_EXTRA_KEYS env var with:\n  key=command\n  ctrl_x=command'\"
+"
+filemanager "Browse" "$HOME"
+```
+
+Works in all 16 interactive widgets: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`/`configtree`, `table`/`filtertable`, `mainmenu`, `filemanager`, `kanban`.
+
+---
+
 ## ⚙️ Persistent Configuration
 
 The `mainmenu` demo includes a `update_config` helper to manage `key=value` configuration files with automatic duplicate removal:
@@ -584,17 +831,108 @@ update_config "theme='dark'"
 
 | Variable | Widget | Purpose |
 |----------|--------|---------|
+| `TUI_HIDE_FOOTER=true` | All scrollable widgets | Hide the controls footer bar and add 2 extra lines to the scrollable content area |
 | `TUI_PERSISTENT_FILTERS=true` | `mainmenu` | Keep filter text when switching sidebar items |
 | `ENABLE_FILTER=true` | `tree`, `configtree` | Enable search/filter input |
-| `TUI_CD_FILE` | `filepicker` | Write `cd` commands to a file for shell integration |
+| `TREE_RETURN_VALUES=true` | `tree` | Return label paths instead of ID paths |
+| `TUI_CD_FILE` | `filepicker`, `filemanager` | Write `cd` commands to a file for shell integration |
 | `TUI_MODE` | All | Layout mode (centered, fullscreen, classic, popup, top, bottom, toast, palette) |
 | `TUI_WIDTH` / `TUI_HEIGHT` | `custom` mode | Custom widget dimensions |
 | `TUI_X` / `TUI_Y` | `custom` mode | Custom widget position |
 | `BACKTITLE` | All | Background title text |
 | `OK_LABEL` | `msgbox` | OK button label |
 | `YES_LABEL` / `NO_LABEL` | `yesno` | Yes/No button labels |
+| `TUI_EXTRA_KEYS` | All interactive widgets | Custom keybindings (see [Custom Keybindings](#-custom-keybindings-tui_extra_keys)) |
+| `MAX_FILTER_ITEMS` | `mainmenu`, `filtermenu`, `filtertable`, `tree`, `configtree` | Max items to process in filter loops (default: 5000). Prevents freezes with 10K+ items |
 | `BG_MODAL` | `modal` wrapper | Modal overlay background colour |
 | `ANCHOR` | `palette` mode | Anchor position (tl, tr, bl, br, tc, bc, cc) |
+
+---
+
+## 🧪 Testing
+
+Tests live in `test/`. Four types available:
+
+### 1. Shell compatibility tests (no X required)
+
+```bash
+./test/test_shell_compat.sh
+```
+
+Checks syntax (`ash -n`, `bash -n`) on both scripts, runs the pty form test under each shell, and executes all widget integration tests.
+
+Widget integration tests use `ash` by default. To run under a specific shell:
+
+```bash
+cd test && python3 -m unittest test_demo_widgets
+cd test && SHELL=bash python3 -m unittest test_demo_widgets
+cd test && SHELL=ash  python3 -m unittest test_demo_widgets
+```
+
+### 2. Widget integration tests (no X required)
+
+Run all 181 tests across 24 widgets:
+
+```bash
+cd test && python3 -m unittest test_demo_widgets -v
+```
+
+Run a single widget's tests:
+
+```bash
+python3 -m unittest test.test_demo_widgets.TestMenu
+python3 -m unittest test.test_demo_widgets.TestForm.test_full_flow
+```
+
+Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`, `modal`, `extra_keys`.
+
+### 3. Pty-based functional test (no X required)
+
+```bash
+python3 test/test_form_pty.sh
+```
+
+Validates form widget output — 7 assertions on checkbox states, radio selection, dropdown default, and password field. To run under a specific shell:
+
+```bash
+SHELL=ash  python3 test/test_form_pty.sh
+SHELL=bash python3 test/test_form_pty.sh
+```
+
+### 4. X-based visual tests (requires Xvfb, xterm, xdotool, scrot)
+
+All commands run from the project root:
+
+```bash
+# Form visual test — opens form, submits with Enter, captures 2 screenshots
+cd test && ash interactive_runner.sh wrappers/form_test.sh drivers/form_test.driver
+
+# Mainmenu visual test — Tab/Enter modal flow, types text, submits, quits (4 screenshots)
+cd test && ash interactive_runner.sh wrappers/mainmenu_test.sh drivers/mainmenu_test.driver
+
+# Full 23-widget demo — automates all widgets in terminal-menus-demo.sh (~24 screenshots)
+cd test && ash interactive_runner.sh wrappers/full_demo_wrapper.sh test_full_demo.sh
+```
+
+Screenshots are written to `/tmp/tui_tests/<timestamp>/`.
+
+### CI
+
+The project ships with a GitHub Actions workflow (`.github/workflows/test.yml`) that runs
+syntax checks, form pty test, and all widget integration tests on every push/PR.
+
+### Test structure
+
+| Path | Purpose |
+|------|---------|
+| `test/testlib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
+| `test/test_demo_widgets.py` | Python integration test module covering all 24 widgets (181 tests) |
+| `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
+| `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
+| `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
+| `test/test_form_pty.sh` | Python pty-based form output test (supports `SHELL=ash` / `SHELL=bash`) |
+| `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
+| `test/drivers/` | Keystroke command scripts sourced by the harness |
 
 ---
 

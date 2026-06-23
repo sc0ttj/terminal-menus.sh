@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ash bash python3 util-linux coreutils
+
+      - name: Syntax check
+        run: |
+          echo "=== ash -n ===" && ash -n terminal-menus.sh
+          echo "=== ash -n demo ===" && ash -n terminal-menus-demo.sh
+          echo "=== bash -n ===" && bash -n terminal-menus.sh
+          echo "=== bash -n demo ===" && bash -n terminal-menus-demo.sh
+
+      - name: PTY functional test (form)
+        run: |
+          python3 test/test_form_pty.sh
+
+      - name: Widget integration tests
+        run: |
+          python3 -m unittest discover -s test -p "test_demo_widgets*" -v
+
+      - name: Shell compatibility test runner
+        run: |
+          bash test/test_shell_compat.sh

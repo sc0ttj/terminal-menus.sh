@@ -1,0 +1,11 @@
+# form_test.driver - Keystrokes for form widget test
+# Source'd by interactive_runner.sh
+
+wait_s 1.5
+screenshot "form_initial"
+
+# Enter to submit form with defaults
+enter
+
+wait_s 0.5
+screenshot "form_submitted"

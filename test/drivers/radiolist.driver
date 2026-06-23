@@ -1,0 +1,4 @@
+wait_s 1.5
+screenshot radiolist
+enter
+wait_s 0.5

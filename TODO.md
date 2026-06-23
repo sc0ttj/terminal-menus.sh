@@ -1,64 +1,57 @@
 # terminal-menus.sh: TODO
 ------------------------------------------------------------------
 
+## Allow Nerd font icons
+
+I want a way to support using Nerd font icons in input data, using placeholders like so:
+
+```
+str="{icon_name} Foo bar"
+```
+
+Example
+
+```
+item1="{folder} My Documents"
+```
+
+Is it possible to support "Nerd fonts" in this way, without knowing which "Nerd font" is being used? 
+
+The end goal would be for users to be able to easily, optionally, use nerd font icons, in their menus, tables, lists, input text, etc.
+
+------------------------------------------------------------------
+
 ## Fix: remove calls to `tput`
 
 Use raw ANSI/escape char calls instead. Makes it faster.
 
 ------------------------------------------------------------------
 
-## Re-instate dropdown menus in the `form` widget
-
-Dropdown menus (space to toggle expand/collapse, up/down to navigate, space to select) have gone missing from a previous version.
-
-Re-implement dropdown menus in the `form` widget so that the following syntax works:
-
-```sh
-FORM_OUT=$(form "Demo form" "Enter your details:" \
-    "> User:user=$(whoami)" \
-    ">* Password:password" \
-    "Country:" \
-    "{ } United Kingdom:uk,=USA:usa,South Africa:southafrica" \
-    "Enabled connections:" \
-    "[ ] Ethernet:eth0" \
-    "[x] Wifi:wlan0" \
-    "[ ] Fibre:eth1" \
-    "Deployment:" \
-    "(*) Production:prod" \
-    "( ) Staging:stage")
-```
-
-In the example above, the selected item of the form dropdown should be available as `$country` after running `eval "$FORM_OUT"`.
-
-The `=` represents the item which should be selected by default.
-
-Start by looking in the `form()` function, and the `_draw_form_field()` function.
-
 ## Two column forms
 
-- in fullscreen mode:
+* in fullscreen mode:
   - if form is taller than the visible window, split the form into two columns
-- in all other modes: 
+* in all other modes: 
   - if form is taller than the UI box, split the form into two columns
 
 ## Scrollable `form` fields
 
-Make sure "dropdowns" & "filter dropdowns" have:
+Make sure "dropdowns" have:
 - a max height of 6
-- a scrollable viewport if items exceed 6
+- scrollable items area, if items exceed 6
 
 
 ------------------------------------------------------------------
 
-## Improve demos
+## New widget: `chat`
 
-### `form`
+A chat interface, you supply your own send/receive functions, and "/foo" style commands.
 
-Add all field types (headings, input, password input, checklist, radiolist, dropdown, separators).
+The chat interface should contain:
+* main chat window, with a user list on the right
+* input text field at bottom, with send button to the right
 
 ------------------------------------------------------------------
-
-
 
 ## New widget: `controlpanel`
 
@@ -103,4 +96,6 @@ A 1 or 2 column form, in the "right pane", 70% screen width.
 
 Pressing up/down/j/k on the menu moves up and down.
 Pressing left and right on the menu expands/collapses items.
+
+---------------------------------------------------------------------
 

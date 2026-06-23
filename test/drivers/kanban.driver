@@ -1,0 +1,4 @@
+wait_s 2.0
+screenshot kanban
+send_key q
+wait_s 0.5

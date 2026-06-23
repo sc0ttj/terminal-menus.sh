@@ -1,0 +1,6 @@
+wait_s 1.5
+type_text "Dock"
+wait_s 0.3
+screenshot filtertable
+enter
+wait_s 0.5

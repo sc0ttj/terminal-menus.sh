@@ -1,0 +1,4 @@
+screenshot infobox
+wait_s 0.5
+enter
+wait_s 0.3
