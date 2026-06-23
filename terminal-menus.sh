@@ -1538,8 +1538,8 @@ _EOF_
         local left_end=$row
         if [ "$total_h" -gt "$avail_h" ] && [ "$count" -gt 2 ]; then
             two_column=1
-            local right_col_start=$(( ((MAX_WIDTH + 1) / 2) - 3 ))
-            local right_width=$form_width
+            local right_col_start=$(( ((MAX_WIDTH + 1) / 2) - 5 ))
+            local right_width=$(( form_width + 2 ))
             local col_h=0
             i=0; while [ "$i" -lt "$count" ]; do
                 eval "h=\$field_height_$i"
@@ -1550,7 +1550,7 @@ _EOF_
         fi
 
         if [ "$two_column" -eq 1 ]; then
-            local left_width=$(( form_width - 2 ))
+            local left_width=$(( form_width - 4 ))
             # Render left column (0..split_idx-1)
             i=0; while [ "$i" -lt "$split_idx" ]; do
                 local active=0
