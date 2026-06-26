@@ -826,9 +826,9 @@ class TestForm(TuiTestCase):
         self.assert_no_shell_errors(stdout)
 
     def test_q_quit(self):
-        """'q' quits form, ENTER dismisses msgbox"""
+        """'q' types into field, ENTER submits form, ENTER dismisses msgbox"""
         stdout, rc = self.runner("wrappers/demo_wrapper.sh form",
-                                 [KEY.char("q"), KEY.ENTER], timeout=8)
+                                 [KEY.char("q"), KEY.ENTER, KEY.ENTER], timeout=8)
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 

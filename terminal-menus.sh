@@ -39,6 +39,12 @@ _BS=$(printf '\10')
 _CR=$(printf '\r')
 _LF=$(printf '\n')
 
+# Mouse state (set by _read_key_esc on SGR mouse events)
+MOUSE_BTN=-1
+MOUSE_X=0
+MOUSE_Y=0
+MOUSE_PRESS=0
+
 _esc() { printf "\e[%s;2;%sm" "$1" "$2"; }
 
 # --- POSIX helper functions (for ash/busybox compat) ---
@@ -102,11 +108,22 @@ _render_cursor_display() {
 }
 
 # --- Key + Escape sequence reader ---
-# Reads one key into KEY; if it's ESC, reads trailing sequence into ESC_SEQ
+# Reads one key into KEY; if it's ESC, reads trailing sequence into ESC_SEQ.
+# If the sequence is an SGR mouse event (ESC[<...M/m), parses it into
+# MOUSE_BTN, MOUSE_X, MOUSE_Y, MOUSE_PRESS and sets MOUSE_BTN=0 for left-click
+# (making KEY="" so the widget's Enter-handler can react).
 _read_key_esc() {
-    ESC_SEQ=""; KEY=""
+    ESC_SEQ=""; KEY=""; MOUSE_BTN=-1
     _read_key KEY
-    [ "$KEY" = "$_ESC" ] && _read_str_timeout 2 ESC_SEQ
+    [ "$KEY" != "$_ESC" ] && return
+    _read_str_timeout 2 ESC_SEQ
+    # SGR mouse: ESC[<btn;x;yM or ESC[<btn;x;ym
+    if [ "$ESC_SEQ" = "[<" ]; then
+        _read_sgr_mouse
+        # Treat left-click press as "Enter" (KEY="") for widget handlers
+        [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ] && KEY="" || KEY="$_ESC"
+        return
+    fi
 }
 
 # --- Extra keys parser and handler ---
@@ -236,11 +253,13 @@ cleanup() {
     # 1. Send ANSI Escape Sequences to the terminal
     # \e[?25h  -> Show Cursor: Reverses \e[?25l (which hides it during UI drawing)
     # \e[?1000l -> Disable Mouse: Stops the terminal from sending click/scroll events as text
+    # \e[?1002l -> Disable mouse drag events
+    # \e[?1006l -> Disable SGR mouse encoding
     # \e[0m     -> Reset Colors: Clears all TrueColor/Bold styles and returns to default
     # \e[H      -> Cursor Home: Moves the cursor to the top-left (1,1)
     # \e[J      -> Clear Screen: Wipes everything from the cursor (Home) to the bottom
     # >&2       -> Redirect to STDERR: Ensures these UI codes don't corrupt piped data output
-    printf "\e[?25h\e[?1000l\e[0m\e[H\e[J" >&2
+    printf "\e[?25h\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[0m\e[H\e[J" >&2
 
     # 2. Reset the terminal line settings
     # sane     -> Restores keyboard 'echo' and standard input buffering. 
@@ -279,6 +298,44 @@ trap handle_resize WINCH
 _show_cursor() { printf "\e[?25h" >&2; }
 _hide_cursor() { printf "\e[?25l" >&2; }
 
+# Enable SGR-encoded button-event mouse tracking
+_enable_mouse() {
+    printf "\e[?1000h\e[?1002h\e[?1003h\e[?1006h" >&2
+}
+
+# Read a character from the terminal with optional timeout
+_read_char_timeout() {
+    local _rc_chars=$1 _rc_var=$2 _rc_timeout=${3:-0.05}
+    local _rc_ifs="$IFS"; IFS=
+    read -t "$_rc_timeout" -r -n "$_rc_chars" "$_rc_var" < /dev/tty 2>/dev/null
+    local _rc_rc=$?; IFS="$_rc_ifs"; return $_rc_rc
+}
+
+# Read and parse a full SGR mouse sequence: ESC[<btn;x;yM or ESC[<btn;x;ym
+# Sets MOUSE_BTN, MOUSE_X, MOUSE_Y, MOUSE_PRESS globals
+_read_sgr_mouse() {
+    local _sm_data="" _sm_char=""
+    # Read characters until we get 'M' (press) or 'm' (release)
+    while true; do
+        _read_char_timeout 1 _sm_char 0.05 || break
+        _sm_data="${_sm_data}${_sm_char}"
+        [ "$_sm_char" = "M" ] || [ "$_sm_char" = "m" ] && break
+    done
+    [ -z "$_sm_data" ] && return 1
+    # Parse: btn;x;yM or btn;x;ym
+    local _sm_rest="${_sm_data%[Mm]}"
+    local _sm_last="${_sm_data#"${_sm_data%?}"}"
+    [ "$_sm_last" = "M" ] && MOUSE_PRESS=1 || MOUSE_PRESS=0
+    local _sm_btn="${_sm_rest%%;*}"
+    local _sm_rest="${_sm_rest#*;}"
+    local _sm_x="${_sm_rest%%;*}"
+    local _sm_y="${_sm_rest#*;}"
+    _is_numeric "$_sm_btn" && MOUSE_BTN=$_sm_btn || MOUSE_BTN=0
+    _is_numeric "$_sm_x" && MOUSE_X=$_sm_x || MOUSE_X=0
+    _is_numeric "$_sm_y" && MOUSE_Y=$_sm_y || MOUSE_Y=0
+    return 0
+}
+
 # Define these ONCE at the top level of your script (outside _init_tui)
 # to avoid re-calculating strings that never change.
 _init_static_colors() {
@@ -307,6 +364,7 @@ _init_static_colors() {
 
 _init_tui() {
     stty -echo -icanon min 1 time 1
+    _enable_mouse
     _apply_layout
     
     # ALWAYS re-init colors to support theme switching
@@ -884,6 +942,35 @@ _draw_list() {
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
 
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ "$cur" -gt 0 ] && cur=$((cur-1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            if [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ]; then
+                cur=$_mi
+                if [ "$type" = "menu" ]; then
+                    eval "TUI_RESULT=\${$((cur+1))}"
+                    echo "$TUI_RESULT"
+                    return 0
+                fi
+                # radio/check: treat as Space toggle
+                KEY=" "
+                ESC_SEQ=" "
+            fi
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
@@ -898,29 +985,9 @@ _draw_list() {
                     cur=$pg ;;
                 "[H") cur=0 ;;
                 "[F") cur=$((count - 1)) ;;
-                "[M"|"<0"|"<3"|"[<")
-                    IFS=';' read -r m_btn < /dev/tty
-                    IFS=';' read -r m_col < /dev/tty
-                    read -r m_last < /dev/tty
-                    local m_row="${m_last%[mM]}"
-                    local idx=$(( m_row - PADDING_TOP - list_top ))
-                    if [ "$idx" -ge 0 ] && [ "$idx" -lt "$display_count" ]; then
-                        cur=$((top + idx))
-                        case "$m_last" in
-                            *M)
-                                if [ "$type" = "menu" ]; then
-                                    eval "TUI_RESULT=\${$((cur+1))}"
-                                    echo "$TUI_RESULT"
-                                    return 0
-                                else
-                                    KEY=" "
-                                fi
-                                ;;
-                        esac
-                    fi
-                    ;;
+                "[2"|"[2~"|"2~") [ "$type" != "menu" ] && [ "$cur" -ge 0 ] && { eval "v=\$sel_$cur"; eval "sel_$cur=$((1 - v))"; } ;;
             esac
-            [ "$ESC_SEQ" != " " ] && continue
+            continue
         fi
 
         if [ "$KEY" = " " ]; then
@@ -1038,15 +1105,27 @@ msgbox() {
     while true; do
         _draw_header "$title" "$msg"
         
+        local _mb_btn_row=$(( row + PADDING_TOP ))
         _draw_at "$row"
         printf "$INDENT" >&2
         _draw_btn "$OK_LABEL" 1
         _draw_line ""
         _draw_footer
         
-        _read_key key
-        _handle_extra_keys "$key" && continue
-        [ -z "$key" ] && TUI_RESULT='' && return 0
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+        # SGR mouse
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ] && [ "$MOUSE_Y" -eq "$_mb_btn_row" ]; then
+            local _mb_x_start=$(( PADDING_LEFT + 2 ))
+            local _mb_x_end=$(( _mb_x_start + ${#OK_LABEL} + 2 ))
+            [ "$MOUSE_X" -ge "$_mb_x_start" ] && [ "$MOUSE_X" -le "$_mb_x_end" ] && TUI_RESULT='' && return 0
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+        [ -z "$KEY" ] && TUI_RESULT='' && return 0
     done
 }
 
@@ -1064,23 +1143,38 @@ yesno() {
         printf "$INDENT" >&2
         if [ "$cur" -eq 1 ]; then _draw_btn "$NO_LABEL" 1; else _draw_btn "$NO_LABEL" 0; fi
         
+        local _yn_btn_row=$(( row + PADDING_TOP ))
         _draw_line "" "$row"
         [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
-        local key
-        _read_key key
-        _handle_extra_keys "$key" && continue
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse event
+        if [ "$MOUSE_BTN" -eq 32 ] && [ "$MOUSE_Y" -eq "$_yn_btn_row" ]; then
+            local _yes_end=$(( PADDING_LEFT + 2 + ${#YES_LABEL} + 2 ))
+            [ "$MOUSE_X" -lt "$_yes_end" ] && cur=0 || cur=1
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ] && [ "$MOUSE_Y" -eq "$_yn_btn_row" ]; then
+            local _yes_end=$(( PADDING_LEFT + 2 + ${#YES_LABEL} + 2 ))
+            local _no_start=$(( _yes_end + 2 ))
+            [ "$MOUSE_X" -lt "$_no_start" ] && cur=0 || cur=1
+            TUI_RESULT=true; [ "$cur" -eq 1 ] && TUI_RESULT=false
+            return $cur
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
         
-        if [ "$key" = "$_ESC" ]; then
-            _read_str_timeout 2 key
-            if [ "$key" = "[C" ] || [ "$key" = "[D" ] || [ "$key" = "OC" ] || [ "$key" = "OD" ]; then
+        if [ "$KEY" = "$_ESC" ]; then
+            if [ "$ESC_SEQ" = "[C" ] || [ "$ESC_SEQ" = "[D" ] || [ "$ESC_SEQ" = "OC" ] || [ "$ESC_SEQ" = "OD" ]; then
                 cur=$(( 1 - cur ))
             fi
             continue
         fi
         
-        if [ -z "$key" ]; then
+        if [ -z "$KEY" ]; then
             [ "$cur" -eq 0 ] && TUI_RESULT=true
             [ "$cur" -eq 1 ] && TUI_RESULT=false
             return $cur
@@ -1125,17 +1219,37 @@ _input_core() {
         [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
         _draw_footer
 
-        _read_key char
-        _handle_extra_keys "$char" && continue
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
-        if [ "$char" = "$_escape" ]; then
-            local _del_c="" next_chars=""
-            _read_str_timeout 2 next_chars
+        # SGR mouse: click input row to position cursor
+        if [ "$MOUSE_BTN" -eq 32 ] && [ "$MOUSE_Y" -eq "$phys_row" ]; then
+            local _mc=$(( MOUSE_X - PADDING_LEFT - 4 ))
+            local _combined="${cursor_prefix}${cursor_suffix}"
+            [ "$_mc" -lt 0 ] && _mc=0
+            [ "$_mc" -gt "${#_combined}" ] && _mc="${#_combined}"
+            cursor_prefix="${_combined:0:$_mc}"
+            cursor_suffix="${_combined:$_mc}"
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ] && [ "$MOUSE_Y" -eq "$phys_row" ]; then
+            local _mc=$(( MOUSE_X - PADDING_LEFT - 4 ))
+            local _combined="${cursor_prefix}${cursor_suffix}"
+            [ "$_mc" -lt 0 ] && _mc=0
+            [ "$_mc" -gt "${#_combined}" ] && _mc="${#_combined}"
+            cursor_prefix="${_combined:0:$_mc}"
+            cursor_suffix="${_combined:$_mc}"
+            continue
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
-            case "$next_chars" in
+        if [ "$KEY" = "$_escape" ]; then
+            case "$ESC_SEQ" in
                 "[D"|"OD") _cursor_left cursor_prefix cursor_suffix ;;
                 "[C"|"OC") _cursor_right cursor_prefix cursor_suffix ;;
-                "[3") _read_str_timeout 1 _del_c
+                "[3")
+                    _read_str_timeout 1 _del_c
                     [ "$_del_c" = "~" ] && [ -n "$cursor_suffix" ] && cursor_suffix="${cursor_suffix#?}"
                     ;;
                 "") _hide_cursor; TUI_RESULT=''; return 1 ;;
@@ -1144,14 +1258,14 @@ _input_core() {
                     ;;
             esac
             continue
-        elif [ -z "$char" ]; then
+        elif [ -z "$KEY" ]; then
             break
-        elif [ "$char" = "$_TAB" ]; then
+        elif [ "$KEY" = "$_TAB" ]; then
             continue
-        elif [ "$char" = "$_DEL" ] || [ "$char" = "$_BS" ]; then
+        elif [ "$KEY" = "$_DEL" ] || [ "$KEY" = "$_BS" ]; then
             cursor_prefix="${cursor_prefix%?}"
         else
-            cursor_prefix="${cursor_prefix}${char}"
+            cursor_prefix="${cursor_prefix}${KEY}"
         fi
 
         local _combined="${cursor_prefix}${cursor_suffix}"
@@ -1291,6 +1405,15 @@ local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
                 "[6"|"[6~"|"6~") [ "$((top + height))" -lt "$count" ] && top=$((top + height - 1)); [ "$top" -gt "$((count - height))" ] && top=$((count - height)) ;;
                 "[H") top=0 ;;
                 "[F") top=$((count - height)); [ "$top" -lt 0 ] && top=0 ;;
+                "[<")
+                    # SGR mouse: scroll wheel
+                    [ "$MOUSE_BTN" -eq 64 ] && [ "$top" -gt 0 ] && top=$((top-1))
+                    [ "$MOUSE_BTN" -eq 65 ] && [ "$((top + height))" -lt "$count" ] && top=$((top+1))
+                    if [ "$MOUSE_BTN" -eq 0 ]; then
+                        rm -f "$tmpf"
+                        return 0
+                    fi
+                    ;;
             esac
         elif [ "$KEY" = "k" ] || [ "$KEY" = "w" ]; then
             [ "$top" -gt 0 ] && top=$((top-1))
@@ -1369,6 +1492,8 @@ tailbox() {
 
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
+        # SGR mouse: left-click or any mouse event closes tailbox
+        [ "$MOUSE_BTN" -ge 0 ] && rm -f "$tmpf" && return 0
         if [ -z "$KEY" ]; then
             rm -f "$tmpf"
             return 0
@@ -1693,45 +1818,59 @@ _EOF_
 
         [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Tab${SR}/${SB}Up${SR}/${SB}Down${SR} Navigate | ${SB}Space${SR} Toggle | ${SB}Enter${SR} Submit | ${SB}?${SR} Help"
 
-        local key
-        _read_key key
-        _handle_extra_keys "$key" && continue
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
-        if [ "$key" = "$_ESC" ]; then
-            _read_str_timeout 2 key
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _fi=0
+            while [ "$_fi" -lt "$count" ]; do
+                eval "_fr=\$field_rows_$_fi"
+                local _fsr=$(( _fr + PADDING_TOP ))
+                if [ "$MOUSE_Y" -eq "$_fsr" ]; then
+                    cur=$_fi
+                    break
+                fi
+                _fi=$((_fi+1))
+            done
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _fi=0
+            while [ "$_fi" -lt "$count" ]; do
+                eval "_fr=\$field_rows_$_fi"
+                local _fsr=$(( _fr + PADDING_TOP ))
+                if [ "$MOUSE_Y" -eq "$_fsr" ]; then
+                    cur=$_fi
+                    eval "_ff=\$fields_$_fi"
+                    if _match "$_ff" ">*"; then
+                        eval "_cursor_prefix=\"\$cur_pfx_$_fi\""
+                        [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$_fi\""
+                        eval "_cursor_suffix=\"\$cur_sfx_$_fi\""
+                    fi
+                    break
+                fi
+                _fi=$((_fi+1))
+            done
+            continue
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
-            eval "v_cur=\"\$values_$cur\""
-            _v_rest="$v_cur"
-            state="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
-            s_idx="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
-            query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
-
-            if [ "$state" = "OPEN" ]; then
-                _filter_opts "$query" "$opts"
-                [ "$key" = "[A" ] || [ "$key" = "OA" ] && [ "$s_idx" -gt 0 ] && s_idx=$((s_idx-1))
-                [ "$key" = "[B" ] || [ "$key" = "OB" ] && [ "$s_idx" -lt "$((FILTERED_COUNT-1))" ] && s_idx=$((s_idx+1))
-                eval "values_$cur='$state|$s_idx|$query|$opts'"; continue
-            else
-                if [ "$key" = "[C" ] || [ "$key" = "OC" ]; then
-                    eval "cf=\"\$fields_$cur\""
-                    if _match "$cf" ">*" && [ -n "$_cursor_suffix" ]; then
-                        _cursor_right _cursor_prefix _cursor_suffix
-                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+        if [ "$KEY" = "$_ESC" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA")
+                    eval "v_cur=\"\$values_$cur\""
+                    _v_rest="$v_cur"
+                    state="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    s_idx="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
+                    if [ "$state" = "OPEN" ]; then
+                        _filter_opts "$query" "$opts"
+                        [ "$s_idx" -gt 0 ] && s_idx=$((s_idx-1))
+                        eval "values_$cur='$state|$s_idx|$query|$opts'"
+                        continue
                     fi
-                elif [ "$key" = "[D" ] || [ "$key" = "OD" ]; then
-                    eval "cf=\"\$fields_$cur\""
-                    if _match "$cf" ">*" && [ -n "$_cursor_prefix" ]; then
-                        _cursor_left _cursor_prefix _cursor_suffix
-                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
-                    fi
-                elif [ "$key" = "[3" ]; then
-                    _read_str_timeout 1 _del_c
-                    eval "cf=\"\$fields_$cur\""
-                    if _match "$cf" ">*" && [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ]; then
-                        _cursor_suffix="${_cursor_suffix#?}"
-                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
-                    fi
-                elif [ "$key" = "[A" ] || [ "$key" = "OA" ]; then
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
                         eval "cur_pfx_$cur=\"$_cursor_prefix\""
@@ -1749,7 +1888,19 @@ _EOF_
                         [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$cur\""
                         eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
-                elif [ "$key" = "[B" ] || [ "$key" = "OB" ]; then
+                    continue ;;
+                "[B"|"OB")
+                    eval "v_cur=\"\$values_$cur\""
+                    _v_rest="$v_cur"
+                    state="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    s_idx="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
+                    if [ "$state" = "OPEN" ]; then
+                        _filter_opts "$query" "$opts"
+                        [ "$s_idx" -lt "$((FILTERED_COUNT-1))" ] && s_idx=$((s_idx+1))
+                        eval "values_$cur='$state|$s_idx|$query|$opts'"
+                        continue
+                    fi
                     eval "cf=\"\$fields_$cur\""
                     if _match "$cf" ">*"; then
                         eval "cur_pfx_$cur=\"$_cursor_prefix\""
@@ -1767,18 +1918,50 @@ _EOF_
                         [ -z "$_cursor_prefix" ] && eval "_cursor_prefix=\"\$values_$cur\""
                         eval "_cursor_suffix=\"\$cur_sfx_$cur\""
                     fi
-                else
+                    continue ;;
+                "[C"|"OC")
+                    eval "v_cur=\"\$values_$cur\""
+                    _v_rest="$v_cur"
+                    state="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    [ "$state" = "OPEN" ] && continue
+                    eval "cf=\"\$fields_$cur\""
+                    if _match "$cf" ">*" && [ -n "$_cursor_suffix" ]; then
+                        _cursor_right _cursor_prefix _cursor_suffix
+                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+                    fi
+                    continue ;;
+                "[D"|"OD")
+                    eval "v_cur=\"\$values_$cur\""
+                    _v_rest="$v_cur"
+                    state="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
+                    [ "$state" = "OPEN" ] && continue
+                    eval "cf=\"\$fields_$cur\""
+                    if _match "$cf" ">*" && [ -n "$_cursor_prefix" ]; then
+                        _cursor_left _cursor_prefix _cursor_suffix
+                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+                    fi
+                    continue ;;
+                "[3")
+                    _read_str_timeout 1 _del_c
+                    eval "cf=\"\$fields_$cur\""
+                    if _match "$cf" ">*" && [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ]; then
+                        _cursor_suffix="${_cursor_suffix#?}"
+                        eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+                    fi
+                    continue ;;
+                "")
+                    TUI_RESULT=''; return 1 ;;
+                *)
                     read -t 0 < /dev/tty 2>/dev/null && read -r -n 5 _flush < /dev/tty 2>/dev/null || true
-                fi
-            fi
-            continue
+                    continue ;;
+            esac
         fi
 
         _tab="$_TAB"
         _bs="$_DEL"
         _del="$_BS"
 
-        case "$key" in
+        case "$KEY" in
             "$_tab")
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" ">*"; then
@@ -1943,10 +2126,8 @@ _EOF_
 
             "?")
             _help_popup form ;;
-            "q") [ "$cur" -ge 0 ] && TUI_RESULT='' && return 1 ;;
             *)
                 eval "cf=\"\$fields_$cur\""
-                [ "$key" = "q" ] && ! _match "$cf" ">*" && TUI_RESULT='' && return 1
                 if _match "$cf" "{ }*"; then
                     eval "v=\"\$values_$cur\""
                     _v_rest="$v"
@@ -1954,12 +2135,16 @@ _EOF_
                     s_idx="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"
                     query="${_v_rest%%|*}"; _v_rest="${_v_rest#*|}"; opts="$_v_rest"
                     if [ "$state" = "OPEN" ]; then
-                        query="${query}${key}"
+                        query="${query}${KEY}"
                         eval "values_$cur='$state|0|$query|$opts'"
+                    elif [ "$KEY" = "q" ]; then
+                        TUI_RESULT=''; return 1
                     fi
                 elif _match "$cf" ">*"; then
-                    _cursor_prefix="${_cursor_prefix}${key}"
+                    _cursor_prefix="${_cursor_prefix}${KEY}"
                     eval "values_$cur=\"\${_cursor_prefix}\${_cursor_suffix}\""
+                elif [ "$KEY" = "q" ]; then
+                    TUI_RESULT=''; return 1
                 fi ;;
         esac
     done
@@ -2211,12 +2396,44 @@ Supported Expressions in cells:
         fi
 
         # 6. Input Handling
-        local key
-        _read_key key
-        _handle_extra_keys "$key" && continue
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse
+        if [ "$MOUSE_BTN" -eq 32 ] && [[ "$mode" == "NAV" ]]; then
+            local _ss_header_h=5
+            [[ -n "$title" ]] && _ss_header_h=$((_ss_header_h + 1))
+            [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]] && _ss_header_h=$((_ss_header_h + 1))
+            local _ss_col=$(( (MOUSE_X - PADDING_LEFT - 5) / (col_w + 1) + top_c ))
+            local _ss_row=$(( MOUSE_Y - PADDING_TOP - _ss_header_h + top_r ))
+            [ "$_ss_col" -ge 1 ] && [ "$_ss_col" -le "$MAX_COLS" ] && cur_c=$_ss_col
+            [ "$_ss_row" -ge 1 ] && cur_r=$_ss_row
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [[ "$mode" == "NAV" ]] && { cur_r=$((cur_r - 1)); [ "$cur_r" -lt 1 ] && cur_r=1; }
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [[ "$mode" == "NAV" ]] && cur_r=$((cur_r + 1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ] && [[ "$mode" == "NAV" ]]; then
+            local _ss_header_h=5
+            [[ -n "$title" ]] && _ss_header_h=$((_ss_header_h + 1))
+            [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]] && _ss_header_h=$((_ss_header_h + 1))
+            local _ss_col=$(( (MOUSE_X - PADDING_LEFT - 5) / (col_w + 1) + top_c ))
+            local _ss_row=$(( MOUSE_Y - PADDING_TOP - _ss_header_h + top_r ))
+            [ "$_ss_col" -ge 1 ] && [ "$_ss_col" -le "$MAX_COLS" ] && cur_c=$_ss_col
+            [ "$_ss_row" -ge 1 ] && cur_r=$_ss_row
+            # Enter edit mode on click (like Enter)
+            mode="EDIT"
+            _cursor_prefix=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv"); _cursor_suffix=""
+            continue
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         # --- ENTER KEY HANDLER ---
-        if [ -z "$key" ] || [ "$key" = "$cr" ] || [ "$key" = "$lf" ]; then
+        if [ -z "$KEY" ] || [ "$KEY" = "$cr" ] || [ "$KEY" = "$lf" ]; then
             if [[ "$mode" == "NAV" ]]; then
                 mode="EDIT"
                 _cursor_prefix=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv"); _cursor_suffix=""
@@ -2256,7 +2473,7 @@ Supported Expressions in cells:
 
         # --- FIX: Handle NAV mode shortcuts (x, c, v) FIRST ---
         if [[ "$mode" == "NAV" ]]; then
-            case "$key" in
+            case "$KEY" in
                 "c")
                     clipboard_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
                     continue
@@ -2265,7 +2482,7 @@ Supported Expressions in cells:
                     _push_undo
                     
                     local target_val=""
-                    if [[ "$key" == "x" ]]; then
+                    if [[ "$KEY" == "x" ]]; then
                         clipboard_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
                         target_val=""
                     else
@@ -2304,7 +2521,33 @@ Supported Expressions in cells:
             esac
         fi
 
-        case "$key" in
+        # ESC SEQUENCES (arrows, pgup/dn, etc.)
+        if [ -n "$ESC_SEQ" ]; then
+            if [[ "$mode" == "NAV" ]]; then
+                case "$ESC_SEQ" in
+                    "[A"|"OA") [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) ;;
+                    "[B"|"OB") cur_r=$((cur_r+1)) ;;
+                    "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
+                    "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
+                    "[5"|"[5~") cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1 ;;
+                    "[6"|"[6~") cur_r=$((cur_r + v_h)) ;;
+                    "[H") cur_r=1; cur_c=1 ;;
+                    "[F") cur_r=9999 ; cur_c=$MAX_COLS ;;
+                esac
+            elif [[ "$mode" == "EDIT" ]]; then
+                case "$ESC_SEQ" in
+                    "[C"|"OC") _cursor_right _cursor_prefix _cursor_suffix ;;
+                    "[D"|"OD") _cursor_left _cursor_prefix _cursor_suffix ;;
+                    "[3")
+                        _read_str_timeout 1 _del_c
+                        [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ] && _cursor_suffix="${_cursor_suffix#?}"
+                        ;;
+                esac
+            fi
+            continue
+        fi
+
+        case "$KEY" in
             "z") # UNDO
                 if [[ $undo_idx -gt 0 ]]; then
                     redo_idx=$((redo_idx+1))
@@ -2330,44 +2573,20 @@ Supported Expressions in cells:
                 ;;
 
             # --- VIM and WASD NAVIGATION (NAV Mode Only) ---
-            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "J") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r + v_h)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "K") [[ "$mode" == "NAV" ]] && { cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "g") [[ "$mode" == "NAV" ]] && { cur_r=1; cur_c=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-            "G") [[ "$mode" == "NAV" ]] && { cur_r=9999; cur_c=$MAX_COLS; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}"; } ;;
-
-            $'\033')
-                _read_str_timeout 2 key
-                if [[ "$mode" == "NAV" ]]; then
-                    case "$key" in
-                        "[A"|"OA") [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) ;;
-                        "[B"|"OB") cur_r=$((cur_r+1)) ;;
-                        "[C"|"OC") [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) ;;
-                        "[D"|"OD") [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) ;;
-                        "[5"|"[5~") cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1 ;;
-                        "[6"|"[6~") cur_r=$((cur_r + v_h)) ;;
-                        "[H") cur_r=1; cur_c=1 ;;
-                        "[F") cur_r=9999 ; cur_c=$MAX_COLS ;;
-                    esac
-                elif [[ "$mode" == "EDIT" ]]; then
-                    case "$key" in
-                        "[C"|"OC") _cursor_right _cursor_prefix _cursor_suffix ;;
-                        "[D"|"OD") _cursor_left _cursor_prefix _cursor_suffix ;;
-                        "[3") _read_str_timeout 1 _del_c
-                            [ "$_del_c" = "~" ] && [ -n "$_cursor_suffix" ] && _cursor_suffix="${_cursor_suffix#?}"
-                            ;;
-                    esac
-                fi
-                ;;
+            "h"|"a") [[ "$mode" == "NAV" ]] && [[ $cur_c -gt 1 ]] && cur_c=$((cur_c-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "j"|"s") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "k"|"w") [[ "$mode" == "NAV" ]] && [[ $cur_r -gt 1 ]] && cur_r=$((cur_r-1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "l"|"d") [[ "$mode" == "NAV" ]] && [[ $cur_c -lt $MAX_COLS ]] && cur_c=$((cur_c+1)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "J") [[ "$mode" == "NAV" ]] && cur_r=$((cur_r + v_h)) || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "K") [[ "$mode" == "NAV" ]] && { cur_r=$((cur_r - v_h)); [ "$cur_r" -lt 1 ] && cur_r=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "g") [[ "$mode" == "NAV" ]] && { cur_r=1; cur_c=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
+            "G") [[ "$mode" == "NAV" ]] && { cur_r=9999; cur_c=$MAX_COLS; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
 
             "q"|"Q") 
                 if [[ "$mode" == "NAV" ]]; then
                     break
                 else
-                    _cursor_prefix="${_cursor_prefix}${key}"
+                    _cursor_prefix="${_cursor_prefix}${KEY}"
                 fi
                 ;;
 
@@ -2376,9 +2595,7 @@ Supported Expressions in cells:
                 ;;
 
             *)
-                # CRITICAL: Only append to edit_val if we are actually in EDIT mode
-                # This prevents "v" or "x" from being added to the buffer in NAV mode
-                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${key}" 
+                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}" 
                 ;;
         esac
     done
@@ -2517,6 +2734,44 @@ filtermenu() {
 
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + scroll_offset ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ "$cur" -ge 0 ] && cur=$((cur - 1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                cur=0
+            elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
+                cur=$((cur+1))
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _fm_fb_row=$(( list_top + PADDING_TOP - 2 ))
+            if [ "$MOUSE_Y" -eq "$_fm_fb_row" ]; then
+                cur=-1
+            else
+                local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + scroll_offset ))
+                if [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ]; then
+                    cur=$_mi
+                fi
+            fi
+            # Press = same as Enter
+            if [ "$cur" -eq -1 ]; then
+                [ "$count" -gt 0 ] && cur=0
+            else
+                eval "TUI_RESULT=\"\$filtered_$cur\""
+                eval "echo \"\$filtered_$cur\""
+                return 0
+            fi
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -2803,11 +3058,54 @@ filepicker() {
             return 2
         }
 
-        local key
-        _read_key key
-        _handle_extra_keys "$key" && continue
-        
-        case "$key" in
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ $cur -gt 0 ] && cur=$((cur-1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [ $cur -lt $((count - 1)) ] && cur=$((cur+1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            _handle_selection; [ $? -eq 2 ] && return 0
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+
+        # ESC sequences
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
+                "[B"|"OB") [ $cur -lt $((count - 1)) ] && cur=$((cur+1)) ;;
+                "[C"|"OC") _handle_selection; [ $? -eq 2 ] && return 0 ;;
+                "[D"|"OD")
+                    local old_name="${root_dir##*/}"
+                    local parent_dir="${root_dir%/*}"
+                    if [ -n "$parent_dir" ] && [ "$root_dir" != "/" ]; then
+                        root_dir="$parent_dir"
+                        last_path="$root_dir/$old_name"
+                        rebuild=1; cur=-2
+                        [ -n "$TUI_CD_FILE" ] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
+                        _init_tui
+                    fi ;;
+                "[5"|"[5~") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
+                "[6"|"[6~") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
+                "[H") cur=0 ;;
+                "[F") cur=$((count - 1)) ;;
+            esac
+            continue
+        fi
+
+        case "$KEY" in
             $'\t')
                 eval "node=\$raw_$cur"
                 local path="${node%%|*}"
@@ -2864,29 +3162,6 @@ filepicker() {
                 fi ;;
             "l"|"d"|"")
                 _handle_selection; [ $? -eq 2 ] && return 0 ;;
-
-            $'\033')
-                _read_str_timeout 2 key
-                case "$key" in
-                    "[A"|"OA") [ $cur -gt 0 ] && cur=$((cur-1)) ;;
-                    "[B"|"OB") [ $cur -lt $((count - 1)) ] && cur=$((cur+1)) ;;
-                    "[C"|"OC")
-                        _handle_selection; [ $? -eq 2 ] && return 0 ;;
-                    "[D"|"OD")
-                        local old_name="${root_dir##*/}"
-                        local parent_dir="${root_dir%/*}"
-                        if [ -n "$parent_dir" ] && [ "$root_dir" != "/" ]; then
-                            root_dir="$parent_dir"
-                            last_path="$root_dir/$old_name"
-                            rebuild=1; cur=-2
-                            [ -n "$TUI_CD_FILE" ] && echo "cd \"$root_dir\"" > "$TUI_CD_FILE"
-                            _init_tui
-                        fi ;;
-                    "[5"|"[5~") cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0 ;;
-                    "[6"|"[6~") cur=$((cur + height)); [ "$cur" -ge "$count" ] && cur=$((count - 1)) ;;
-                    "[H") cur=0 ;;
-                    "[F") cur=$((count - 1)) ;;
-                esac ;;
         esac
     done
 }
@@ -3170,15 +3445,33 @@ _tree_core() {
         _draw_footer
 
         # --- STEP 1: ATOMIC CAPTURE ---
-        local key="" ESC_SEQ=""
-        _read_key key
-        _handle_extra_keys "$key" && continue
-        [ "$key" = "$_ESC" ] && { _read_str_timeout 2 ESC_SEQ; }
+        
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - view_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$v_count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ $cur -gt 0 ] && cur=$((cur-1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - view_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$v_count" ] && cur=$_mi
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         # --- STEP 2: FILTER INPUT (Focus at -1) ---
         if [ "$ENABLE_FILTER" = "true" ] && [ $cur -eq -1 ]; then
             if [ -z "$ESC_SEQ" ]; then
-                case "$key" in
+                case "$KEY" in
                     $_DEL|$_BS)
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
@@ -3209,8 +3502,8 @@ _fq_lc=$(_tolower "$filter_query")
                         continue
                         ;;
                     *)
-                        if [ -n "$key" ]; then
-                            cursor_prefix="${cursor_prefix}${key}"
+                        if [ -n "$KEY" ]; then
+                            cursor_prefix="${cursor_prefix}${KEY}"
                             filter_query="${cursor_prefix}${cursor_suffix}"
                             _update_tree_cache
                             cur=-1
@@ -3267,7 +3560,7 @@ _fq_lc=$(_tolower "$filter_query")
             continue
         fi
 
-        case "$key" in
+        case "$KEY" in
             "/") [ "$ENABLE_FILTER" = "true" ] && [ "$cur" -ge 0 ] && cur=-1 ;;
             $_TAB) # TAB toggle filter
                 if [ "$ENABLE_FILTER" = "true" ]; then
@@ -3557,6 +3850,31 @@ table() {
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
 
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - data_start_row + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ "$cur" -gt 0 ] && cur=$((cur-1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _t_id=$(( MOUSE_Y - PADDING_TOP - data_start_row + top ))
+            if [ "$_t_id" -ge 0 ] && [ "$_t_id" -lt "$count" ]; then
+                cur=$_t_id
+            fi
+            # Press = same as Enter
+            eval "TUI_RESULT=\"\$cmd_$cur\""
+            eval "echo \"\$cmd_$cur\""
+            return 0
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
                 "[A"|"OA") [ "$cur" -gt 0 ] && cur=$((cur-1)) ;;
@@ -3734,6 +4052,44 @@ filtertable() {
 
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse events
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _ft_fb_row=$(( data_top + PADDING_TOP - 3 ))
+            if [ "$MOUSE_Y" -eq "$_ft_fb_row" ]; then
+                cur=-1
+            else
+                local _mi=$(( MOUSE_Y - PADDING_TOP - data_top + top ))
+                [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [ "$cur" -ge 0 ] && cur=$((cur-1))
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                cur=0
+            elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
+                cur=$((cur+1))
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _ft_fb_row=$(( data_top + PADDING_TOP - 3 ))
+            if [ "$MOUSE_Y" -eq "$_ft_fb_row" ]; then
+                cur=-1
+            else
+                local _mi=$(( MOUSE_Y - PADDING_TOP - data_top + top ))
+                [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            fi
+            if [ $cur -ge 0 ] && [ $count -gt 0 ]; then
+                eval "TUI_RESULT=\"\$filtered_cmd_$cur\""
+                eval "echo \"\$filtered_cmd_$cur\""
+                return 0
+            fi
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -4097,49 +4453,99 @@ EOF
         printf "%b" "$frame" >&2
 
         # 6. INPUT HANDLING
-        _read_key key
-        _handle_extra_keys "$key" && continue
-        case "$key" in
-            $'\t') focus=$((1 - focus)); continue ;;
-            $'\033') _read_str_timeout 2 key
-                case "$key" in
-                    "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
-                    "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
-                    "[C"|"OC") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_right cursor_prefix cursor_suffix; else focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0; fi ;;
-                    "[D"|"OD") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_left cursor_prefix cursor_suffix; else focus=0; fi ;;
-                    "[3") _read_str_timeout 1 _del_c
-                        if [ "$_del_c" = "~" ] && [[ $focus -eq 1 && $cur_table -eq -1 ]] && [ -n "$cursor_suffix" ]; then
-                            cursor_suffix="${cursor_suffix#?}"
-                            filter_query="${cursor_prefix}${cursor_suffix}"
-                        fi ;;
-                    "[5"|"[5~")
-                        if [[ $focus -eq 0 ]]; then
-                            [[ $cur_side -gt 0 ]] && cur_side=0
-                        elif [[ $cur_table -gt 0 ]]; then
-                            local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg
-                        fi ;;
-                    "[6"|"[6~")
-                        if [[ $focus -eq 0 ]]; then
-                            [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1))
-                        elif [[ $cur_table -lt $((f_count-1)) ]]; then
-                            local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg
-                        fi ;;
-                    "[H")
-                        if [[ $focus -eq 0 ]]; then cur_side=0
-                        elif [[ $cur_table -ge 0 ]]; then cur_table=0
-                        elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
-                    "[F")
-                        if [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1))
-                        elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1))
-                        elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
-                esac
-                continue ;;
-        esac
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
 
-        case "$key" in
+        # SGR mouse
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _mm_side_end=$(( PADDING_LEFT + side_w ))
+            if [ "$MOUSE_X" -le "$_mm_side_end" ]; then
+                focus=0
+                local _si=$(( MOUSE_Y - PADDING_TOP - list_top ))
+                [ "$_si" -ge 0 ] && [ "$_si" -lt "$side_count" ] && cur_side=$_si
+            else
+                focus=1
+                local _di=$(( MOUSE_Y - PADDING_TOP - list_top - 3 + table_top ))
+                [ "$_di" -ge 0 ] && [ "$_di" -lt "$f_count" ] && cur_table=$_di
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            if [[ $focus -eq 0 ]]; then
+                [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1))
+            elif [[ $cur_table -eq -1 ]]; then
+                : # filter: no-op
+            elif [[ $cur_table -gt 0 ]]; then
+                cur_table=$((cur_table-1))
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            if [[ $focus -eq 0 ]]; then
+                [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1))
+            elif [[ $cur_table -eq -1 ]]; then
+                : # filter: no-op
+            elif [[ $cur_table -lt $((f_count-1)) ]]; then
+                cur_table=$((cur_table+1))
+            fi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _mm_side_end=$(( PADDING_LEFT + side_w ))
+            if [ "$MOUSE_X" -le "$_mm_side_end" ]; then
+                focus=0
+                local _si=$(( MOUSE_Y - PADDING_TOP - list_top ))
+                [ "$_si" -ge 0 ] && [ "$_si" -lt "$side_count" ] && cur_side=$_si
+            else
+                focus=1
+                local _di=$(( MOUSE_Y - PADDING_TOP - list_top - 3 + table_top ))
+                [ "$_di" -ge 0 ] && [ "$_di" -lt "$f_count" ] && cur_table=$_di
+            fi
+            continue
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+
+        # ESC sequences
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA") [[ $focus -eq 0 ]] && { [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); } || { [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); } ;;
+                "[B"|"OB") [[ $focus -eq 0 ]] && { [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); } || { [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); } ;;
+                "[C"|"OC") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_right cursor_prefix cursor_suffix; else focus=1; [[ $cur_table -lt 0 && $f_count -gt 0 ]] && cur_table=0; fi ;;
+                "[D"|"OD") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then _cursor_left cursor_prefix cursor_suffix; else focus=0; fi ;;
+                "[3")
+                    _read_str_timeout 1 _del_c
+                    if [ "$_del_c" = "~" ] && [[ $focus -eq 1 && $cur_table -eq -1 ]] && [ -n "$cursor_suffix" ]; then
+                        cursor_suffix="${cursor_suffix#?}"
+                        filter_query="${cursor_prefix}${cursor_suffix}"
+                    fi ;;
+                "[5"|"[5~")
+                    if [[ $focus -eq 0 ]]; then
+                        [[ $cur_side -gt 0 ]] && cur_side=0
+                    elif [[ $cur_table -gt 0 ]]; then
+                        local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg
+                    fi ;;
+                "[6"|"[6~")
+                    if [[ $focus -eq 0 ]]; then
+                        [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1))
+                    elif [[ $cur_table -lt $((f_count-1)) ]]; then
+                        local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg
+                    fi ;;
+                "[H")
+                    if [[ $focus -eq 0 ]]; then cur_side=0
+                    elif [[ $cur_table -ge 0 ]]; then cur_table=0
+                    elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
+                "[F")
+                    if [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1))
+                    elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1))
+                    elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
+            esac
+            continue
+        fi
+
+        case "$KEY" in
+            $'\t') focus=$((1 - focus)) ;;
             "/") 
                 if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
-                    cursor_prefix="${cursor_prefix}${key}"
+                    cursor_prefix="${cursor_prefix}${KEY}"
                     filter_query="${cursor_prefix}${cursor_suffix}"
                 else
                     focus=1
@@ -4148,13 +4554,13 @@ EOF
                 ;;
             "?")
                 _help_popup mainmenu ;;
-            "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
-            "j"|"s") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
-            "k"|"w") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
-            "J") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1)); elif [[ $cur_table -lt $((f_count-1)) ]]; then local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg; fi ;;
-            "K") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=0; elif [[ $cur_table -gt 0 ]]; then local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg; fi ;;
-            "g") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=0; elif [[ $cur_table -ge 0 ]]; then cur_table=0; elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
-            "G") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1)); elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1)); elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
+            "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
+            "j"|"s") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
+            "k"|"w") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
+            "J") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1)); elif [[ $cur_table -lt $((f_count-1)) ]]; then local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg; fi ;;
+            "K") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=0; elif [[ $cur_table -gt 0 ]]; then local pg=$((cur_table - data_h)); [[ $pg -lt 0 ]] && pg=0; cur_table=$pg; fi ;;
+            "g") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=0; elif [[ $cur_table -ge 0 ]]; then cur_table=0; elif [[ $f_count -gt 0 ]]; then cur_table=0; fi ;;
+            "G") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then cur_side=$((side_count - 1)); elif [[ $cur_table -ge 0 ]]; then cur_table=$((f_count - 1)); elif [[ $f_count -gt 0 ]]; then cur_table=$((f_count - 1)); fi ;;
             "")  # Enter
                 if [[ $focus -eq 0 ]]; then
                     focus=1; cur_table=-1
@@ -4177,7 +4583,7 @@ EOF
                     esac
                 fi ;;
             [1-9])  if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
-                        cursor_prefix="${cursor_prefix}${key}"
+                        cursor_prefix="${cursor_prefix}${KEY}"
                         filter_query="${cursor_prefix}${cursor_suffix}"
                     elif [[ $focus -eq 1 && $col_count -gt 0 ]]; then
                         local col=$((key - 1))
@@ -4251,7 +4657,7 @@ EOF
                     fi
                     cur_table=-1
                 fi ;;
-            *) if [ $focus -eq 1 ]; then case "$key" in [[:print:]]) cursor_prefix="${cursor_prefix}${key}"; filter_query="${cursor_prefix}${cursor_suffix}"; cur_table=-1;; esac; fi ;;
+            *) if [ $focus -eq 1 ]; then case "$KEY" in [[:print:]]) cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; cur_table=-1;; esac; fi ;;
         esac
     done
 }
@@ -5155,111 +5561,124 @@ if [[ -n "$search_query" ]]; then
         }
 
         # 6. INPUT HANDLING
-        _read_key key || { TUI_RESULT=''; break; }
-        _handle_extra_keys "$key" && continue
+        _read_key_esc || { TUI_RESULT=''; break; }
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse events (NAV mode only)
+        if [ "$MOUSE_BTN" -eq 32 ] && [[ "$ui_mode" == "NAV" ]]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$raw_count" ] && cur=$_mi
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            [[ "$ui_mode" == "NAV" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            [[ "$ui_mode" == "NAV" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
+            continue
+        elif [[ "$MOUSE_BTN" -eq 0 ]] && [ "$MOUSE_PRESS" -eq 1 ] && [[ "$ui_mode" == "NAV" ]]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$raw_count" ] && cur=$_mi
+            _handle_selection; [[ $? -eq 2 ]] && return 0
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
-        case "$key" in
-            $'\033')
-        local next_chars; _read_str_timeout 2 next_chars
-            
-            if [[ -z "$next_chars" ]]; then
-                if [[ "$ui_mode" == "SEARCH" ]]; then
-                    cur=$_saved_cur; top=$_saved_top
-                    search_query=""; prompt_pos=0; ui_mode="NAV"
-                    rebuild=1; _init_tui
-                elif [[ "$ui_mode" != "NAV" ]]; then
-                    # Handle other modes (CMD, RENAME, etc)
-                    cur=$_saved_cur; top=$_saved_top
-                    ui_mode="NAV"; prompt_buffer=""; prompt_pos=0; rebuild=1
-                else 
-                    TUI_RESULT=''; return 1 # Exit filemanager if already in NAV mode
-                fi
-            else
-                case "$next_chars" in
-                    "[D"|"OD") # Left Arrow
-                        preview_offset=0
-                        if [[ "$ui_mode" != "NAV" ]]; then
-                            [ "$prompt_pos" -gt 0 ] && prompt_pos=$((prompt_pos-1))
-                        else
-                            # NAV MODE: Back to parent
-                            last_path="$root_dir"; root_dir=$(cd "$root_dir/.." && pwd); rebuild=1; cur=-2
-                        fi ;;
-                    "[C"|"OC") # Right Arrow
-                        preview_offset=0
-                        if [[ "$ui_mode" != "NAV" ]]; then
-                            local buf="$prompt_buffer"; [[ "$ui_mode" == "SEARCH" ]] && buf="$search_query"
-                            [ "$prompt_pos" -lt "${#buf}" ] && prompt_pos=$((prompt_pos+1))
-                        else
-                            _handle_selection; [[ $? -eq 2 ]] && return 0
-                        fi ;;
-                    "[3") # DELETE key (3-char seq: \033[3~)
-                        _read_str_timeout 1 _del_c
-                        if [ "$_del_c" = "~" ] && [ "$ui_mode" != "NAV" ]; then
-                            local _buf="$prompt_buffer"; [ "$ui_mode" = "SEARCH" ] && _buf="$search_query"
-                            if [ "$prompt_pos" -lt "${#_buf}" ]; then
-                                if [ "$ui_mode" = "SEARCH" ]; then
-                                    search_query="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
-                                else
-                                    prompt_buffer="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
-                                fi
-                                _refresh_prompt
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[D"|"OD") # Left Arrow
+                    preview_offset=0
+                    if [[ "$ui_mode" != "NAV" ]]; then
+                        [ "$prompt_pos" -gt 0 ] && prompt_pos=$((prompt_pos-1))
+                    else
+                        # NAV MODE: Back to parent
+                        last_path="$root_dir"; root_dir=$(cd "$root_dir/.." && pwd); rebuild=1; cur=-2
+                    fi ;;
+                "[C"|"OC") # Right Arrow
+                    preview_offset=0
+                    if [[ "$ui_mode" != "NAV" ]]; then
+                        local buf="$prompt_buffer"; [[ "$ui_mode" == "SEARCH" ]] && buf="$search_query"
+                        [ "$prompt_pos" -lt "${#buf}" ] && prompt_pos=$((prompt_pos+1))
+                    else
+                        _handle_selection; [[ $? -eq 2 ]] && return 0
+                    fi ;;
+                "[3") # DELETE key (3-char seq: \033[3~)
+                    _read_str_timeout 1 _del_c
+                    if [ "$_del_c" = "~" ] && [ "$ui_mode" != "NAV" ]; then
+                        local _buf="$prompt_buffer"; [ "$ui_mode" = "SEARCH" ] && _buf="$search_query"
+                        if [ "$prompt_pos" -lt "${#_buf}" ]; then
+                            if [ "$ui_mode" = "SEARCH" ]; then
+                                search_query="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
+                            else
+                                prompt_buffer="${_buf:0:prompt_pos}${_buf:$((prompt_pos+1))}"
                             fi
-                        fi ;;
-                    "[A"|"[B"|"OA"|"OB") # Up/Down
-                        preview_offset=0
-                        if [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
-                            if [[ "$next_chars" == "[A" || "$next_chars" == "OA" ]]; then # UP (Older)
-                                if [[ $hist_ptr -lt $((cmd_hist_count - 1)) ]]; then
-                                    hist_ptr=$((hist_ptr+1))
-                                    eval "prompt_buffer=\$cmd_hist_$hist_ptr"
-                                    prompt_pos=${#prompt_buffer}
-                                fi
-                            else # DOWN (Newer)
-                                if [[ $hist_ptr -gt 0 ]]; then
-                                    hist_ptr=$((hist_ptr-1))
-                                    eval "prompt_buffer=\$cmd_hist_$hist_ptr"
-                                    prompt_pos=${#prompt_buffer}
-                                elif [[ $hist_ptr -eq 0 ]]; then
-                                    hist_ptr=-1
-                                    prompt_buffer=""
-                                    prompt_pos=0
-                                fi
-                            fi
-                            # Use your surgical redraw to show the recalled command
                             _refresh_prompt
-                            continue
                         fi
+                    fi ;;
+                "[A"|"OA"|"[B"|"OB") # Up/Down
+                    preview_offset=0
+                    if [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
+                        if [[ "$ESC_SEQ" == "[A" || "$ESC_SEQ" == "OA" ]]; then # UP (Older)
+                            if [[ $hist_ptr -lt $((cmd_hist_count - 1)) ]]; then
+                                hist_ptr=$((hist_ptr+1))
+                                eval "prompt_buffer=\$cmd_hist_$hist_ptr"
+                                prompt_pos=${#prompt_buffer}
+                            fi
+                        else # DOWN (Newer)
+                            if [[ $hist_ptr -gt 0 ]]; then
+                                hist_ptr=$((hist_ptr-1))
+                                eval "prompt_buffer=\$cmd_hist_$hist_ptr"
+                                prompt_pos=${#prompt_buffer}
+                            elif [[ $hist_ptr -eq 0 ]]; then
+                                hist_ptr=-1
+                                prompt_buffer=""
+                                prompt_pos=0
+                            fi
+                        fi
+                        _refresh_prompt
+                        continue
+                    fi
 
-                        if [[ "$ui_mode" == "NAV" ]]; then
-                            [[ "$next_chars" == "[A" || "$next_chars" == "OA" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
-                            [[ "$next_chars" == "[B" || "$next_chars" == "OB" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
-                        fi ;;
-                    "[5"|"[5~")
-                        if [[ "$ui_mode" == "NAV" ]]; then
-                            cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0
-                            preview_offset=0
-                        fi
-                        case "$next_chars" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
-                    "[6"|"[6~")
-                        if [[ "$ui_mode" == "NAV" ]]; then
-                            cur=$((cur + height)); [ "$cur" -ge "$raw_count" ] && cur=$((raw_count - 1))
-                            preview_offset=0
-                        fi
-                        case "$next_chars" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
-                    "[H")
-                        if [[ "$ui_mode" == "NAV" ]]; then cur=0; preview_offset=0; fi ;;
-                    "[F")
-                        if [[ "$ui_mode" == "NAV" ]]; then cur=$((raw_count - 1)); preview_offset=0; fi ;;
-                esac
-            fi
+                    if [[ "$ui_mode" == "NAV" ]]; then
+                        [[ "$ESC_SEQ" == "[A" || "$ESC_SEQ" == "OA" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
+                        [[ "$ESC_SEQ" == "[B" || "$ESC_SEQ" == "OB" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
+                    fi ;;
+                "[5"|"[5~")
+                    if [[ "$ui_mode" == "NAV" ]]; then
+                        cur=$((cur - height)); [ "$cur" -lt 0 ] && cur=0
+                        preview_offset=0
+                    fi
+                    case "$ESC_SEQ" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
+                "[6"|"[6~")
+                    if [[ "$ui_mode" == "NAV" ]]; then
+                        cur=$((cur + height)); [ "$cur" -ge "$raw_count" ] && cur=$((raw_count - 1))
+                        preview_offset=0
+                    fi
+                    case "$ESC_SEQ" in "[5"|"[6") _read_str_timeout 1 _ ;; esac ;;
+                "[H")
+                    if [[ "$ui_mode" == "NAV" ]]; then cur=0; preview_offset=0; fi ;;
+                "[F")
+                    if [[ "$ui_mode" == "NAV" ]]; then cur=$((raw_count - 1)); preview_offset=0; fi ;;
+                "")
+                    # Bare ESC: exit or cancel mode
+                    if [[ "$ui_mode" == "SEARCH" ]]; then
+                        cur=$_saved_cur; top=$_saved_top
+                        search_query=""; prompt_pos=0; ui_mode="NAV"
+                        rebuild=1; _init_tui
+                    elif [[ "$ui_mode" != "NAV" ]]; then
+                        cur=$_saved_cur; top=$_saved_top
+                        ui_mode="NAV"; prompt_buffer=""; prompt_pos=0; rebuild=1
+                    else
+                        TUI_RESULT=''; return 1
+                    fi ;;
+            esac
             continue
-            ;;
-        esac
+        fi
 
         # --- B. PROMPT MODE (Search/Cmd/Sudo/Rename/New) ---
         if [[ "$ui_mode" != "NAV" ]]; then
-            case "$key" in
+            case "$KEY" in
                 "") # ENTER in SEARCH mode
                     if [[ "$ui_mode" == "SEARCH" ]]; then
                         # --- THE SURGICAL FIX: Check if query is empty ---
@@ -5405,10 +5824,10 @@ if [[ -n "$search_query" ]]; then
                     fi ;;
 
                 *) # Character Input
-                    if case "$key" in [[:print:]]) true;; *) false;; esac; then
+                    if case "$KEY" in [[:print:]]) true;; *) false;; esac; then
                         if [[ "$ui_mode" == "SEARCH" ]]; then
                             # 1. Update query
-                            search_query="${search_query:0:prompt_pos}${key}${search_query:prompt_pos}"
+                            search_query="${search_query:0:prompt_pos}${KEY}${search_query:prompt_pos}"
                             prompt_pos=$((prompt_pos+1))
 
                             # 2. SURGICAL UPDATES (Do not use rebuild=1)
@@ -5433,7 +5852,7 @@ if [[ -n "$search_query" ]]; then
 
                             continue # Skip Nav logic
                         else
-                            prompt_buffer="${prompt_buffer:0:prompt_pos}${key}${prompt_buffer:prompt_pos}"
+                            prompt_buffer="${prompt_buffer:0:prompt_pos}${KEY}${prompt_buffer:prompt_pos}"
                             prompt_pos=$((prompt_pos+1))
                             _refresh_prompt
                             continue
@@ -5466,7 +5885,7 @@ if [[ -n "$search_query" ]]; then
         fi
 
         # --- C. NAV MODE HOTKEYS ---
-        case "$key" in
+        case "$KEY" in
             "q") TUI_RESULT=''; return 1 ;; # Now "q" will exit correctly
             "") # ENTER key
                 if [[ "$ui_mode" != "NAV" ]]; then
@@ -5560,7 +5979,7 @@ if [[ -n "$search_query" ]]; then
                  continue ;;
 
             "x"|"c") # Toggle Cut/Copy
-                local op=$([[ "$key" == "x" ]] && echo "CUT" || echo "COPY")
+                local op=$([[ "$KEY" == "x" ]] && echo "CUT" || echo "COPY")
                 
                 # Process tags or focus
                 if [[ $sel_path_count -gt 0 ]]; then
@@ -5963,18 +6382,47 @@ kanban() {
         printf "\e[1;1H" >&2
 
         # 5. Input Handling
-        _read_key key
-        _handle_extra_keys "$key" && continue
-        
-        case "$key" in
-            $'\033')
-            local next_chars=""
-            _read_str_timeout 2 next_chars
-            
-            if [[ -z "$next_chars" ]]; then TUI_RESULT=''; return 1; fi
-            
-            case "$next_chars" in
-                "[A"|"OA") key="k" ;; "[B"|"OB") key="j" ;; "[C"|"OC") key="l" ;; "[D"|"OD") key="h" ;;
+        _read_key_esc
+        _handle_extra_keys "$KEY" && continue
+
+        # SGR mouse
+        if [ "$MOUSE_BTN" -eq 32 ]; then
+            local _kb_bar_h=3
+            [[ -n "$BACKTITLE" ]] && _kb_bar_h=4
+            local _kb_col=$(( (MOUSE_X - PADDING_LEFT) / (item_w + 1) ))
+            [ "$_kb_col" -ge 0 ] && [ "$_kb_col" -lt "$num_cols" ] && sel_c=$_kb_col
+            eval "col_top=\$col_top_$sel_c"
+            local _kb_row=$(( MOUSE_Y - PADDING_TOP - _kb_bar_h + col_top ))
+            [ "$_kb_row" -ge 0 ] && sel_r=$_kb_row
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+            continue
+        elif [ "$MOUSE_BTN" -eq 64 ]; then
+            sel_r=$((sel_r - 1)); [ "$sel_r" -lt 0 ] && sel_r=0
+            continue
+        elif [ "$MOUSE_BTN" -eq 65 ]; then
+            eval "c_max=\$count_$sel_c"; c_max=$((c_max - 1)); [ "$c_max" -lt 0 ] && c_max=0
+            sel_r=$((sel_r + 1)); [ "$sel_r" -gt "$c_max" ] && sel_r=$c_max
+            continue
+        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _kb_bar_h=3
+            [[ -n "$BACKTITLE" ]] && _kb_bar_h=4
+            local _kb_col=$(( (MOUSE_X - PADDING_LEFT) / (item_w + 1) ))
+            [ "$_kb_col" -ge 0 ] && [ "$_kb_col" -lt "$num_cols" ] && sel_c=$_kb_col
+            eval "col_top=\$col_top_$sel_c"
+            local _kb_row=$(( MOUSE_Y - PADDING_TOP - _kb_bar_h + col_top ))
+            [ "$_kb_row" -ge 0 ] && sel_r=$_kb_row
+            continue
+        fi
+        [ "$MOUSE_BTN" -ge 0 ] && continue
+
+        # ESC sequences — map arrows to vi keys, handle page keys directly
+        if [ -n "$ESC_SEQ" ]; then
+            case "$ESC_SEQ" in
+                "[A"|"OA") KEY="k" ;;
+                "[B"|"OB") KEY="j" ;;
+                "[C"|"OC") KEY="l" ;;
+                "[D"|"OD") KEY="h" ;;
                 "[5"|"[5~")
                     sel_r=$((sel_r - view_h)); [ "$sel_r" -lt 0 ] && sel_r=0
                     eval "col_top_$sel_c=$sel_r"
@@ -5992,18 +6440,16 @@ kanban() {
                     sel_r=$((c_len - 1)); [ "$sel_r" -lt 0 ] && sel_r=0
                     eval "col_top_$sel_c=$((sel_r - view_h + 1))"
                     continue ;;
-                *) : ;;
             esac
-            ;;
-        esac
+        fi
 
         local target="" cur_file=""
-        if [[ "$key" != "q" ]]; then
+        if [[ "$KEY" != "q" ]]; then
             eval "cur_file=\$files_${sel_c}_${sel_r}"
             [[ -n "$cur_file" ]] && target="$dir/$cur_file"
         fi
 
-        case "$key" in
+        case "$KEY" in
             "q") TUI_RESULT=''; cleanup; return 1 ;;
 
             "/") 
