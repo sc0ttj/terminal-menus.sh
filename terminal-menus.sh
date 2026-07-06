@@ -6720,9 +6720,17 @@ _texteditor_read_key() {
     case "${_in}" in
         $'\x01') TA_KEY="ctrl_a"    ;;
         $'\x03') TA_KEY="ctrl_c"    ;;
-        $'\x16') TA_KEY="ctrl_v"    ;;
-        $'\x18') TA_KEY="ctrl_x"    ;;
+        $'\x04') TA_KEY="ctrl_d"    ;;
+        $'\x06') TA_KEY="ctrl_f"    ;;
+        $'\x07') TA_KEY="ctrl_g"    ;;
+        $'\x0b') TA_KEY="ctrl_k"    ;;
+        $'\x0c') TA_KEY="ctrl_l"    ;;
+        $'\x0f') TA_KEY="ctrl_o"    ;;
+        $'\x12') TA_KEY="ctrl_r"    ;;
         $'\x13') TA_KEY="ctrl_s"    ;;
+        $'\x16') TA_KEY="ctrl_v"    ;;
+        $'\x17') TA_KEY="ctrl_w"    ;;
+        $'\x18') TA_KEY="ctrl_x"    ;;
         $'\x11') TA_KEY="ctrl_q"    ;;
         $'\x1a') TA_KEY="ctrl_z"    ;;
         $'\x19') TA_KEY="ctrl_y"    ;;
@@ -6746,11 +6754,15 @@ _texteditor_read_key() {
         "[C")      TA_KEY="right"        ;; "[D")      TA_KEY="left"          ;;
         "[1;2A")   TA_KEY="shift_up"     ;; "[1;2B")   TA_KEY="shift_down"    ;;
         "[1;2C")   TA_KEY="shift_right"  ;; "[1;2D")   TA_KEY="shift_left"    ;;
+        "[1;2H")   TA_KEY="shift_home"   ;; "[1;2F")   TA_KEY="shift_end"     ;;
+        "[1;3A")   TA_KEY="alt_up"       ;; "[1;3B")   TA_KEY="alt_down"      ;;
         "[1;5C")   TA_KEY="ctrl_right"   ;; "[1;5D")   TA_KEY="ctrl_left"     ;;
+        "[1;5H")   TA_KEY="ctrl_home"    ;; "[1;5F")   TA_KEY="ctrl_end"      ;;
         "[1;6C")   TA_KEY="ctrl_shift_right";; "[1;6D") TA_KEY="ctrl_shift_left" ;;
         "[H"|"[1~") TA_KEY="home"        ;; "[F"|"[4~") TA_KEY="end"          ;;
-        "[3~")     TA_KEY="delete"       ;; "[5~")     TA_KEY="page_up"       ;;
-        "[6~")     TA_KEY="page_down"    ;; "[2~")     TA_KEY="insert"        ;;
+        "[3~")     TA_KEY="delete"       ;; "[3;5~")   TA_KEY="ctrl_delete"   ;;
+        "[5~")     TA_KEY="page_up"       ;; "[6~")     TA_KEY="page_down"     ;;
+        "[2~")     TA_KEY="insert"        ;;
         "OP")      TA_KEY="f1"           ;;
         "")        TA_KEY="escape"       ;;
     esac
@@ -6832,7 +6844,7 @@ _ta_push_undo() {
     _ta_undo_idx=$((_ta_undo_idx+1))
     [ "$_ta_undo_idx" -gt 50 ] && _ta_undo_idx=1
     local tmp="/tmp/tui_ta_undo_${_ta_undo_idx}_$$.txt"
-    : > "$tmp"
+    echo "CURSOR:$_ta_cur_row:$_ta_cur_col" > "$tmp"
     local r=0
     while [ "$r" -lt "$_ta_lines" ]; do
         eval "echo \"\$_ta_l_$r\"" >> "$tmp"
@@ -6848,20 +6860,32 @@ _ta_pop_undo() {
     [ ! -f "$tmp" ] && return
     _ta_redo_idx=$((_ta_redo_idx+1))
     local rtmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
-    : > "$rtmp"
+    echo "CURSOR:$_ta_cur_row:$_ta_cur_col" > "$rtmp"
     local r=0
     while [ "$r" -lt "$_ta_lines" ]; do
         eval "echo \"\$_ta_l_$r\"" >> "$rtmp"
         r=$((r+1))
     done
     _ta_lines=0
-    while IFS= read -r _ta_line; do
+    local _ta_restore_row=0 _ta_restore_col=0 _ta_cursor_line
+    exec 5< "$tmp"
+    IFS= read -r _ta_cursor_line <&5
+    case "$_ta_cursor_line" in
+        CURSOR:*)
+            _ta_restore_row="${_ta_cursor_line#CURSOR:}"
+            _ta_restore_col="${_ta_restore_row#*:}"
+            _ta_restore_row="${_ta_restore_row%%:*}"
+            ;;
+    esac
+    while IFS= read -r _ta_line <&5; do
         local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
         eval "_ta_l_$_ta_lines='$_ta_line_sq'"
         _ta_lines=$((_ta_lines+1))
-    done < "$tmp"
+    done
+    exec 5<&-
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
-    _ta_cur_row=0; _ta_cur_col=0; _ta_top=0
+    _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
+    _ta_top=$((_ta_cur_row - 5)); [ "$_ta_top" -lt 0 ] && _ta_top=0
     _ta_undo_idx=$((_ta_undo_idx-1))
 }
 
@@ -6869,7 +6893,7 @@ _ta_push_redo() {
     _ta_redo_idx=$((_ta_redo_idx+1))
     [ "$_ta_redo_idx" -gt 50 ] && _ta_redo_idx=1
     local tmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
-    : > "$tmp"
+    echo "CURSOR:$_ta_cur_row:$_ta_cur_col" > "$tmp"
     local r=0
     while [ "$r" -lt "$_ta_lines" ]; do
         eval "echo \"\$_ta_l_$r\"" >> "$tmp"
@@ -6884,13 +6908,25 @@ _ta_pop_redo() {
     _ta_push_undo
     _ta_undo_idx=$((_ta_undo_idx+1))
     _ta_lines=0
-    while IFS= read -r _ta_line; do
+    local _ta_restore_row=0 _ta_restore_col=0 _ta_cursor_line
+    exec 5< "$tmp"
+    IFS= read -r _ta_cursor_line <&5
+    case "$_ta_cursor_line" in
+        CURSOR:*)
+            _ta_restore_row="${_ta_cursor_line#CURSOR:}"
+            _ta_restore_col="${_ta_restore_row#*:}"
+            _ta_restore_row="${_ta_restore_row%%:*}"
+            ;;
+    esac
+    while IFS= read -r _ta_line <&5; do
         local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
         eval "_ta_l_$_ta_lines='$_ta_line_sq'"
         _ta_lines=$((_ta_lines+1))
-    done < "$tmp"
+    done
+    exec 5<&-
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
-    _ta_cur_row=0; _ta_cur_col=0; _ta_top=0
+    _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
+    _ta_top=$((_ta_cur_row - 5)); [ "$_ta_top" -lt 0 ] && _ta_top=0
     _ta_redo_idx=$((_ta_redo_idx-1))
 }
 
@@ -6932,19 +6968,197 @@ _ta_draw_line_content() {
     fi
 }
 
+_ta_find() {
+    local _term=$(modal inputbox "Find" "Search term:" "$_ta_search_term")
+    [ -z "$_term" ] && return
+    _ta_search_term="$_term"
+    _ta_search_row=$_ta_cur_row
+    _ta_search_col=$_ta_cur_col
+    _ta_find_next
+}
+
+_ta_find_next() {
+    [ -z "$_ta_search_term" ] && { _ta_find; return; }
+    local r=$_ta_search_row c=$_ta_search_col
+    local slen=${#_ta_search_term}
+    r=$((r + 1)); c=0
+    [ "$r" -ge "$_ta_lines" ] && r=0
+    local _wrapped=0 _start=$r
+    while [ "$r" -lt "$_ta_lines" ]; do
+        eval "local line=\"\$_ta_l_$r\""
+        local idx=0
+        while true; do
+            local rest="${line:$idx}"
+            case "$rest" in
+                "$_ta_search_term"*) 
+                    _ta_sel_row=$r; _ta_sel_col=$idx
+                    _ta_cur_row=$r; _ta_cur_col=$idx
+                    _ta_search_row=$r; _ta_search_col=$((idx + slen))
+                    _ta_mod=$_ta_mod
+                    return ;;
+            esac
+            idx=$((idx + 1))
+            [ "$idx" -gt "${#line}" ] && break
+        done
+        r=$((r + 1))
+        [ "$r" -ge "$_ta_lines" ] && { r=0; _wrapped=1; }
+        [ "$_wrapped" -eq 1 ] && [ "$r" -ge "$_start" ] && break
+    done
+    msgbox "Find" "No more matches for: $_ta_search_term"
+    _init_tui
+}
+
+_ta_find_replace() {
+    local _term=$(modal inputbox "Replace" "Search term:" "$_ta_search_term")
+    [ -z "$_term" ] && return
+    local _repl=$(modal inputbox "Replace" "Replace with:" "")
+    [ -z "$_repl" ] && _repl=""
+    local _count=0 r=0
+    _ta_push_undo
+    while [ "$r" -lt "$_ta_lines" ]; do
+        eval "local line=\"\$_ta_l_$r\""
+        local newline="" rest="$line" found=0
+        while true; do
+            case "$rest" in
+                *"$_term"*) 
+                    local before="${rest%%"$_term"*}"
+                    newline="${newline}${before}${_repl}"
+                    rest="${rest#*"$_term"}"
+                    found=1; _count=$((_count+1)) ;;
+                *) newline="${newline}${rest}"; break ;;
+            esac
+        done
+        [ "$found" -eq 1 ] && eval "_ta_l_$r=\"\$newline\""
+        r=$((r+1))
+    done
+    [ "$_count" -gt 0 ] && _ta_mod=1
+    msgbox "Replace" "Replaced $_count occurrence(s)."
+    _init_tui
+}
+
+_ta_duplicate() {
+    _ta_push_undo
+    if [ "$_ta_sel_row" -ne -1 ]; then
+        local _txt=$(_ta_get_sel_text)
+        _ta_sel_row=-1; _ta_sel_col=-1
+        eval "local line=\"\$_ta_l_$_ta_cur_row\""
+        line="${line:0:$_ta_cur_col}${_txt}${line:$_ta_cur_col}"
+        eval "_ta_l_$_ta_cur_row=\"\$line\""
+        _ta_cur_col=$((_ta_cur_col + ${#_txt}))
+    else
+        eval "local line=\"\$_ta_l_$_ta_cur_row\""
+        local r=$_ta_lines
+        while [ "$r" -gt "$_ta_cur_row" ]; do
+            eval "_ta_l_$r=\"\$_ta_l_$((r-1))\""
+            r=$((r-1))
+        done
+        eval "_ta_l_$((_ta_cur_row+1))=\"\$line\""
+        _ta_lines=$((_ta_lines+1))
+    fi
+    _ta_mod=1
+}
+
+_ta_delete_line() {
+    _ta_push_undo
+    local r=$_ta_cur_row
+    while [ "$r" -lt $((_ta_lines-1)) ]; do
+        eval "_ta_l_$r=\"\$_ta_l_$((r+1))\""
+        r=$((r+1))
+    done
+    _ta_lines=$((_ta_lines-1))
+    [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
+    [ "$_ta_cur_row" -ge "$_ta_lines" ] && _ta_cur_row=$((_ta_lines-1))
+    _ta_cur_col=0
+    _ta_mod=1; _ta_sel_row=-1
+}
+
+_ta_delete_word_left() {
+    _ta_push_undo
+    local _saved_row=$_ta_cur_row _saved_col=$_ta_cur_col
+    _ta_word_left
+    if [ "$_saved_row" -ne "$_ta_cur_row" ] || [ "$_saved_col" -ne "$_ta_cur_col" ]; then
+        _ta_sel_row=$_saved_row; _ta_sel_col=$_saved_col
+        _ta_del_sel
+    fi
+}
+
+_ta_delete_word_right() {
+    _ta_push_undo
+    local _saved_row=$_ta_cur_row _saved_col=$_ta_cur_col
+    _ta_word_right
+    if [ "$_saved_row" -ne "$_ta_cur_row" ] || [ "$_saved_col" -ne "$_ta_cur_col" ]; then
+        _ta_sel_row=$_saved_row; _ta_sel_col=$_saved_col
+        _ta_del_sel
+    fi
+}
+
+_ta_select_line() {
+    _ta_sel_row=$_ta_cur_row; _ta_sel_col=0
+    eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}"
+}
+
+_ta_move_line() {
+    local _dir=$1 _dest=$((_ta_cur_row + _dir))
+    [ "$_dest" -lt 0 ] || [ "$_dest" -ge "$_ta_lines" ] && return
+    _ta_push_undo
+    eval "local _cur=\"\$_ta_l_$_ta_cur_row\" _dst=\"\$_ta_l_$_dest\""
+    eval "_ta_l_$_ta_cur_row=\"\$_dst\""; eval "_ta_l_$_dest=\"\$_cur\""
+    _ta_cur_row=$_dest; _ta_mod=1
+}
+
+_ta_open_file() {
+    if [ "$_ta_mod" -eq 1 ]; then
+        yesno "Unsaved Changes" "Save before opening?" 1
+        if [ $? -eq 0 ] && [ -n "$file" ]; then
+            : > "$file"
+            local r=0
+            while [ "$r" -lt "$_ta_lines" ]; do
+                eval "echo \"\$_ta_l_$r\"" >> "$file"
+                r=$((r+1))
+            done
+            _ta_mod=0
+        fi
+    fi
+    local _new_file=$(modal filepicker "Open file" "")
+    [ -z "$_new_file" ] && return
+    [ -f "$_new_file" ] && file="$_new_file" || return
+    _ta_lines=0
+    while IFS= read -r _ta_line; do
+        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
+        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        _ta_lines=$((_ta_lines+1))
+    done < "$file"
+    [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
+    _ta_cur_row=0; _ta_cur_col=0; _ta_mod=0; _ta_top=0; _ta_sel_row=-1
+    BACKTITLE="$file"
+    _init_tui
+}
+
 _ta_help_text="
 Arrows               Move cursor
 Shift+Arrows         Select text
+Shift+Home/End       Select to line start/end
 Ctrl+Arrows          Word left/right
 Ctrl+Shift+Arrow     Select word
 Home/End             Line start/end
+Ctrl+Home/End        File top/bottom
 PgUp/PgDn            Page scroll
 Enter                New line
 Backspace/Del        Delete
+Ctrl+Del             Delete word right
+Ctrl+W               Delete word left
 Tab                  4-space indent
 Ctrl+A               Select all
 Ctrl+X/C/V           Cut/Copy/Paste
 Ctrl+Z/Y             Undo/Redo
+Ctrl+D               Duplicate line/selection
+Ctrl+K               Delete line
+Ctrl+L               Select line
+Alt+Up/Down          Move line up/down
+Ctrl+F               Find
+Ctrl+G               Find next
+Ctrl+R               Find & Replace
+Ctrl+O               Open file
 Ctrl+S               Save
 Ctrl+Q               Quit"
 
@@ -6953,6 +7167,7 @@ texteditor() {
     local _ta_lines=0 _ta_cur_row=0 _ta_cur_col=0 _ta_top=0 _ta_mod=0
     local _ta_sel_row=-1 _ta_sel_col=-1 _ta_clipboard=""
     local _ta_undo_idx=0 _ta_redo_idx=0
+    local _ta_search_term="" _ta_search_row=0 _ta_search_col=0
     rm -f /tmp/tui_ta_*_$$.txt
 
     if [ -f "$file" ]; then
@@ -7232,6 +7447,22 @@ texteditor() {
                 _ta_pop_undo ;;
             ctrl_y)
                 _ta_pop_redo ;;
+            ctrl_d)
+                _ta_duplicate ;;
+            ctrl_f)
+                _ta_find ;;
+            ctrl_g)
+                _ta_find_next ;;
+            ctrl_k)
+                _ta_delete_line ;;
+            ctrl_l)
+                _ta_select_line ;;
+            ctrl_o)
+                _ta_open_file ;;
+            ctrl_r)
+                _ta_find_replace ;;
+            ctrl_w)
+                _ta_delete_word_left ;;
             ctrl_s)
                 if [ -n "$file" ]; then
                     : > "$file"
@@ -7248,6 +7479,17 @@ texteditor() {
                 modal "textbox 'Controls' '' '$_ta_help_file'"
                 rm -f "$_ta_help_file"
                 stty -isig -ixon 2>/dev/null ;;
+            shift_home)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                _ta_cur_col=0 ;;
+            shift_end)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}" ;;
+            ctrl_home) _ta_cur_row=0; _ta_cur_col=0; _ta_sel_row=-1 ;;
+            ctrl_end) _ta_cur_row=$((_ta_lines-1)); eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}"; _ta_sel_row=-1 ;;
+            alt_up) _ta_move_line -1 ;;
+            alt_down) _ta_move_line 1 ;;
+            ctrl_delete) _ta_delete_word_right ;;
             ctrl_q|escape)
                 if [ "$_ta_mod" -eq 1 ]; then
                     yesno "Unsaved Changes" "Save before exiting?" 1
