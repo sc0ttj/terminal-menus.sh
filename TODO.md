@@ -27,13 +27,6 @@ Use raw ANSI/escape char calls instead. Makes it faster.
 
 ------------------------------------------------------------------
 
-## Two column forms
-
-* in fullscreen mode:
-  - if form is taller than the visible window, split the form into two columns
-* in all other modes: 
-  - if form is taller than the UI box, split the form into two columns
-
 ## Scrollable `form` fields
 
 Make sure "dropdowns" have:
@@ -43,13 +36,51 @@ Make sure "dropdowns" have:
 
 ------------------------------------------------------------------
 
+## New widget: `textarea`
+
+A simple, writable, multi-line textarea that has key bindings and UX features which mimics more moden editors, for easier multi-line editing in a terminal (better than readline etc).
+
+* up/down arrows move up/down 1 line
+* left/right arrows move 1 char left/right
+* Ctrl-a highlight all text
+* HOME key moves to start of current line
+* END key moves to start of current line
+* Shift+enter carriage return (move to new line)
+* has concept of "separators" (such as `"-","_"," ","+","." and ","`) so it can split words, lines, etc:
+  * shift+right highlights next letter
+  * shift+left highlights prev letter
+  * shift+up highlights backwards, from the char on line above (or end of line), to previous position 
+  * shift+down highlights forwards, from previous position up to the char under previous position (or end of line) on next line. 
+  * shift+right highlights next letter
+  * ctrl+left move to start of current word (press again to move to start of previous word) 
+  * ctrl+right move to end of current word (press again to move to end of next word)
+  * ctrl+shift+left highlight and move to start of current word (press again to highlight and move to start of previous word) 
+  * ctrl+shit+right highlight and move to end of current word (press again to highglight and move to end of next word)
+  * delete key and backspace key should delete all highlighted text
+  * cut, copy, paste should work (ctrl+x, ctrl+c, ctrl+v)
+  * ctrl+s save latest contents back to file
+  * ctrl+q key must be used quit the widget.
+
+The path and filename would be in the BACKTITLE, no need to put them in the widget UI.
+
+The overall goal would be a text-editor like widget, that returns the final file contents to stdout and saves it in $TUI_RESULT too. If any unsaved changes, it should ask to save latest contents back to the file on exit, using a modal popup yesno dialog.
+
+------------------------------------------------------------------
+
 ## New widget: `chat`
 
-A chat interface, you supply your own send/receive functions, and "/foo" style commands.
+A chat interface, you supply "the backend" - your own send/receive functions, and "/foo" style commands.
 
 The chat interface should contain:
-* main chat window, with a user list on the right
-* input text field at bottom, with send button to the right
+* main chat window, with a user list on the right (or left if POSITION_USERS=left)
+* input text field at bottom, with send button to the right (or at top, if POSITION_INPUT=top)
+
+The widget should:
+* document and provide variables, tmp files and data structures that can be passed into the users send/receive functions/scripts and "/foo" style commands as params ($1, $2, etc). 
+
+The chat widget should be generic enough and simple enough to serve as a generic UI frontend for email, IRC, HTTP(S) messaging, local network messaging, easy to hook up to various different "backends".
+
+In any case, the "backend" would just be shell script functions or scripts.
 
 ------------------------------------------------------------------
 
@@ -96,6 +127,7 @@ A 1 or 2 column form, in the "right pane", 70% screen width.
 
 Pressing up/down/j/k on the menu moves up and down.
 Pressing left and right on the menu expands/collapses items.
+Pressing ENTER loads the relevant form in the "right pane" and focuses on its first item.
 
 ---------------------------------------------------------------------
 

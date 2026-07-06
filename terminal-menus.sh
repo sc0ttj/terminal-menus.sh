@@ -6706,3 +6706,570 @@ local r_title=$(_get_fm "$f" "title")
         [ "$sel_r" -lt 0 ] 2>/dev/null && sel_r=0 || true
     done
 }
+
+# ==============================================================================
+# Texteditor Widget
+# ==============================================================================
+
+: ${TA_SEPARATORS:="-/. _+,:;!?()[]{}\"@#\$%^&*~'|\\\\"}
+
+_texteditor_read_key() {
+    TA_KEY=""; TA_CHAR=""
+    local _in _csi=""
+    _read_key _in
+    case "${_in}" in
+        $'\x01') TA_KEY="ctrl_a"    ;;
+        $'\x03') TA_KEY="ctrl_c"    ;;
+        $'\x16') TA_KEY="ctrl_v"    ;;
+        $'\x18') TA_KEY="ctrl_x"    ;;
+        $'\x13') TA_KEY="ctrl_s"    ;;
+        $'\x11') TA_KEY="ctrl_q"    ;;
+        $'\x1a') TA_KEY="ctrl_z"    ;;
+        $'\x19') TA_KEY="ctrl_y"    ;;
+        "$_CR"|"$_LF") TA_KEY="enter"    ;;
+        "$_DEL"|"$_BS") TA_KEY="backspace";;
+        "$_TAB") TA_KEY="tab"       ;;
+    esac
+    [ -n "$TA_KEY" ] && return
+    [ "$_in" != "$_ESC" ] && { TA_KEY="char"; TA_CHAR="$_in"; return; }
+    while _read_char_timeout 1 _byte 0.05; do
+        _csi="${_csi}${_byte}"
+        case "$_byte" in
+            [A-Za-z])
+                [ "$_csi" = "O" ] && continue
+                break ;;
+            ~) break ;;
+        esac
+    done
+    case "$_csi" in
+        "[A")      TA_KEY="up"           ;; "[B")      TA_KEY="down"         ;;
+        "[C")      TA_KEY="right"        ;; "[D")      TA_KEY="left"          ;;
+        "[1;2A")   TA_KEY="shift_up"     ;; "[1;2B")   TA_KEY="shift_down"    ;;
+        "[1;2C")   TA_KEY="shift_right"  ;; "[1;2D")   TA_KEY="shift_left"    ;;
+        "[1;5C")   TA_KEY="ctrl_right"   ;; "[1;5D")   TA_KEY="ctrl_left"     ;;
+        "[1;6C")   TA_KEY="ctrl_shift_right";; "[1;6D") TA_KEY="ctrl_shift_left" ;;
+        "[H"|"[1~") TA_KEY="home"        ;; "[F"|"[4~") TA_KEY="end"          ;;
+        "[3~")     TA_KEY="delete"       ;; "[5~")     TA_KEY="page_up"       ;;
+        "[6~")     TA_KEY="page_down"    ;; "[2~")     TA_KEY="insert"        ;;
+        "OP")      TA_KEY="f1"           ;;
+        "")        TA_KEY="escape"       ;;
+    esac
+}
+
+_ta_is_sep() { case "$TA_SEPARATORS" in *"$1"*) return 0;; esac; return 1; }
+
+_ta_word_left() {
+    eval "local line=\"\$_ta_l_$_ta_cur_row\""
+    local c=$_ta_cur_col
+    [ "$c" -eq 0 ] && { [ "$_ta_cur_row" -gt 0 ] && _ta_cur_row=$((_ta_cur_row-1)) && _ta_cur_col=0; return; }
+    c=$((c-1))
+    while [ "$c" -ge 0 ] && _ta_is_sep "${line:$c:1}"; do c=$((c-1)); done
+    while [ "$c" -ge 0 ] && ! _ta_is_sep "${line:$c:1}"; do c=$((c-1)); done
+    _ta_cur_col=$((c+1))
+}
+
+_ta_word_right() {
+    eval "local line=\"\$_ta_l_$_ta_cur_row\""
+    local len=${#line}
+    local c=$_ta_cur_col
+    [ "$c" -ge "$len" ] && { [ "$_ta_cur_row" -lt $((_ta_lines-1)) ] && _ta_cur_row=$((_ta_cur_row+1)) && _ta_cur_col=0; return; }
+    while [ "$c" -lt "$len" ] && ! _ta_is_sep "${line:$c:1}"; do c=$((c+1)); done
+    while [ "$c" -lt "$len" ] && _ta_is_sep "${line:$c:1}"; do c=$((c+1)); done
+    _ta_cur_col=$c
+}
+
+_ta_get_sel_text() {
+    local sr=$_ta_sel_row sc=$_ta_sel_col er=$_ta_cur_row ec=$_ta_cur_col
+    if [ "$sr" -gt "$er" ] || { [ "$sr" -eq "$er" ] && [ "$sc" -gt "$ec" ]; }; then
+        local t=$sr; sr=$er; er=$t; t=$sc; sc=$ec; ec=$t
+    fi
+    local text="" r=$sr lf=""
+    while [ "$r" -le "$er" ]; do
+        eval "local line=\"\$_ta_l_$r\""
+        if [ "$r" -eq "$sr" ] && [ "$r" -eq "$er" ]; then
+            text="${text}${line:$sc:$((ec-sc))}"
+        elif [ "$r" -eq "$sr" ]; then
+            text="${text}${line:$sc}"
+        elif [ "$r" -eq "$er" ]; then
+            text="${text}${lf}${line:0:$ec}"
+        else
+            text="${text}${lf}${line}"
+        fi
+        lf=$'\n'; r=$((r+1))
+    done
+    echo "$text"
+}
+
+_ta_del_sel() {
+    local sr=$_ta_sel_row sc=$_ta_sel_col er=$_ta_cur_row ec=$_ta_cur_col
+    if [ "$sr" -gt "$er" ] || { [ "$sr" -eq "$er" ] && [ "$sc" -gt "$ec" ]; }; then
+        local t=$sr; sr=$er; er=$t; t=$sc; sc=$ec; ec=$t
+    fi
+    if [ "$sr" -eq "$er" ]; then
+        eval "local line=\"\$_ta_l_$sr\""
+        line="${line:0:$sc}${line:$ec}"
+        eval "_ta_l_$sr=\"\$line\""
+        _ta_cur_row=$sr; _ta_cur_col=$sc
+    else
+        eval "local first=\"\$_ta_l_$sr\" last=\"\$_ta_l_$er\""
+        local merged="${first:0:$sc}${last:$ec}"
+        local r=$sr; local shift=$((er-sr))
+        eval "_ta_l_$sr=\"\$merged\""
+        r=$((sr+1))
+        while [ "$r" -lt "$_ta_lines" ]; do
+            local src=$((r+shift))
+            eval "[ \"\$src\" -lt \"\$_ta_lines\" ] && _ta_l_$r=\"\$_ta_l_$src\"" || eval "_ta_l_$r=''"
+            r=$((r+1))
+        done
+        _ta_lines=$((_ta_lines-shift))
+        eval "_ta_l_$((_ta_lines-1))=''"
+        _ta_cur_row=$sr; _ta_cur_col=$sc
+    fi
+    _ta_sel_row=-1; _ta_sel_col=-1; _ta_mod=1
+}
+
+_ta_push_undo() {
+    _ta_undo_idx=$((_ta_undo_idx+1))
+    [ "$_ta_undo_idx" -gt 50 ] && _ta_undo_idx=1
+    local tmp="/tmp/tui_ta_undo_${_ta_undo_idx}_$$.txt"
+    : > "$tmp"
+    local r=0
+    while [ "$r" -lt "$_ta_lines" ]; do
+        eval "echo \"\$_ta_l_$r\"" >> "$tmp"
+        r=$((r+1))
+    done
+    rm -f /tmp/tui_ta_redo_*_$$.txt
+    _ta_redo_idx=0
+}
+
+_ta_pop_undo() {
+    [ "$_ta_undo_idx" -eq 0 ] && return
+    local tmp="/tmp/tui_ta_undo_${_ta_undo_idx}_$$.txt"
+    [ ! -f "$tmp" ] && return
+    _ta_redo_idx=$((_ta_redo_idx+1))
+    local rtmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
+    : > "$rtmp"
+    local r=0
+    while [ "$r" -lt "$_ta_lines" ]; do
+        eval "echo \"\$_ta_l_$r\"" >> "$rtmp"
+        r=$((r+1))
+    done
+    _ta_lines=0
+    while IFS= read -r _ta_line; do
+        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
+        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        _ta_lines=$((_ta_lines+1))
+    done < "$tmp"
+    [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
+    _ta_cur_row=0; _ta_cur_col=0; _ta_top=0
+    _ta_undo_idx=$((_ta_undo_idx-1))
+}
+
+_ta_push_redo() {
+    _ta_redo_idx=$((_ta_redo_idx+1))
+    [ "$_ta_redo_idx" -gt 50 ] && _ta_redo_idx=1
+    local tmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
+    : > "$tmp"
+    local r=0
+    while [ "$r" -lt "$_ta_lines" ]; do
+        eval "echo \"\$_ta_l_$r\"" >> "$tmp"
+        r=$((r+1))
+    done
+}
+
+_ta_pop_redo() {
+    [ "$_ta_redo_idx" -eq 0 ] && return
+    local tmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
+    [ ! -f "$tmp" ] && return
+    _ta_push_undo
+    _ta_undo_idx=$((_ta_undo_idx+1))
+    _ta_lines=0
+    while IFS= read -r _ta_line; do
+        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
+        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        _ta_lines=$((_ta_lines+1))
+    done < "$tmp"
+    [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
+    _ta_cur_row=0; _ta_cur_col=0; _ta_top=0
+    _ta_redo_idx=$((_ta_redo_idx-1))
+}
+
+_ta_draw_line_content() {
+    local abs_row=$1 line="$2"
+    line="${line:0:$CONTENT_WIDTH}"
+    if [ "$_ta_sel_row" -eq -1 ]; then
+        if [ "$abs_row" -eq "$_ta_cur_row" ]; then
+            local pre="${line:0:$_ta_cur_col}"
+            local ch="${line:$_ta_cur_col:1}"
+            local post="${line:$((_ta_cur_col+1))}"
+            [ -z "$ch" ] && ch=" "
+            printf "%s${BG_ACTIVE_ESC}${FG_TEXT_ESC}%s${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}%s" \
+                "$pre" "$ch" "$post" >&2
+        else
+            printf "%s" "$line" >&2
+        fi
+    else
+        local sr=$_ta_sel_row sc=$_ta_sel_col er=$_ta_cur_row ec=$_ta_cur_col
+        if [ "$sr" -gt "$er" ] || { [ "$sr" -eq "$er" ] && [ "$sc" -gt "$ec" ]; }; then
+            local t=$sr; sr=$er; er=$t; t=$sc; sc=$ec; ec=$t
+        fi
+        if [ "$abs_row" -lt "$sr" ] || [ "$abs_row" -gt "$er" ]; then
+            printf "%s" "$line" >&2
+        else
+            local pre="" sel="" post=""
+            if [ "$abs_row" -eq "$sr" ] && [ "$abs_row" -eq "$er" ]; then
+                pre="${line:0:$sc}"; sel="${line:$sc:$((ec-sc))}"; post="${line:$ec}"
+            elif [ "$abs_row" -eq "$sr" ]; then
+                pre="${line:0:$sc}"; sel="${line:$sc}"
+            elif [ "$abs_row" -eq "$er" ]; then
+                sel="${line:0:$ec}"; post="${line:$ec}"
+            else
+                sel="$line"
+            fi
+            printf "%s${BG_ACTIVE_ESC}${FG_TEXT_ESC}%s${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}%s" \
+                "$pre" "$sel" "$post" >&2
+        fi
+    fi
+}
+
+_ta_help_text="
+Arrows               Move cursor
+Shift+Arrows         Select text
+Ctrl+Arrows          Word left/right
+Ctrl+Shift+Arrow     Select word
+Home/End             Line start/end
+PgUp/PgDn            Page scroll
+Enter                New line
+Backspace/Del        Delete
+Tab                  4-space indent
+Ctrl+A               Select all
+Ctrl+X/C/V           Cut/Copy/Paste
+Ctrl+Z/Y             Undo/Redo
+Ctrl+S               Save
+Ctrl+Q               Quit"
+
+texteditor() {
+    local file="$1"
+    local _ta_lines=0 _ta_cur_row=0 _ta_cur_col=0 _ta_top=0 _ta_mod=0
+    local _ta_sel_row=-1 _ta_sel_col=-1 _ta_clipboard=""
+    local _ta_undo_idx=0 _ta_redo_idx=0
+    rm -f /tmp/tui_ta_*_$$.txt
+
+    if [ -f "$file" ]; then
+        rm -f /tmp/__tui_ta_load_$$.txt
+        while IFS= read -r _ta_line; do
+            local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
+            eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+            _ta_lines=$((_ta_lines+1))
+        done < "$file"
+    fi
+    [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
+
+    [ -n "$file" ] && BACKTITLE="$file"
+    _init_tui
+    stty -isig -ixon 2>/dev/null
+
+    local start_row=$((row > 1 ? row - 1 : row))
+    local CONTENT_WIDTH=$((CONTENT_WIDTH + 6))
+    local view_h=0
+    while true; do
+        local _fh=$FOOTER_HEIGHT
+        [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+        local view_top=$start_row
+        view_h=$((MAX_HEIGHT - start_row - _fh + 2))
+        [ "$view_h" -lt 3 ] && view_h=3
+
+        [ "$_ta_cur_row" -lt "$_ta_top" ] && _ta_top=$_ta_cur_row
+        [ "$_ta_cur_row" -ge "$((_ta_top + view_h))" ] && _ta_top=$((_ta_cur_row - view_h + 1))
+        [ "$_ta_top" -lt 0 ] && _ta_top=0
+
+        local i=0
+        while [ "$i" -lt "$view_h" ]; do
+            local abs_row=$((_ta_top + i))
+            _draw_at "$((view_top + i))"
+            printf "${BG_MAIN_ESC}${FG_TEXT_ESC}" >&2
+            if [ "$abs_row" -ge "$_ta_lines" ]; then
+                printf "${FG_HINT_ESC}%4s${RESET}${BG_MAIN_ESC} ~" "" >&2
+                local _pad=$((CONTENT_WIDTH - 6))
+                [ "$_pad" -gt 0 ] && printf "%${_pad}s" ""
+            else
+                eval "local line=\"\$_ta_l_$abs_row\""
+                printf "${FG_HINT_ESC}%4d ${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}" "$((abs_row+1))" >&2
+                _ta_draw_line_content "$abs_row" "$line"
+                local _vlen=${#line}
+                if [ "$abs_row" -eq "$_ta_cur_row" ] && [ "$_ta_sel_row" -eq -1 ] && [ "$_ta_cur_col" -ge "${#line}" ]; then
+                    _vlen=$((_vlen + 1))
+                fi
+                local _pad=$((CONTENT_WIDTH - 5 - _vlen))
+                [ "$_pad" -gt 0 ] && printf "%${_pad}s" ""
+            fi
+            printf "${RESET}${BG_MAIN_ESC}" >&2
+            _draw_line "" "$((view_top + i))"
+            i=$((i+1))
+        done
+
+        local status_row=$((view_top + view_h))
+        _draw_at "$status_row"
+        local pct=0
+        [ "$_ta_lines" -gt 0 ] && pct=$(((_ta_top + view_h) * 100 / _ta_lines))
+        [ "$pct" -gt 100 ] && pct=100
+        local modflag=" "
+        [ "$_ta_mod" -eq 1 ] && modflag="*"
+        local _ln_str=" Ln $((_ta_cur_row+1)), Col $((_ta_cur_col+1))   ${pct}%${modflag}"
+        local _ln_w=${#_ln_str}
+        local _pad=$((CONTENT_WIDTH - _ln_w - 9))
+        [ "$_pad" -lt 0 ] && _pad=0
+        printf "${BG_ACTIVE_ESC}${FG_TEXT_ESC}%s${RESET}${BG_MAIN_ESC}%${_pad}s${FG_HINT_ESC} F1 Help ${RESET}" \
+            "$_ln_str" "" >&2
+        row=$((status_row + 1))
+        _draw_footer
+
+        _texteditor_read_key
+        case "$TA_KEY" in
+            up)
+                [ "$_ta_cur_row" -gt 0 ] && _ta_cur_row=$((_ta_cur_row-1))
+                _ta_sel_row=-1
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                [ "$_ta_cur_col" -gt "$len" ] && _ta_cur_col=$len ;;
+            down)
+                [ "$_ta_cur_row" -lt $((_ta_lines-1)) ] && _ta_cur_row=$((_ta_cur_row+1))
+                _ta_sel_row=-1
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                [ "$_ta_cur_col" -gt "$len" ] && _ta_cur_col=$len ;;
+            left)
+                if [ "$_ta_cur_col" -gt 0 ]; then
+                    _ta_cur_col=$((_ta_cur_col-1))
+                elif [ "$_ta_cur_row" -gt 0 ]; then
+                    _ta_cur_row=$((_ta_cur_row-1))
+                    eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}"
+                fi
+                _ta_sel_row=-1 ;;
+            right)
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                if [ "$_ta_cur_col" -lt "$len" ]; then
+                    _ta_cur_col=$((_ta_cur_col+1))
+                elif [ "$_ta_cur_row" -lt $((_ta_lines-1)) ]; then
+                    _ta_cur_row=$((_ta_cur_row+1))
+                    _ta_cur_col=0
+                fi
+                _ta_sel_row=-1 ;;
+            home) _ta_cur_col=0; _ta_sel_row=-1 ;;
+            end) eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}"; _ta_sel_row=-1 ;;
+            page_up)
+                _ta_cur_row=$((_ta_cur_row - view_h + 1))
+                [ "$_ta_cur_row" -lt 0 ] && _ta_cur_row=0
+                _ta_sel_row=-1 ;;
+            page_down)
+                _ta_cur_row=$((_ta_cur_row + view_h - 1))
+                [ "$_ta_cur_row" -ge "$_ta_lines" ] && _ta_cur_row=$((_ta_lines-1))
+                _ta_sel_row=-1 ;;
+            shift_up)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                [ "$_ta_cur_row" -gt 0 ] && _ta_cur_row=$((_ta_cur_row-1))
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                [ "$_ta_cur_col" -gt "$len" ] && _ta_cur_col=$len ;;
+            shift_down)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                [ "$_ta_cur_row" -lt $((_ta_lines-1)) ] && _ta_cur_row=$((_ta_cur_row+1))
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                [ "$_ta_cur_col" -gt "$len" ] && _ta_cur_col=$len ;;
+            shift_left)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                if [ "$_ta_cur_col" -gt 0 ]; then
+                    _ta_cur_col=$((_ta_cur_col-1))
+                elif [ "$_ta_cur_row" -gt 0 ]; then
+                    _ta_cur_row=$((_ta_cur_row-1))
+                    eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}"
+                fi ;;
+            shift_right)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                eval "local len=\${#_ta_l_$_ta_cur_row}"
+                if [ "$_ta_cur_col" -lt "$len" ]; then
+                    _ta_cur_col=$((_ta_cur_col+1))
+                elif [ "$_ta_cur_row" -lt $((_ta_lines-1)) ]; then
+                    _ta_cur_row=$((_ta_cur_row+1))
+                    _ta_cur_col=0
+                fi ;;
+            ctrl_left) _ta_sel_row=-1; _ta_word_left ;;
+            ctrl_right) _ta_sel_row=-1; _ta_word_right ;;
+            ctrl_shift_left)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                _ta_word_left ;;
+            ctrl_shift_right)
+                [ "$_ta_sel_row" -eq -1 ] && { _ta_sel_row=$_ta_cur_row; _ta_sel_col=$_ta_cur_col; }
+                _ta_word_right ;;
+            enter)
+                _ta_push_undo
+                if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel; fi
+                eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                local left="${line:0:$_ta_cur_col}"
+                local right="${line:$_ta_cur_col}"
+                eval "_ta_l_$_ta_cur_row=\"\$left\""
+                local r=$_ta_lines
+                while [ "$r" -gt "$_ta_cur_row" ]; do
+                    eval "_ta_l_$r=\"\$_ta_l_$((r-1))\""
+                    r=$((r-1))
+                done
+                eval "_ta_l_$((_ta_cur_row+1))=\"\$right\""
+                _ta_lines=$((_ta_lines+1))
+                _ta_cur_row=$((_ta_cur_row+1))
+                _ta_cur_col=0
+                _ta_mod=1 ;;
+            backspace)
+                _ta_push_undo
+                if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel
+                elif [ "$_ta_cur_col" -gt 0 ]; then
+                    eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                    line="${line:0:$((_ta_cur_col-1))}${line:$_ta_cur_col}"
+                    eval "_ta_l_$_ta_cur_row=\"\$line\""
+                    _ta_cur_col=$((_ta_cur_col-1))
+                    _ta_mod=1
+                elif [ "$_ta_cur_row" -gt 0 ]; then
+                    eval "local cur=\"\$_ta_l_$_ta_cur_row\" prev=\"\$_ta_l_$((_ta_cur_row-1))\""
+                    _ta_cur_col=${#prev}
+                    prev="${prev}${cur}"
+                    eval "_ta_l_$((_ta_cur_row-1))=\"\$prev\""
+                    local r=$_ta_cur_row
+                    while [ "$r" -lt $((_ta_lines-1)) ]; do
+                        eval "_ta_l_$r=\"\$_ta_l_$((r+1))\""
+                        r=$((r+1))
+                    done
+                    _ta_lines=$((_ta_lines-1))
+                    _ta_cur_row=$((_ta_cur_row-1))
+                    _ta_mod=1
+                fi ;;
+            delete)
+                _ta_push_undo
+                if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel
+                else
+                    eval "local line=\"\$_ta_l_$_ta_cur_row\" len=\${#line}"
+                    if [ "$_ta_cur_col" -lt "$len" ]; then
+                        line="${line:0:$_ta_cur_col}${line:$((_ta_cur_col+1))}"
+                        eval "_ta_l_$_ta_cur_row=\"\$line\""
+                        _ta_mod=1
+                    elif [ "$_ta_cur_row" -lt $((_ta_lines-1)) ]; then
+                        eval "local next=\"\$_ta_l_$((_ta_cur_row+1))\""
+                        line="${line}${next}"
+                        eval "_ta_l_$_ta_cur_row=\"\$line\""
+                        local r=$((_ta_cur_row+1))
+                        while [ "$r" -lt $((_ta_lines-1)) ]; do
+                            eval "_ta_l_$r=\"\$_ta_l_$((r+1))\""
+                            r=$((r+1))
+                        done
+                        _ta_lines=$((_ta_lines-1))
+                        _ta_mod=1
+                    fi
+                fi ;;
+            tab)
+                _ta_push_undo
+                if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel; fi
+                eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                line="${line:0:$_ta_cur_col}    ${line:$_ta_cur_col}"
+                eval "_ta_l_$_ta_cur_row=\"\$line\""
+                _ta_cur_col=$((_ta_cur_col+4))
+                _ta_mod=1 ;;
+            char)
+                _ta_push_undo
+                if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel; fi
+                eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                line="${line:0:$_ta_cur_col}${TA_CHAR}${line:$_ta_cur_col}"
+                eval "_ta_l_$_ta_cur_row=\"\$line\""
+                _ta_cur_col=$((_ta_cur_col+1))
+                _ta_mod=1 ;;
+            ctrl_a)
+                _ta_sel_row=0; _ta_sel_col=0
+                _ta_cur_row=$((_ta_lines-1))
+                eval "_ta_cur_col=\${#_ta_l_$_ta_cur_row}" ;;
+            ctrl_c)
+                if [ "$_ta_sel_row" -ne -1 ]; then
+                    _ta_clipboard=$(_ta_get_sel_text)
+                fi ;;
+            ctrl_x)
+                if [ "$_ta_sel_row" -ne -1 ]; then
+                    _ta_push_undo
+                    _ta_clipboard=$(_ta_get_sel_text)
+                    _ta_del_sel
+                fi ;;
+            ctrl_v)
+                if [ -n "$_ta_clipboard" ]; then
+                    _ta_push_undo
+                    if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel; fi
+                    local lf=$'\n'
+                    local _cl_rest="$_ta_clipboard"
+                    local _cl_line
+                    while true; do
+                        _cl_line="${_cl_rest%%"$lf"*}"
+                        if [ "$_cl_line" = "$_cl_rest" ]; then
+                            eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                            line="${line:0:$_ta_cur_col}${_cl_rest}${line:$_ta_cur_col}"
+                            eval "_ta_l_$_ta_cur_row=\"\$line\""
+                            _ta_cur_col=$((_ta_cur_col + ${#_cl_rest}))
+                            break
+                        fi
+                        _cl_rest="${_cl_rest#*"$lf"}"
+                        eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                        line="${line:0:$_ta_cur_col}${_cl_line}${line:$_ta_cur_col}"
+                        eval "_ta_l_$_ta_cur_row=\"\$line\""
+                        _ta_cur_col=$((_ta_cur_col + ${#_cl_line}))
+                        eval "line=\"\$_ta_l_$_ta_cur_row\""
+                        local right="${line:$_ta_cur_col}"
+                        line="${line:0:$_ta_cur_col}"
+                        eval "_ta_l_$_ta_cur_row=\"\$line\""
+                        local r=$_ta_lines
+                        while [ "$r" -gt "$_ta_cur_row" ]; do
+                            eval "_ta_l_$r=\"\$_ta_l_$((r-1))\""
+                            r=$((r-1))
+                        done
+                        eval "_ta_l_$((_ta_cur_row+1))=\"\$right\""
+                        _ta_lines=$((_ta_lines+1))
+                        _ta_cur_row=$((_ta_cur_row+1))
+                        _ta_cur_col=0
+                    done
+                    _ta_mod=1
+                fi ;;
+            ctrl_z)
+                _ta_push_redo
+                _ta_pop_undo ;;
+            ctrl_y)
+                _ta_pop_redo ;;
+            ctrl_s)
+                if [ -n "$file" ]; then
+                    : > "$file"
+                    local r=0
+                    while [ "$r" -lt "$_ta_lines" ]; do
+                        eval "echo \"\$_ta_l_$r\"" >> "$file"
+                        r=$((r+1))
+                    done
+                    _ta_mod=0
+                fi ;;
+            f1)
+                local _ta_help_file=$(mktemp /tmp/tui_te_help.XXXXXX)
+                printf '%s\n' "$_ta_help_text" > "$_ta_help_file"
+                modal "textbox 'Controls' '' '$_ta_help_file'"
+                rm -f "$_ta_help_file"
+                stty -isig -ixon 2>/dev/null ;;
+            ctrl_q|escape)
+                if [ "$_ta_mod" -eq 1 ]; then
+                    yesno "Unsaved Changes" "Save before exiting?" 1
+                    if [ $? -eq 0 ]; then
+                        if [ -n "$file" ]; then
+                            : > "$file"
+                            local r=0
+                            while [ "$r" -lt "$_ta_lines" ]; do
+                                eval "echo \"\$_ta_l_$r\"" >> "$file"
+                                r=$((r+1))
+                            done
+                        fi
+                    fi
+                fi
+                local result="" lf=$'\n' r=0
+                while [ "$r" -lt "$_ta_lines" ]; do
+                    eval "result=\"\${result}\${_ta_l_$r}\${lf}\""
+                    r=$((r+1))
+                done
+                TUI_RESULT="${result%$lf}"
+                echo "$TUI_RESULT"
+                return 0 ;;
+        esac
+    done
+}

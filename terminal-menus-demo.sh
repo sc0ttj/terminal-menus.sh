@@ -32,7 +32,8 @@ filtertable
 filemanager
 spreadsheet
 kanban
-mainmenu"
+mainmenu
+texteditor"
 
 # ==============================================================================
 # Demo functions
@@ -661,6 +662,27 @@ Settings:settings:./settings.csv"
     rm movies.csv music.csv settings.csv "$CONF_FILE"
 }
 
+# 24. Texteditor
+demo_texteditor() {
+    BACKTITLE="terminal-menus.sh demo 24 of 24 - texteditor"
+    local demo_file=$(mktemp /tmp/tui_te_demo.XXXXXX)
+    echo "This is a demo text file." > "$demo_file"
+    echo "You can edit it with the texteditor widget." >> "$demo_file"
+    echo "" >> "$demo_file"
+    echo "Key bindings:" >> "$demo_file"
+    echo "  F1     Help" >> "$demo_file"
+    echo "  Ctrl+S  Save" >> "$demo_file"
+    echo "  Ctrl+Q  Quit" >> "$demo_file"
+    echo "  Ctrl+Z  Undo" >> "$demo_file"
+    echo "  Ctrl+Y  Redo" >> "$demo_file"
+    echo "  Ctrl+X  Cut" >> "$demo_file"
+    echo "  Ctrl+C  Copy" >> "$demo_file"
+    echo "  Ctrl+V  Paste" >> "$demo_file"
+    echo "  Ctrl+A  Select all" >> "$demo_file"
+    texteditor "$demo_file"
+    rm -f "$demo_file"
+}
+
 # ==============================================================================
 # Dispatch (used when sourcing the script)
 # ==============================================================================
@@ -694,6 +716,7 @@ run_all() {
     demo_spreadsheet
     demo_kanban
     demo_mainmenu
+    demo_texteditor
 }
 
 run_widget() {
@@ -723,12 +746,13 @@ run_widget() {
         "spreadsheet") demo_spreadsheet ;;
         "kanban")      demo_kanban ;;
         "mainmenu")    demo_mainmenu ;;
+        "texteditor")    demo_texteditor ;;
         *)
             echo "Unknown widget: $1"
             echo "Valid: all, infobox, msgbox, yesno, inputbox, passwordbox, menu, checklist,"
             echo "       radiolist, filtermenu, gauge, textbox, tailbox, tree, configtree,"
             echo "       form, filepicker, table, filtertable, filemanager, spreadsheet,"
-            echo "       kanban, mainmenu"
+            echo "       kanban, mainmenu, texteditor"
             exit 1
             ;;
     esac
