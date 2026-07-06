@@ -6932,12 +6932,16 @@ _ta_pop_redo() {
 
 _ta_draw_line_content() {
     local abs_row=$1 line="$2"
-    line="${line:0:$CONTENT_WIDTH}"
+    local _cw="${_ta_cw:-$CONTENT_WIDTH}"
+    local _disp_col="${_ta_left:-0}"
+    line="${line:$_disp_col:$_cw}"
     if [ "$_ta_sel_row" -eq -1 ]; then
         if [ "$abs_row" -eq "$_ta_cur_row" ]; then
-            local pre="${line:0:$_ta_cur_col}"
-            local ch="${line:$_ta_cur_col:1}"
-            local post="${line:$((_ta_cur_col+1))}"
+            local _dc=$((_ta_cur_col - _disp_col))
+            [ "$_dc" -lt 0 ] && _dc=0
+            local pre="${line:0:$_dc}"
+            local ch="${line:$_dc:1}"
+            local post="${line:$((_dc+1))}"
             [ -z "$ch" ] && ch=" "
             printf "%s${BG_ACTIVE_ESC}${FG_TEXT_ESC}%s${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}%s" \
                 "$pre" "$ch" "$post" >&2
@@ -6952,13 +6956,15 @@ _ta_draw_line_content() {
         if [ "$abs_row" -lt "$sr" ] || [ "$abs_row" -gt "$er" ]; then
             printf "%s" "$line" >&2
         else
+            local _dsc=$((sc - _disp_col)); [ "$_dsc" -lt 0 ] && _dsc=0
+            local _dec=$((ec - _disp_col)); [ "$_dec" -lt 0 ] && _dec=0
             local pre="" sel="" post=""
             if [ "$abs_row" -eq "$sr" ] && [ "$abs_row" -eq "$er" ]; then
-                pre="${line:0:$sc}"; sel="${line:$sc:$((ec-sc))}"; post="${line:$ec}"
+                pre="${line:0:$_dsc}"; sel="${line:$_dsc:$((_dec - _dsc))}"; post="${line:$_dec}"
             elif [ "$abs_row" -eq "$sr" ]; then
-                pre="${line:0:$sc}"; sel="${line:$sc}"
+                pre="${line:0:$_dsc}"; sel="${line:$_dsc}"
             elif [ "$abs_row" -eq "$er" ]; then
-                sel="${line:0:$ec}"; post="${line:$ec}"
+                sel="${line:0:$_dec}"; post="${line:$_dec}"
             else
                 sel="$line"
             fi
@@ -6969,7 +6975,12 @@ _ta_draw_line_content() {
 }
 
 _ta_find() {
-    local _term=$(modal inputbox "Find" "Search term:" "$_ta_search_term")
+    local _saved_mode="$TUI_MODE" _saved_w="$TUI_WIDTH" _saved_h="$TUI_HEIGHT"
+    TUI_MODE="custom"; TUI_WIDTH=50; TUI_HEIGHT=8
+    local _term=$(modal "inputbox '' 'Search:' '$_ta_search_term'")
+    TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
+    _init_tui
+    _term="${_term%%$'\n'}"
     [ -z "$_term" ] && return
     _ta_search_term="$_term"
     _ta_search_row=$_ta_cur_row
@@ -7009,10 +7020,18 @@ _ta_find_next() {
 }
 
 _ta_find_replace() {
-    local _term=$(modal inputbox "Replace" "Search term:" "$_ta_search_term")
-    [ -z "$_term" ] && return
-    local _repl=$(modal inputbox "Replace" "Replace with:" "")
-    [ -z "$_repl" ] && _repl=""
+    local _saved_mode="$TUI_MODE" _saved_w="$TUI_WIDTH" _saved_h="$TUI_HEIGHT"
+    local _saved_hf="${TUI_HIDE_FOOTER:-false}"
+    TUI_MODE="custom"; TUI_WIDTH=50; TUI_HEIGHT=10; TUI_HIDE_FOOTER=true
+    local _sq_val; _sq_val=$(printf '%s' "$_ta_search_term" | sed "s/'/'\\\\''/g")
+    local _result=$(modal "form '' '' '> Find=${_sq_val}' '> Replace='")
+    TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
+    TUI_HIDE_FOOTER="$_saved_hf"
+    _init_tui
+    [ -z "$_result" ] && return
+    eval "$_result" 2>/dev/null
+    local _term="$find"
+    local _repl="$replace"
     local _count=0 r=0
     _ta_push_undo
     while [ "$r" -lt "$_ta_lines" ]; do
@@ -7119,7 +7138,13 @@ _ta_open_file() {
             _ta_mod=0
         fi
     fi
-    local _new_file=$(modal filepicker "Open file" "")
+    local _saved_mode="$TUI_MODE" _saved_w="$TUI_WIDTH" _saved_h="$TUI_HEIGHT"
+    local _saved_hf="${TUI_HIDE_FOOTER:-false}"
+    TUI_MODE="custom"; TUI_WIDTH=60; TUI_HEIGHT=15; TUI_HIDE_FOOTER=true
+    local _new_file=$(modal "filepicker '' ''")
+    TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
+    TUI_HIDE_FOOTER="$_saved_hf"
+    _init_tui
     [ -z "$_new_file" ] && return
     [ -f "$_new_file" ] && file="$_new_file" || return
     _ta_lines=0
@@ -7185,18 +7210,23 @@ texteditor() {
     stty -isig -ixon 2>/dev/null
 
     local start_row=$((row > 1 ? row - 1 : row))
-    local CONTENT_WIDTH=$((CONTENT_WIDTH + 6))
+    local _ta_cw=$((CONTENT_WIDTH))
+    local _ta_left=0
     local view_h=0
     while true; do
         local _fh=$FOOTER_HEIGHT
         [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
-        local view_top=$start_row
-        view_h=$((MAX_HEIGHT - start_row - _fh + 2))
+        local view_top=$((start_row + 1))
+        view_h=$((MAX_HEIGHT - start_row - _fh + 1))
         [ "$view_h" -lt 3 ] && view_h=3
 
         [ "$_ta_cur_row" -lt "$_ta_top" ] && _ta_top=$_ta_cur_row
         [ "$_ta_cur_row" -ge "$((_ta_top + view_h))" ] && _ta_top=$((_ta_cur_row - view_h + 1))
-        [ "$_ta_top" -lt 0 ] && _ta_top=0
+[ "$_ta_top" -lt 0 ] && _ta_top=0
+
+        [ "$_ta_cur_col" -lt "$_ta_left" ] && _ta_left=$_ta_cur_col
+        [ "$_ta_cur_col" -ge "$((_ta_left + _ta_cw))" ] && _ta_left=$((_ta_cur_col - _ta_cw + 1))
+        [ "$_ta_left" -lt 0 ] && _ta_left=0
 
         local i=0
         while [ "$i" -lt "$view_h" ]; do
@@ -7205,17 +7235,18 @@ texteditor() {
             printf "${BG_MAIN_ESC}${FG_TEXT_ESC}" >&2
             if [ "$abs_row" -ge "$_ta_lines" ]; then
                 printf "${FG_HINT_ESC}%4s${RESET}${BG_MAIN_ESC} ~" "" >&2
-                local _pad=$((CONTENT_WIDTH - 6))
+                local _pad=$((MAX_WIDTH - 6))
                 [ "$_pad" -gt 0 ] && printf "%${_pad}s" ""
             else
                 eval "local line=\"\$_ta_l_$abs_row\""
                 printf "${FG_HINT_ESC}%4d ${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}" "$((abs_row+1))" >&2
                 _ta_draw_line_content "$abs_row" "$line"
                 local _vlen=${#line}
-                if [ "$abs_row" -eq "$_ta_cur_row" ] && [ "$_ta_sel_row" -eq -1 ] && [ "$_ta_cur_col" -ge "${#line}" ]; then
+                [ "$_vlen" -gt "$_ta_cw" ] && _vlen=$_ta_cw
+                if [ "$abs_row" -eq "$_ta_cur_row" ] && [ "$_ta_sel_row" -eq -1 ] && [ "$_ta_cur_col" -ge "${#line}" ] && [ "$_ta_left" -eq 0 ]; then
                     _vlen=$((_vlen + 1))
                 fi
-                local _pad=$((CONTENT_WIDTH - 5 - _vlen))
+                local _pad=$((MAX_WIDTH - 5 - _vlen))
                 [ "$_pad" -gt 0 ] && printf "%${_pad}s" ""
             fi
             printf "${RESET}${BG_MAIN_ESC}" >&2
@@ -7231,8 +7262,9 @@ texteditor() {
         local modflag=" "
         [ "$_ta_mod" -eq 1 ] && modflag="*"
         local _ln_str=" Ln $((_ta_cur_row+1)), Col $((_ta_cur_col+1))   ${pct}%${modflag}"
+        [ "$_ta_left" -gt 0 ] && _ln_str="${_ln_str} <<"
         local _ln_w=${#_ln_str}
-        local _pad=$((CONTENT_WIDTH - _ln_w - 9))
+        local _pad=$((MAX_WIDTH - _ln_w - 9))
         [ "$_pad" -lt 0 ] && _pad=0
         printf "${BG_ACTIVE_ESC}${FG_TEXT_ESC}%s${RESET}${BG_MAIN_ESC}%${_pad}s${FG_HINT_ESC} F1 Help ${RESET}" \
             "$_ln_str" "" >&2
