@@ -7232,17 +7232,24 @@ texteditor() {
         [ "$_ta_left" -lt 0 ] && _ta_left=0
 
         local i=0
+        local _ta_thumb=-1
+        if [ "$_ta_lines" -gt "$view_h" ]; then
+            local _ta_range=$((_ta_lines - view_h))
+            _ta_thumb=$((_ta_top * view_h / _ta_range))
+        fi
         while [ "$i" -lt "$view_h" ]; do
             local abs_row=$((_ta_top + i))
             _draw_at "$((view_top + i))"
             printf "${BG_MAIN_ESC}${FG_TEXT_ESC}" >&2
+            local _ta_gutter=" "
+            [ "$i" -eq "$_ta_thumb" ] && _ta_gutter="·"
             if [ "$abs_row" -ge "$_ta_lines" ]; then
-                printf "${FG_HINT_ESC}%4s${RESET}${BG_MAIN_ESC} ~" "" >&2
+                printf "${FG_HINT_ESC}%s%3s${RESET}${BG_MAIN_ESC} ~" "$_ta_gutter" "" >&2
                 local _pad=$((MAX_WIDTH - 6))
                 [ "$_pad" -gt 0 ] && printf "%${_pad}s" ""
             else
                 eval "local line=\"\$_ta_l_$abs_row\""
-                printf "${FG_HINT_ESC}%4d ${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}" "$((abs_row+1))" >&2
+                printf "${FG_HINT_ESC}%s%3d ${RESET}${BG_MAIN_ESC}${FG_TEXT_ESC}" "$_ta_gutter" "$((abs_row+1))" >&2
                 _ta_draw_line_content "$abs_row" "$line"
                 local _vlen=${#line}
                 [ "$_vlen" -gt "$_ta_cw" ] && _vlen=$_ta_cw
@@ -7352,6 +7359,13 @@ texteditor() {
                 _ta_push_undo
                 if [ "$_ta_sel_row" -ne -1 ]; then _ta_del_sel; fi
                 eval "local line=\"\$_ta_l_$_ta_cur_row\""
+                local _indent="" _r="$line"
+                while :; do
+                    case "$_r" in " "*) _indent="${_indent} "; _r="${_r# }" ;;
+                        "$_TAB"*) _indent="${_indent}$_TAB"; _r="${_r#$_TAB}" ;;
+                        *) break ;;
+                    esac
+                done
                 local left="${line:0:$_ta_cur_col}"
                 local right="${line:$_ta_cur_col}"
                 eval "_ta_l_$_ta_cur_row=\"\$left\""
@@ -7360,10 +7374,10 @@ texteditor() {
                     eval "_ta_l_$r=\"\$_ta_l_$((r-1))\""
                     r=$((r-1))
                 done
-                eval "_ta_l_$((_ta_cur_row+1))=\"\$right\""
+                eval "_ta_l_$((_ta_cur_row+1))=\"\${_indent}\${right}\""
                 _ta_lines=$((_ta_lines+1))
                 _ta_cur_row=$((_ta_cur_row+1))
-                _ta_cur_col=0
+                _ta_cur_col=${#_indent}
                 _ta_mod=1 ;;
             backspace)
                 _ta_push_undo
