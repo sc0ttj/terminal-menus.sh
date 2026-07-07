@@ -668,7 +668,7 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
 
-### 24. Texteditor (`texteditor`)
+### 23. Texteditor (`texteditor`)
 
 ![texteditor](screenshots/texteditor.png)
 
