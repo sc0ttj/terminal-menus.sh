@@ -25,7 +25,7 @@
 : ${SR:="\e[22m${FG_HINT_ESC}"}
 
 # --- ANSI helpers ---
- 
+
 RESET="\e[0m"    # Reset all formatting and colours
 BOLD="\e[1m"     # Set text to bold weight
 CLR_EOL="\e[K"   # Clear line from cursor to right edge
@@ -194,7 +194,7 @@ _handle_extra_keys() {
 : ${NO_LABEL:="NO"}
 
 
-# A var that always captures the output of a widget, users 
+# A var that always captures the output of a widget, users
 # should check this var after a widget exits.
 TUI_RESULT=""
 
@@ -212,7 +212,7 @@ preview() {
     local offset=${5:-0}
     local width=$(( MAX_WIDTH - col_start - 1 ))
     local absolute_col=$(( PADDING_LEFT + col_start - 2 ))
-    
+
     # 1. Clear the preview area
     local clear_block=""
     local spaces=$(printf "%*s" "$width" "")
@@ -226,7 +226,7 @@ preview() {
 
     local line_count=0
     local preview_content=""
-    
+
     # 2. Optimized Reading & ANSI Stripping (Portable)
     # Stage 1: Strip ANSI (sed)
     # Stage 2: Slice lines (sed -n 'start,endp')
@@ -235,13 +235,13 @@ preview() {
     while IFS= read -r line; do
         line="${line//$'\t'/    }"
         line="${line:0:width}"
-        
+
         row_str=$(printf "\e[$((row_start + line_count + PADDING_TOP));${absolute_col}H${FG_HINT_ESC}%-*s${RESET}${BG_MAIN_ESC}" "$width" "$line")
         preview_content="${preview_content}${row_str}"
         line_count=$((line_count+1))
     done < "$_preview_tmp"
     rm -f "$_preview_tmp"
-    
+
     printf "%b" "$preview_content" >&2
 }
 
@@ -263,30 +263,30 @@ cleanup() {
     printf "\e[?25h\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[0m\e[H\e[J" >&2
 
     # 2. Reset the terminal line settings
-    # sane     -> Restores keyboard 'echo' and standard input buffering. 
+    # sane     -> Restores keyboard 'echo' and standard input buffering.
     #             Critical if the script crashed while 'stty -echo' was active.
     stty sane
 
     # 3. Terminfo-based cursor restoration
-    # cnorm    -> "Cursor Normal". A portable backup command to ensure the 
+    # cnorm    -> "Cursor Normal". A portable backup command to ensure the
     #             cursor is visible even on non-XTerm compatible terminals.
     tput cnorm
 }
 
 # trap         -> The Bash built-in command used to catch signals or events.
 # cleanup      -> The name of the function to execute when the event occurs.
-# EXIT         -> A special Bash "pseudo-signal" that triggers when the shell 
+# EXIT         -> A special Bash "pseudo-signal" that triggers when the shell
 #                 process ends for ANY reason (normal finish, error, or exit command).
 #
-# Combined: This ensures the terminal is restored (via cleanup) even if the 
-#           script crashes or the user exits unexpectedly, preventing a 
+# Combined: This ensures the terminal is restored (via cleanup) even if the
+#           script crashes or the user exits unexpectedly, preventing a
 #           permanently "broken" terminal state.
 trap cleanup 0 2
 
 # Define a function to refresh the TUI on resize
 handle_resize() {
     # Most widgets call _init_tui at the start of their loop.
-    # By triggering a "continue" in your widget loops or 
+    # By triggering a "continue" in your widget loops or
     # simply re-calculating dimensions, the UI will "snap" to the new center.
     _init_tui
 }
@@ -343,7 +343,7 @@ _init_static_colors() {
     # We remove the gate so this can be re-run during theme switches.
     # Map HL_BLUE to BG_ACTIVE to ensure highlights update
     BG_ACTIVE="${HL_BLUE:-$BG_ACTIVE}"
-    
+
     BG_MAIN_ESC="\e[48;2;${BG_MAIN}m"
     BG_MODAL_ESC="\e[48;2;${BG_MODAL}m"
     FG_TEXT_ESC="\e[38;2;${FG_TEXT}m"
@@ -357,7 +357,7 @@ _init_static_colors() {
     FG_BACKTITLE_ESC="\e[38;2;${FG_BACKTITLE}m"
     BG_BACKTITLE_ESC="\e[48;2;${BG_BACKTITLE}m"
     BG_TABLE_HEADER_ESC="\e[48;2;100;100;100m${FG_TEXT_ESC}"
-    
+
     # Pre-calculate bolds based on the current active/highlight colors
     FG_BLUE_BOLD="\e[1;38;2;${FG_INPUT}m"
     HL_WHITE_BOLD="\e[48;2;${BG_ACTIVE}m\e[38;2;255;255;255;1m"
@@ -367,7 +367,7 @@ _init_tui() {
     stty -echo -icanon min 1 time 1
     _enable_mouse
     _apply_layout
-    
+
     # ALWAYS re-init colors to support theme switching
     _init_static_colors
 
@@ -381,7 +381,7 @@ _init_tui() {
     # 2. RE-BUILD THE WALL (Now with the new theme colors)
     local wall="" line_fill=""
     line_fill=$(printf "%*s" "$MAX_WIDTH" "")
-    
+
     i=0; while [ "$i" -lt "$MAX_HEIGHT" ]; do
         local r=$((PADDING_TOP + i + 1))
         # This will now use the updated BG_MAIN_ESC
@@ -506,7 +506,7 @@ _parse_extra_keys
 
 _get_start_row() {
     local offset=0
-    
+
     # 1. Calculate internal padding based on text content
     [ -n "$title" ] && offset=$((offset+1))
     [ -n "$msg" ] && offset=$((offset+1))
@@ -514,7 +514,7 @@ _get_start_row() {
     [ -n "$title" ] || [ -n "$msg" ] && offset=$((offset+1))
 
     # 2. THE FIX: Protect the BACKTITLE in Fullscreen Mode
-    # If we are at the top of the terminal 
+    # If we are at the top of the terminal
     if [ "$TUI_MODE" = "fullscreen" ]; then
         # If we have a backtitle, the first 2 lines are RESERVED.
         # So the minimum safe row is 2.
@@ -524,7 +524,7 @@ _get_start_row() {
              echo "$offset"
         fi
     else
-        # In centered/popup modes, we don't have a backtitle 
+        # In centered/popup modes, we don't have a backtitle
         # at the top of the terminal, so we can be flush (0).
         echo "$offset"
     fi
@@ -542,7 +542,7 @@ _draw_line() {
     [[ -n "$2" ]] && row=$2
     local target_row=$(( row + PADDING_TOP ))
     local target_col=$(( PADDING_LEFT + ${COL_START:-0} ))
-    
+
     if [ -n "$1" ]; then
         local _cw=$(( MAX_WIDTH - ${COL_START:-0} ))
         [ "$_cw" -lt 0 ] && _cw=0
@@ -570,7 +570,7 @@ _draw_header() {
     if [ -n "$title" ]; then
         _draw_line "${INDENT}${FG_TEXT_ESC}=== $title ===${RESET}${BG_MAIN_ESC}"
     fi
-    
+
     # 2. Message Rows - Only draw if not empty
     if [ -n "$msg" ]; then
         local expanded_msg
@@ -591,7 +591,7 @@ _draw_header() {
     if [ -n "$title" ] || [ -n "$msg" ]; then
         _draw_line ""
     fi
-    
+
     # Remove the empty line under headers in toast and palette modes,
     # if $title or $msg not empty - if both are empty, dont move things up,
     # this keeps "content only" stuff nicely padded in the box
@@ -604,7 +604,7 @@ _draw_header() {
 
 _draw_controls() {
     local hints=$1
-    # We use _draw_line to ensure the background fills the MAX_WIDTH 
+    # We use _draw_line to ensure the background fills the MAX_WIDTH
     # and respects PADDING_LEFT
     _draw_line " ${FG_HINT_ESC}${hints}${RESET}${BG_MAIN_ESC}"
 }
@@ -622,7 +622,7 @@ _help_popup() {
     local ctxt=""
     case "$widget" in
         list)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -630,7 +630,7 @@ ${SB}Space${SR}      Toggle
 ${SB}Enter${SR}      Confirm
 ${SB}q${SR}          Cancel / Quit" ;;
         form)
-            ctxt=" 
+            ctxt="
 ${SB}Tab${SR}         Cycle fields
 ${SB}Left${SR}/${SB}Right${SR}  Move cursor in text input
 ${SB}Space${SR}       Toggle checkbox/radio, open dropdown
@@ -638,7 +638,7 @@ ${SB}Enter${SR}       Submit form
 ${SB}Esc${SR}         Close dropdown / Cancel
 ${SB}q${SR}           Cancel / Quit" ;;
         filtermenu)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}     Navigate results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -648,7 +648,7 @@ ${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
 ${SB}Enter${SR}       Select item
 ${SB}q${SR}           Cancel / Quit" ;;
         filepicker)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}    Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -658,7 +658,7 @@ ${SB}Left${SR}/${SB}h${SR}/${SB}a${SR}   Parent dir
 ${SB}.${SR}          Toggle hidden
 ${SB}q${SR}          Cancel / Quit" ;;
         tree)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}     Navigate (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}Left${SR}/${SB}Right${SR}  Collapse / Expand (also ${SB}a${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}l${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
@@ -668,14 +668,14 @@ ${SB}/${SR}           Focus filter (when enabled)
 ${SB}Tab${SR}         Toggle filter/tree (when enabled)
 ${SB}q${SR}           Quit" ;;
         table)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}    Scroll (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}  Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}   Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
 ${SB}Enter${SR}      Select row
 ${SB}q${SR}          Cancel / Quit" ;;
         filtertable)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}     Scroll results (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
 ${SB}Home${SR}/${SB}End${SR}    Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -684,7 +684,7 @@ ${SB}Left${SR}/${SB}Right${SR}  Move cursor in filter
 ${SB}Enter${SR}       Select row
 ${SB}q${SR}           Cancel / Quit" ;;
         mainmenu)
-            ctxt=" 
+            ctxt="
 ${SB}Up${SR}/${SB}Down${SR}     Navigate sidebar or table (also ${SB}w${SR}/${SB}s${SR} and ${SB}j${SR}/${SB}k${SR})
 ${SB}Tab${SR}         Toggle sidebar / table focus
 ${SB}PgUp${SR}/${SB}PgDn${SR}   Page scroll (also ${SB}J${SR}/${SB}K${SR})
@@ -694,7 +694,7 @@ ${SB}1-9${SR}         Sort by column
 ${SB}Enter${SR}       Select item / Run command
 ${SB}q${SR}           Quit" ;;
         kanban)
-            ctxt=" 
+            ctxt="
 ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR}     Navigate (also ${SB}Arrows${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
 ${SB}W${SR}/${SB}A${SR}/${SB}S${SR}/${SB}D${SR}     Move item (also ${SB}H${SR}/${SB}J${SR}/${SB}K${SR}/${SB}L${SR})
 ${SB}/${SR}           Search items
@@ -726,7 +726,7 @@ _draw_footer() {
 
 _draw_btn() {
     local label=$1 is_active=$2
-    
+
     if [ "$is_active" -eq 1 ]; then
         # Active: Blue BG + Bold
         printf "${HL_WHITE_BOLD} $label ${RESET}${BG_MAIN_ESC}" >&2
@@ -774,7 +774,8 @@ _draw_form_field() {
         case "$label" in ">*"*)
             _is_pw=1
             suffix=" 🔑 "
-        ;; esac
+;;
+        esac
 
         local display_val="$value"
         if [ "$is_active" -eq 1 ]; then
@@ -825,7 +826,7 @@ _draw_form_field() {
     elif _match "$label" "\[ \]*" || _match "$label" "(*"; then
         local marker="" indent="$INDENT"
         if [ "$is_active" -eq 1 ]; then style="$HL_WHITE_BOLD"; else style="${BG_MAIN_ESC}${FG_TEXT_ESC}"; fi
-        
+
         if _match "$label" "\[ \]*"; then
             content="${label#\[ \] }"
             if [ "$value" = "1" ]; then marker="[x] "; else marker="[ ] "; fi
@@ -836,7 +837,7 @@ _draw_form_field() {
         indent="$INDENT"
 
         _draw_line "${indent}${style}${marker}${content}${RESET}${BG_MAIN_ESC}"
-        
+
         local next_idx=$((i + 1))
         local _next_f=""; eval "_next_f=\"\$fields_$next_idx\""
         if _match "$label" "\[ \]*" && ! _match "$_next_f" "\[ \]*"; then
@@ -850,7 +851,7 @@ _draw_form_field() {
         local sel_idx="${v_rest%%|*}"; v_rest="${v_rest#*|}"
         local query="${v_rest%%|*}"; v_rest="${v_rest#*|}"
         local opt_str="$v_rest"
-        
+
         if [ "$state" = "OPEN" ]; then local arrow="▴"; else local arrow="▾"; fi
         local header=""
         local label_text="${label#*\}}"
@@ -871,7 +872,7 @@ _draw_form_field() {
         fi
         # Pure shell padding
         header=$(printf "%-${width}s" "$header")
-        
+
         if [ "$is_active" -eq 1 ]; then style="$FG_BLUE_BOLD"; else style="$FG_TEXT_ESC"; fi
         _draw_line "  ${style}${header}${RESET}${BG_MAIN_ESC}"
         _draw_spacer
@@ -1128,14 +1129,14 @@ msgbox() {
     _init_tui
     while true; do
         _draw_header "$title" "$msg"
-        
+
         local _mb_btn_row=$(( row + PADDING_TOP ))
         _draw_at "$row"
         printf "$INDENT" >&2
         _draw_btn "$OK_LABEL" 1
         _draw_line ""
         _draw_footer
-        
+
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
         # SGR mouse
@@ -1156,17 +1157,17 @@ msgbox() {
 yesno() {
     local title=$1 msg=$2 cur
     cur=$(( ${3:-1} - 1 ))
-    
+
     _init_tui
     while true; do
         _draw_header "$title" "$msg"
-        
+
         _draw_at "$row"
         printf "$INDENT" >&2
         if [ "$cur" -eq 0 ]; then _draw_btn "$YES_LABEL" 1; else _draw_btn "$YES_LABEL" 0; fi
         printf "$INDENT" >&2
         if [ "$cur" -eq 1 ]; then _draw_btn "$NO_LABEL" 1; else _draw_btn "$NO_LABEL" 0; fi
-        
+
         local _yn_btn_row=$(( row + PADDING_TOP ))
         _draw_line "" "$row"
         [ "${TUI_HIDE_FOOTER:-false}" != "true" ] && _draw_controls_at_bottom " ${SB}Left${SR}/${SB}Right${SR} Focus | ${SB}Enter${SR} Confirm | ${SB}Esc${SR} Cancel"
@@ -1190,14 +1191,14 @@ yesno() {
             return $cur
         fi
         [ "$MOUSE_BTN" -ge 0 ] && continue
-        
+
         if [ "$KEY" = "$_ESC" ]; then
             if [ "$ESC_SEQ" = "[C" ] || [ "$ESC_SEQ" = "[D" ] || [ "$ESC_SEQ" = "OC" ] || [ "$ESC_SEQ" = "OD" ]; then
                 cur=$(( 1 - cur ))
             fi
             continue
         fi
-        
+
         if [ -z "$KEY" ]; then
             [ "$cur" -eq 0 ] && TUI_RESULT=true
             [ "$cur" -eq 1 ] && TUI_RESULT=false
@@ -1329,7 +1330,7 @@ gauge() {
     local title=$1 msg=$2 pct
     # Standardise width
     local bar_width=40
-    
+
     _init_tui
     # Non-blocking read from stdin (allows piping like: seq 1 100 | gauge "Title")
     while read -r pct; do
@@ -1344,16 +1345,16 @@ gauge() {
         # 3. Render Progress Bar Zone
         _draw_at "$start_row" 0
         printf "$INDENT" >&2 # Left margin
-        
+
         # Draw Fill (Blue) and Empty (Grey)
         printf "${BG_BLUE_ESC}%*s${BG_WID_ESC}%*s${RESET}" "$fill" "" "$empty" "" >&2
-        
+
         # THE FIX: Apply BG_MAIN_ESC to the percentage text so it doesn't look like a black hole
         printf "${BG_MAIN_ESC} ${FG_TEXT_ESC}${pct}%%${RESET}" >&2
 
         # 4. Snap the background to the right edge
         row=$start_row
-        _draw_line "" 
+        _draw_line ""
 
         # 6. Position footer at the bottom
         row=$CONTROLS_ROW
@@ -1379,7 +1380,7 @@ textbox() {
             _draw_header "$title" "$msg"
 
             local view_top=$row
-local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
+            local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
             local height=$(( MAX_HEIGHT - view_top - _fh ))
             [ "$height" -lt $MIN_CONTENT_HEIGHT ] && height=$MIN_CONTENT_HEIGHT
 
@@ -1411,7 +1412,7 @@ local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
 
             row=$((view_top + height))
             if [ "$_fh" -ne 0 ]; then
-                _draw_line "" 
+                _draw_line ""
                 _draw_controls " ${SB}Up${SR}/${SB}Down${SR} Scroll | ${SB}PgUp${SR}/${SB}PgDn${SR} Page | ${SB}Home${SR}/${SB}End${SR} Jump | ${SB}Enter${SR} Close"
             fi
             _draw_footer
@@ -1768,7 +1769,7 @@ form() {
                 i=$((i+1))
             done
         fi
-        
+
         _draw_footer
 
         eval "f_cur=\"\$fields_$cur\""
@@ -2012,7 +2013,7 @@ form() {
                 eval "cf=\"\$fields_$cur\""
 
                 if _match "$cf" "{*"; then
-            if [ "$state" = "OPEN" ]; then
+                    if [ "$state" = "OPEN" ]; then
                 oi=0; while [ "$oi" -lt "$_dd_count" ]; do
                     local cr=$((_dd_open_row + oi))
                     [ "$cr" -lt "$MAX_HEIGHT" ] && { _draw_at "$cr" "$_dd_col_start"; local _cw=$(( MAX_WIDTH - _dd_col_start )); [ "$_cw" -lt 0 ] && _cw=0; printf "%*s" "$_cw" "" >&2; }
@@ -2147,7 +2148,7 @@ form() {
                 echo "$TUI_RESULT" | tr '\n' ' ' && return 0 ;;
 
             "?")
-            _help_popup form ;;
+                _help_popup form ;;
             *)
                 eval "cf=\"\$fields_$cur\""
                 if _match "$cf" "{ }*"; then
@@ -2197,8 +2198,8 @@ spreadsheet() {
     local title="$1"
     local src="$2"
     local tmp_csv=$(mktemp)
-    
-    local CONTROLS_TXT=" 
+
+    local CONTROLS_TXT="
  ${SB}Arrows${SR}          Navigate cells (also ${SB}w${SR}/${SB}a${SR}/${SB}s${SR}/${SB}d${SR} and ${SB}h${SR}/${SB}j${SR}/${SB}k${SR}/${SB}l${SR})
  ${SB}PgUp${SR}/${SB}PgDn${SR}       Page scroll (also ${SB}J${SR}/${SB}K${SR})
  ${SB}Home${SR}/${SB}End${SR}        Jump to top/bottom (also ${SB}g${SR}/${SB}G${SR})
@@ -2206,9 +2207,9 @@ spreadsheet() {
  ${SB}Right${SR}/${SB}Left${SR}      Move cursor in edit mode
  ${SB}q${SR}               Quit
  ${SB}?${SR}               Toggle this help
- 
+
 Supported Expressions in cells:
- 
+
  =A1+B2          Basic math: +, -, *, /
  =SUM(A1:B10)    Range functions: SUM, AVG, MIN, MAX, COUNT, COUNTA
  =ROUND(A1,2)    Round to decimal places
@@ -2250,8 +2251,8 @@ Supported Expressions in cells:
     while true; do
         # Viewport Math
         local v_h=$(( MAX_HEIGHT - 7 - shift ))
-        local col_w=12 
-        local v_w_area=$((MAX_WIDTH - 11)) 
+        local col_w=12
+        local v_w_area=$((MAX_WIDTH - 11))
         local v_c_count=$((v_w_area / (col_w + 1) + 1))
 
         # --- SCROLL LOGIC ---
@@ -2274,7 +2275,7 @@ Supported Expressions in cells:
 
         # 2. Spreadsheet Body (Using your fixed width)
         local visible_h=$((MAX_HEIGHT - 9))
-        local col_w=12 
+        local col_w=12
         local v_w_area=$((MAX_WIDTH - 11)) # Your fix
         local v_c_count=$((v_w_area / (col_w + 1)))
 
@@ -2288,9 +2289,9 @@ Supported Expressions in cells:
                         -v bg_m_raw="$BG_MAIN" -v bg_a_raw="$BG_ACTIVE" \
                         -v pt="$PADDING_TOP" -v pl="$PADDING_LEFT" \
                         -v shift="$shift" \
-            'BEGIN { FS=","; 
-                bm="\033[48;2;"bg_m_raw"m\033[22m"; ba="\033[48;2;"bg_a_raw"m\033[1m"; 
-                bh="\033[48;2;80;80;80m\033[38;2;200;200;200m"; 
+            'BEGIN { FS=",";
+                bm="\033[48;2;"bg_m_raw"m\033[22m"; ba="\033[48;2;"bg_a_raw"m\033[1m";
+                bh="\033[48;2;80;80;80m\033[38;2;200;200;200m";
                 abc="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             }
             { for(i=1; i<=NF; i++) d[NR,i]=$i; }
@@ -2299,14 +2300,14 @@ Supported Expressions in cells:
                 if(v ~ /^[A-Z][0-9]+$/) {
                     # Ensure A matches 1, B matches 2
                     tc = index(abc, substr(v,1,1));
-                    tr = substr(v,2); 
+                    tr = substr(v,2);
                     return d[tr,tc] + 0;
                 }
                 return v + 0;
             }
             function ev(f,  p, op, s, sc, sr, ec, er, r, c, val, count, min, max, c_num, c_all, n1, n2) {
                 f = toupper(f); sub(/^=/, "", f);
-                
+
                 # --- RANGE FUNCTIONS ---
                 if (f ~ /^(SUM|AVG|MIN|MAX|COUNT|COUNTA)\(/) {
                     op = substr(f, 1, index(f, "(") - 1);
@@ -2333,14 +2334,14 @@ Supported Expressions in cells:
                     if (op == "COUNT") return c_num;
                     if (op == "COUNTA") return c_all;
                 }
-                
+
                 # --- ROUND ---
                 if (f ~ /^ROUND\(/) {
                     sub(/^ROUND\(/, "", f); sub(/\)/, "", f);
                     split(f, p, ",");
                     return sprintf("%." (p[2]+0) "f", res(p[1]));
                 }
-                
+
                 # --- CONCAT ---
                 if (f ~ /&/) {
                     split(f, p, "&");
@@ -2400,11 +2401,11 @@ Supported Expressions in cells:
             }' "$tmp_csv")
 
         printf "%b" "$grid_data" >&2
-        
+
         # 3. Status Bar - Fixed width with truncation and trailing fill
         _draw_at "$((MAX_HEIGHT - 1))" 0
         local bar_limit=$((MAX_WIDTH - 5)) # Buffer for indents
-        
+
         if [[ "$mode" == "EDIT" ]]; then
             local label=" EDIT: "
             local val_limit=$(( bar_limit - ${#label} ))
@@ -2474,10 +2475,10 @@ Supported Expressions in cells:
                         # 1. Force the line into a clean array using the comma separator
                         # This is more reliable in BusyBox than using $i
                         n = split($0, row, ",")
-                        
+
                         # 2. Update the specific index
                         row[c] = nv
-                        
+
                         # 3. Manually stringify the array back to mc (26) columns
                         out = ""
                         for (i = 1; i <= mc; i++) {
@@ -2502,7 +2503,7 @@ Supported Expressions in cells:
                     ;;
                 "x"|"v")
                     _push_undo
-                    
+
                     local target_val=""
                     if [[ "$KEY" == "x" ]]; then
                         clipboard_val=$(awk -F, -v r="$cur_r" -v c="$cur_c" 'NR==r{print $c}' "$tmp_csv")
@@ -2524,10 +2525,10 @@ Supported Expressions in cells:
                             # 1. Force the line into a clean array using the comma separator
                             # This is more reliable in BusyBox than using $i
                             n = split($0, row, ",")
-                            
+
                             # 2. Update the specific index
                             row[c] = nv
-                            
+
                             # 3. Manually stringify the array back to mc (26) columns
                             out = ""
                             for (i = 1; i <= mc; i++) {
@@ -2604,7 +2605,7 @@ Supported Expressions in cells:
             "g") [[ "$mode" == "NAV" ]] && { cur_r=1; cur_c=1; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
             "G") [[ "$mode" == "NAV" ]] && { cur_r=9999; cur_c=$MAX_COLS; } || { [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"; } ;;
 
-            "q"|"Q") 
+            "q"|"Q")
                 if [[ "$mode" == "NAV" ]]; then
                     break
                 else
@@ -2617,7 +2618,7 @@ Supported Expressions in cells:
                 ;;
 
             *)
-                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}" 
+                [[ "$mode" == "EDIT" ]] && _cursor_prefix="${_cursor_prefix}${KEY}"
                 ;;
         esac
     done
@@ -2833,7 +2834,7 @@ filtermenu() {
                     return 0
                 fi ;;
             "/") [ "$cur" -ge 0 ] && cur=-1 ;;
-"$_DEL"|"$_BS")
+            "$_DEL"|"$_BS")
                 if [ "$cur" -eq -1 ]; then
                     if [ -n "$cursor_prefix" ]; then
                         cursor_prefix="${cursor_prefix%?}"
@@ -2853,7 +2854,7 @@ filtermenu() {
                     cur=-1
                 fi ;;
             "?")
-            _help_popup filtermenu ;;
+                _help_popup filtermenu ;;
             "q") if [ "$cur" -eq -1 ]; then cursor_prefix="${cursor_prefix}${KEY}"; else TUI_RESULT=''; return 1; fi ;;
             "j"|"k"|"s"|"w")
                 if [ "$cur" -ge 0 ]; then
@@ -2892,13 +2893,13 @@ filtermenu() {
 filepicker() {
     local title=$1 msg=$2 root_dir=${3:-.}
     local cur=${4:-0}
-    
-    local top=0 menu_w=30 
-    local preview_x=$(( menu_w + 8 )) 
+
+    local top=0 menu_w=30
+    local preview_x=$(( menu_w + 8 ))
     local preview_offset=0
     local last_cur=-1 last_dir="INIT"
     local rebuild=1
-    
+
     local dir_col="\e[1;34m"
     local exe_col="\e[1;32m"
     local show_hidden=0
@@ -2952,7 +2953,7 @@ filepicker() {
             [ $cur -ge $count ] && cur=$((count - 1))
             [ $cur -lt 0 ] && cur=0
 
-            last_dir="$root_dir"; rebuild=0; _init_tui 
+            last_dir="$root_dir"; rebuild=0; _init_tui
         fi
 
         local display_path="$root_dir"
@@ -2980,7 +2981,7 @@ filepicker() {
             local current_row=$((list_top + i))
             _draw_at "$current_row"
             printf "$INDENT" >&2
-            
+
             if [ $v_idx -lt $count ]; then
                 eval "node=\$raw_$v_idx"
                 local path="${node%%|*}"
@@ -2989,7 +2990,7 @@ filepicker() {
                 local is_dir="${remain##*|}"
 
                 local is_cur=0; [ $v_idx -eq $cur ] && is_cur=1
-                
+
                 local display_name="$label"
                 [ "$is_dir" = "true" ] && [ "$label" != ".." ] && display_name="${label}/"
 
@@ -3023,7 +3024,7 @@ filepicker() {
 
                 local style=$BG_WID_ESC
                 [ $is_cur -eq 1 ] && style=$HL_WHITE_BOLD
-                
+
                 printf "${style}${color} %-${menu_w}s ${RESET}${BG_MAIN_ESC}" "$display_name" >&2
             else
                 printf "%$((menu_w + 2))s" "" >&2
@@ -3425,16 +3426,16 @@ _tree_core() {
             local current_view_row=$((view_top + i))
             _draw_at "$current_view_row" 0
             printf "$INDENT" >&2
-            
+
             if [ $v_idx -lt $v_count ]; then
                 local is_cur=0; [ $v_idx -eq $cur ] && is_cur=1
-                
+
                 eval "line_data=\"\$formatted_$v_idx\""
                 local content_line="${line_data%|*}"
                 local item_disabled="${line_data##*|}"
-                
+
                 local item_w=$CONTENT_WIDTH
-                
+
                 if _match "$content_line" "*▶*" || _match "$content_line" "*▼*"; then
                     item_w=$((item_w + 2))
                 fi
@@ -3450,7 +3451,7 @@ _tree_core() {
             else
                 printf "%*s" "$(($MAX_WIDTH - 2))" "" >&2
             fi
-            
+
             row=$((current_view_row + 1))
             i=$((i+1))
         done
@@ -3469,7 +3470,7 @@ _tree_core() {
         _draw_footer
 
         # --- STEP 1: ATOMIC CAPTURE ---
-        
+
         _read_key_esc
         _handle_extra_keys "$KEY" && continue
 
@@ -3504,13 +3505,13 @@ _tree_core() {
                         [ $v_count -gt 0 ] && cur=0
                     fi
                     continue ;;
-                $_TAB)
+                    $_TAB)
                     [ -z "$filter_query" ] && [ $v_count -gt 0 ] && cur=0
                     continue ;;
                     "") # ENTER: JUMP TO MATCH
                         if [ $visible_count -gt 0 ]; then
                             cur=0
-_fq_lc=$(_tolower "$filter_query")
+                            _fq_lc=$(_tolower "$filter_query")
                             idx=0; while [ "$idx" -lt "$visible_count" ]; do
                                 eval "g_idx=\"\$visible_$idx\""
                                 eval "glc=\"\$nlc_$g_idx\""; eval "gic=\"\$nic_$g_idx\""
@@ -3530,7 +3531,7 @@ _fq_lc=$(_tolower "$filter_query")
                             _update_tree_cache
                             cur=-1
                             _skip_header=1
-                            continue 
+                            continue
                         fi
                         ;;
                 esac
@@ -3756,7 +3757,7 @@ configtree() {
 
     i=0; while [ "$i" -lt "$raw_count" ]; do
         eval "node=\"\$raw_data_$i\""
-        
+
         # 2. Performance Fix: Native Parameter Expansion instead of 'read <<<'
         depth="${node%%|*}"
         remaining="${node#*|}"
@@ -3765,7 +3766,7 @@ configtree() {
         label="${remaining%%|*}"
         # has_kids is rarely needed here but extracted for consistency
         has_kids="${remaining##*|}"
-        
+
         [ "$skip_depth" -ne -1 ] && [ "$depth" -gt "$skip_depth" ] && { i=$((i+1)); continue; }
         skip_depth=-1
 
@@ -4200,7 +4201,7 @@ modal() {
     local old_modal="$TUI_MODAL"
     local _saved_last_frame="$LAST_FRAME"
     LAST_FRAME=""
-    
+
     local _user_set_bg_modal="${BG_MODAL:+1}"
 
     if [ -n "$_user_set_bg_modal" ]; then
@@ -4215,7 +4216,7 @@ modal() {
     if [ "$target_mode" = "fullscreen" ] || [ -z "$target_mode" ]; then
         target_mode="centered"
     fi
-    
+
     TUI_MODE="$target_mode"
     TUI_MODAL="true"
 
@@ -4226,16 +4227,16 @@ modal() {
     TUI_MODE="$old_mode"
     TUI_MODAL="$old_modal"
     LAST_FRAME="$_saved_last_frame"
-    
+
     BACKTITLE="$_saved_backtitle"
     BG_MAIN="$_saved_bg_main"
-    _init_tui 
+    _init_tui
 }
 
 mainmenu() {
     local title=$1 msg="$2" dsl=$3
     local cur_side=$(( ${4:-1} - 1 ))
-    
+
     local initial_table_idx=$5
     local cur_table=-1
     local focus=0
@@ -4245,8 +4246,8 @@ mainmenu() {
         cur_table=$((initial_table_idx - 1))
         focus=1
     fi
-    
-    local last_side=-2 
+
+    local last_side=-2
     local last_query="INIT"
     local filter_query="" cursor_prefix="" cursor_suffix="" table_top=0 force_refilter=0
     local sort_col=-1 sort_asc=1 col_count=0
@@ -4265,11 +4266,11 @@ EOF
     [[ $cur_side -ge $side_count ]] && cur_side=$((side_count - 1))
     [[ $cur_side -lt 0 ]] && cur_side=0
 
-    TUI_MODE="fullscreen" 
-    _init_tui 
+    TUI_MODE="fullscreen"
+    _init_tui
 
     local side_w=$(( MAX_WIDTH * 25 / 100 ))
-    local table_x=$(( side_w + 6 )) 
+    local table_x=$(( side_w + 6 ))
     local table_w=$(( MAX_WIDTH - table_x - 3 ))
     local absolute_table_x_esc="\e[$(( PADDING_LEFT + table_x ))G"
 
@@ -4343,13 +4344,13 @@ EOF
                     done
                 } < "$src"
             fi
-            
+
             if [[ $last_side -ne -2 ]]; then
                 [[ "$TUI_PERSISTENT_FILTERS" != "true" ]] && filter_query=""
                 cur_table=-1
                 table_top=0
             fi
-            
+
             last_side=$cur_side
             force_refilter=$((force_refilter+1))
         fi
@@ -4381,9 +4382,9 @@ EOF
                 i=$((i+1))
             done
             f_count=$filtered_count
-            
+
             [[ $cur_table -ge $f_count ]] && cur_table=$((f_count - 1))
-            
+
             last_query="$filter_query"; force_refilter=0
         fi
 
@@ -4391,13 +4392,13 @@ EOF
         local frame=""
 
         _draw_header "$title" "$msg"
-        
+
         local list_top=$row
-        
+
         local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local view_h=$(( MAX_HEIGHT - list_top - _fh ))
         [[ $view_h -lt 5 ]] && view_h=5
-        
+
         local data_h=$(( view_h - 3 ))
 
         if [[ $cur_table -ge 0 ]]; then
@@ -4408,7 +4409,7 @@ EOF
         i=0; while [ "$i" -lt "$view_h" ]; do
             local draw_row=$((list_top + i))
             local row_content="\e[${draw_row};${PADDING_LEFT}H${BG_MAIN_ESC} "
-            
+
             if [[ $i -lt $side_count ]]; then
                 local style="${BG_WID_ESC}${FG_TEXT_ESC}"
                 if [[ $i -eq $cur_side ]]; then
@@ -4417,7 +4418,7 @@ EOF
                 eval "sl=\$side_label_$i"
                 item=$(printf "${BG_MAIN_ESC} ${style} %-$((side_w - 2))s ${RESET}${BG_MAIN_ESC}" "$sl")
                 row_content="$row_content$item"
-            else 
+            else
                 item=$(printf "${BG_MAIN_ESC} %$((side_w))s" "")
                 row_content="$row_content$item"
             fi
@@ -4559,7 +4560,7 @@ EOF
 
         case "$KEY" in
             $'\t') focus=$((1 - focus)) ;;
-            "/") 
+            "/")
                 if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then
                     cursor_prefix="${cursor_prefix}${KEY}"
                     filter_query="${cursor_prefix}${cursor_suffix}"
@@ -4686,9 +4687,9 @@ _execute_mode_action() {
 
     # 1. FORCE sync the local variable with the global prompt_buffer
     local cmd="$prompt_buffer"
-    
+
     #msgbox "DEBUG" "Buffer was: [$cmd]"
-    
+
     case "$cmd" in cd\ *|"cd..")
         local target_dir="${cmd#cd }"
         [[ "$cmd" == "cd.." ]] && target_dir=".."
@@ -4706,14 +4707,14 @@ _execute_mode_action() {
         if [[ -d "$resolved" ]]; then
             # Update the global root_dir
             root_dir=$(cd "$resolved" && pwd)
-            
+
             # Reset UI state and force a re-scan of the new folder
             ui_mode="NAV"
             prompt_buffer=""
             prompt_pos=0
             rebuild=1
             cur=0
-            last_dir="FORCE_REBUILD" 
+            last_dir="FORCE_REBUILD"
             return 0
         else
             msgbox "Error" "Directory not found: $target_dir"
@@ -4737,10 +4738,10 @@ _execute_mode_action() {
         "CMD"|"SUDO_CMD")
             local final_cmd="${prompt_buffer//\{\}/$targets}"
             final_cmd="${final_cmd//sel/$targets}"
-            
+
             # 1. Create a temporary file to capture output
             local out_tmp="/tmp/tui_out_$$.txt"
-            
+
             if [[ "$ui_mode" == "SUDO_CMD" ]]; then
                 # Run sudo and capture BOTH stdout and stderr to the temp file
                 # Use 'tee' so the user sees output in real-time
@@ -4766,11 +4767,11 @@ _execute_mode_action() {
         "RENAME")
             new_path="$root_dir/$prompt_buffer"
             mv "$current_path" "$new_path"
-            
+
             # --- THE FIX: Make focus follow the renamed file ---
             last_path="$new_path"
             cur=-2
-            
+
             ui_mode="NAV"
             sel_path_count=0
             ;;
@@ -4798,18 +4799,18 @@ _get_prompt_msg() {
     local blue_fg="\e[1;38;2;${FG_INPUT}m"
     local red_fg="\e[1;38;2;${FG_INPUT_ROOT}m"
     local prompt_fg="$blue_fg"
-    
+
     case "$ui_mode" in
-        "CMD")       symbol=" $ ";        content="$prompt_buffer" ;; 
-        "SUDO_CMD")  symbol=" # ";        content="$prompt_buffer" ;; 
-        "SEARCH")    symbol="Search: > "; content=" $search_query" ;; 
-        "RENAME")    symbol="Rename: ";   content=" $prompt_buffer" ;; 
-        "NEW_F")     symbol="File name: ";     content=" $prompt_buffer" ;; 
-        "NEW_D")     symbol="Dir name: ";      content=" $prompt_buffer" ;; 
+        "CMD")       symbol=" $ ";        content="$prompt_buffer" ;;
+        "SUDO_CMD")  symbol=" # ";        content="$prompt_buffer" ;;
+        "SEARCH")    symbol="Search: > "; content=" $search_query" ;;
+        "RENAME")    symbol="Rename: ";   content=" $prompt_buffer" ;;
+        "NEW_F")     symbol="File name: ";     content=" $prompt_buffer" ;;
+        "NEW_D")     symbol="Dir name: ";      content=" $prompt_buffer" ;;
     esac
 
     local total_w=$CONTENT_WIDTH_WIDE
-    
+
     if [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
         if [[ "$ui_mode" == "SUDO_CMD" ]]; then
             prompt_fg="$red_fg"
@@ -4825,7 +4826,7 @@ _get_prompt_msg() {
 _refresh_prompt() {
     _get_prompt_msg
     local p_row=$(( PADDING_TOP + $(_get_start_row) ))
-    
+
     if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
         p_row=$(( PADDING_TOP + $(_get_start_row) + 1))
     fi
@@ -4835,7 +4836,7 @@ _refresh_prompt() {
 }
 
 _refresh_sidebar_only() {
-    local clean_query="${search_query# }" 
+    local clean_query="${search_query# }"
     local f_idx=0
 
     local lc_query=""
@@ -4845,7 +4846,7 @@ _refresh_sidebar_only() {
         eval "item=\$master_raw_$si"
         local name="${item#*|}"
         name="${name%|*}"
-        
+
         # If query is empty, or name matches the glob pattern
         if [[ "$name" == ".." ]] || [[ -z "$clean_query" ]]; then
             eval "raw_$f_idx='$item'"
@@ -4866,33 +4867,33 @@ _refresh_sidebar_only() {
     cur=0; top=0
 
     local list_top=$(( PADDING_TOP + row ))
-    
+
     local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
     local height=${1:-$(( MAX_HEIGHT - row - _fh ))}
-    [[ $height -lt 1 ]] && height=1 
+    [[ $height -lt 1 ]] && height=1
 
     i=0; while [ "$i" -lt "$height" ]; do
         local v_idx=$((top + i))
         local current_row=$((list_top + i))
-        
+
         [[ $current_row -ge $((PADDING_TOP + MAX_HEIGHT - 1)) ]] && break
-        
+
         printf "\e[${current_row};${PADDING_LEFT}H${BG_MAIN_ESC}  " >&2
-        
+
         if [[ $v_idx -lt $raw_count ]]; then
             eval "node=\$raw_$v_idx"
             local path="${node%%|*}"
             local remain="${node#*|}"
             local label="${remain%|*}"
             local is_dir="${remain##*|}"
-            
+
             local is_cur=0; [[ $v_idx -eq $cur ]] && is_cur=1
             local style=$BG_WID_ESC
             [[ $is_cur -eq 1 ]] && style=$HL_WHITE_BOLD
-            
+
             local color=$FG_TEXT_ESC
             if [[ "$is_dir" == "true" ]]; then
-                color="\e[1;34m" 
+                color="\e[1;34m"
             elif [[ -x "$path" ]]; then
                 color="\e[1;32m"
             elif [[ "${label:0:1}" == "." ]]; then
@@ -4913,13 +4914,13 @@ _update_display_path() {
     case "$display_path" in "$HOME"*) display_path="~${display_path#$HOME}" ;; esac
 
     local filter_suffix=""
-    # Use the search_query variable. 
+    # Use the search_query variable.
     # If your search query has the leading UI space, strip it.
     local clean_q="${search_query# }"
     if [[ -n "$clean_q" ]]; then
         filter_suffix=" (Filter: $clean_q)"
     fi
-    
+
     # Calculate width and truncate as we did before...
     local avail_w=$(( MAX_WIDTH - 10 - ${#filter_suffix} ))
     [[ $avail_w -lt 10 ]] && avail_w=10
@@ -4928,7 +4929,7 @@ _update_display_path() {
         local offset=$(( ${#display_path} - avail_w + 3 ))
         display_path="...${display_path:$offset}"
     fi
-    
+
     # Set the global header_msg
     header_msg="Path: ${display_path}${filter_suffix}"
 }
@@ -4936,7 +4937,7 @@ _update_display_path() {
 _get_tab_completion() {
     local current_input="$prompt_buffer"
     local prefix="" last_word=""
-    
+
     # 1. Split command into prefix (cd ) and the word being completed (dir/foo)
     case "$current_input" in *" "*)
         prefix="${current_input% *} "
@@ -4962,7 +4963,7 @@ _get_tab_completion() {
         case "$current_input" in "$last_completion_base"*) ;; *) return ;; esac
         completion_idx=$((completion_idx+1))
         [[ $completion_idx -ge $comp_match_count ]] && completion_idx=0
-        
+
         eval "prompt_buffer=\"\${prefix}\${comp_match_$completion_idx}\""
         prompt_pos=${#prompt_buffer}
         last_completion_base="$prompt_buffer"
@@ -4972,7 +4973,7 @@ _get_tab_completion() {
     # --- PATH-AWARE SEARCH ---
     comp_match_count=0
     completion_idx=-1
-    
+
     local dir_part="" partial=""
     case "$last_word" in *"/"*)
         dir_part="${last_word%/*}/"
@@ -4984,9 +4985,9 @@ _get_tab_completion() {
 
     # Resolve scan directory
     local scan_root="$root_dir"
-    [[ "${dir_part:0:1}" == "/" ]] && scan_root="" 
+    [[ "${dir_part:0:1}" == "/" ]] && scan_root=""
     local real_scan_dir=$(cd "${scan_root}/${dir_part}" 2>/dev/null && pwd)
-    
+
     if [[ -d "$real_scan_dir" ]]; then
         ls_pattern=$(echo "$partial" | sed 's/[][\.*^$(){}|+?]/\\&/g')
         # Loop through directory contents
@@ -5083,8 +5084,8 @@ EOF
 
     # 1. SETUP & STATE
     local title=$1 root_dir=${2:-.}
-    local cur=${3:-0} top=0 menu_w=30 
-    local preview_x=$(( menu_w + 8 )) 
+    local cur=${3:-0} top=0 menu_w=30
+    local preview_x=$(( menu_w + 8 ))
     local preview_offset=0
     local last_cur=-1 last_dir="INIT" rebuild=1
     local prompt_pos=0
@@ -5097,7 +5098,7 @@ EOF
     local search_query=""
     local sel_path_count=0
     local _saved_cur=0 _saved_top=0
-    
+
     local dir_col="\e[1;34m" exe_col="\e[1;32m"
     root_dir=$(cd "$root_dir" && pwd)
 
@@ -5116,7 +5117,7 @@ EOF
                     # This is the most accurate way to ask Git: "Of these files, what is ignored?"
                     local raw_ignored
                     raw_ignored=$(cd "$root_dir" && ls -A1 2>/dev/null | git check-ignore --stdin 2>/dev/null)
-                    
+
                     if [[ -n "$raw_ignored" ]]; then
                         # Safe conversion to pipe-delimited string
                         local old_ifs="$IFS"; IFS=$'\n'
@@ -5276,7 +5277,7 @@ if [[ -n "$search_query" ]]; then
             rm -f "$_fm_tmpf"
 
             if [[ $show_details -eq 1 ]]; then :; fi
-            
+
             master_raw_count=$raw_count
             local si=0; while [ "$si" -lt "$raw_count" ]; do
                 eval "master_raw_$si=\$raw_$si"
@@ -5304,11 +5305,11 @@ if [[ -n "$search_query" ]]; then
             [[ $cur -lt 0 ]] && cur=0
 
             _update_display_path
-            
-            last_dir="$root_dir"; rebuild=0; 
-            
+
+            last_dir="$root_dir"; rebuild=0;
+
             _init_tui # This clears the screen
-            
+
             # NOW: Explicitly draw the header with the msg we just updated
             _draw_header "$title" "$header_msg"
         fi
@@ -5328,7 +5329,7 @@ if [[ -n "$search_query" ]]; then
                 local fill_w=$(( CONTENT_WIDTH_WIDE - ${#sym} ))
                 header_msg=$(printf "${sym}${BG_INPUT_ESC}\e[1;37m%-${fill_w}s${RESET}${BG_MAIN_ESC}" "$prompt_buffer")
                 ;;
-            "SUDO_PASS") 
+            "SUDO_PASS")
                 local masked="${prompt_buffer//?/*}"
                 header_msg="${FG_INPUT_ROOT}Password: > ${masked}${RESET}" ;;
         esac
@@ -5338,7 +5339,7 @@ if [[ -n "$search_query" ]]; then
         else
             # 1. Manually draw ONLY the Title line (Row 1)
             #local title_row=$(( PADDING_TOP + 2 ))
-            #_draw_header "$title" "" 
+            #_draw_header "$title" ""
             # 2. Let the surgical redraw handle the Prompt line (Row 3)
             _refresh_prompt
         fi
@@ -5351,7 +5352,7 @@ if [[ -n "$search_query" ]]; then
                 prompt_row=$(( PADDING_TOP + $(_get_start_row) + 2))
             fi
             # Calculate offset: "Path: " or "$ " length
-            local offset=4 
+            local offset=4
             [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]] && offset=2
             # Hacky fix for modes with no padding outside the BG_MAIN box
             local cursor_marker_shift=0
@@ -5362,7 +5363,7 @@ if [[ -n "$search_query" ]]; then
 
         # 4. SIDEBAR RENDER
         local list_top=$row
-        
+
         # --- FIX 1: SIDEBAR WIDTH LOGIC ---
         # Only widen if details are ON AND help is OFF.
         local active_menu_w=$menu_w
@@ -5384,7 +5385,7 @@ if [[ -n "$search_query" ]]; then
             local v_idx=$((top + i))
             local current_row=$((list_top + i))
             _draw_at "$current_row"
-            printf "$INDENT" >&2 
+            printf "$INDENT" >&2
 
             # --- FIX 2: FULL-SCREEN HELP SAFETY ---
             if [[ $show_help -eq 1 && $show_details -eq 1 ]]; then
@@ -5396,7 +5397,7 @@ if [[ -n "$search_query" ]]; then
                 local label="${remain%|*}"
                 local is_dir="${remain##*|}"
                 local is_cur=0; [[ $v_idx -eq $cur ]] && is_cur=1
-                
+
                 # --- FIX 3: PATH-BASED TAGGING ---
                 local is_tag=0
                 local si=0; while [ "$si" -lt "$sel_path_count" ]; do
@@ -5412,7 +5413,7 @@ if [[ -n "$search_query" ]]; then
                     else
                         local lbl="$label"
                         [[ "$is_dir" == "true" ]] && lbl="${label}/"
-                        
+
                         local short_name="${lbl:0:$active_name_w}"
                         eval "detail=\$detail_$v_idx"
                         display_name=$(printf "%-${active_name_w}s %s" "$short_name" "$detail")
@@ -5424,10 +5425,10 @@ if [[ -n "$search_query" ]]; then
                 local visible_name="${display_name:0:$active_menu_w}"
 
                 local style="" color=""
-                
+
                 if [[ $is_cur -eq 1 ]]; then
                     style="$HL_WHITE_BOLD"
-                    color="" 
+                    color=""
                 elif [[ $is_tag -eq 1 ]]; then
                     style="${BG_WID_ESC}"
                     color="\e[1;33m"
@@ -5452,10 +5453,10 @@ if [[ -n "$search_query" ]]; then
                 done
 
                 local extra_style=""
-                [[ $is_in_clipboard -eq 1 ]] && extra_style="\e[3;2m" 
+                [[ $is_in_clipboard -eq 1 ]] && extra_style="\e[3;2m"
 
                 local final_color="$color"
-                [[ $is_in_clipboard -eq 1 ]] && final_color="" 
+                [[ $is_in_clipboard -eq 1 ]] && final_color=""
 
                 printf "${style}${extra_style}${color} %-${active_menu_w}s ${RESET}${BG_MAIN_ESC}" "${display_name:0:$active_menu_w}" >&2
             else
@@ -5473,7 +5474,7 @@ if [[ -n "$search_query" ]]; then
                 # 1. DYNAMIC WIPE
                 local wipe_x=$preview_x
                 local total_wipe_w=$(( MAX_WIDTH - preview_x - 1 ))
-                
+
                 if [[ $show_details -eq 1 ]]; then
                     wipe_x=2
                     total_wipe_w=$CONTENT_WIDTH_WIDE
@@ -5524,7 +5525,7 @@ if [[ -n "$search_query" ]]; then
         # IF in a prompt mode, MOVE cursor back to the prompt line
         if [[ "$ui_mode" != "NAV" ]]; then
             _refresh_prompt # Re-draws the colored input bar
-            
+
             # Re-calculate position
             local p_row=$(( PADDING_TOP + $(_get_start_row) ))
             if [[ "$TUI_MODE" == "fullscreen" && "$BACKTITLE" != "" ]];then
@@ -5699,7 +5700,7 @@ if [[ -n "$search_query" ]]; then
                         # --- THE SURGICAL FIX: Check if query is empty ---
                         # We strip the leading space if it exists
                         local check_q="${search_query# }"
-                        
+
                         if [[ -z "$check_q" ]]; then
                             # EMPTY PROMPT: Behave exactly like ESCAPE
                             cur=$_saved_cur; top=$_saved_top
@@ -5715,17 +5716,17 @@ if [[ -n "$search_query" ]]; then
 
                             # adjustments needed to prompt placement in fullscreen mode
                             [[ -n "$BACKTITLE" && "$TUI_MODE" == 'fullscreen' ]] && p_row=$(( PADDING_TOP + 4 ))
-                            
+
                             rebuild=1
                             continue
                         fi
-                    
+
                     elif [[ -z "$prompt_buffer" ]]; then
                         # Empty prompt: return to NAV
                         cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"; prompt_pos=0; rebuild=1
                         continue
-                    
+
                     elif [[ "$ui_mode" == "CMD" || "$ui_mode" == "SUDO_CMD" ]]; then
                         # --- SAVE TO HISTORY ---
                         if [[ -n "$prompt_buffer" ]]; then
@@ -5750,23 +5751,23 @@ if [[ -n "$search_query" ]]; then
                         cur=$_saved_cur; top=$_saved_top
                         prompt_buffer=""; prompt_pos=0; hist_ptr=-1 # Reset pointer
                         _init_tui
-                        continue 
-                    
+                        continue
+
                     elif [[ "$ui_mode" == "NEW_F" || "$ui_mode" == "NEW_D" || "$ui_mode" == "RENAME" ]]; then
                         # 1. RUN ACTION (mv, touch, or mkdir)
                         _execute_mode_action
-                        
+
                         # 2. RESET STATE (Don't exit the script!)
                         cur=$_saved_cur; top=$_saved_top
                         ui_mode="NAV"
                         prompt_buffer=""
                         prompt_pos=0
-                        
+
                         # 3. REBUILD LIST
                         # This ensures the new file/folder shows up in the sidebar
                         rebuild=1
                         _init_tui
-                        
+
                         # 4. SKIP NAV LOGIC
                         continue
                     fi
@@ -5797,9 +5798,9 @@ if [[ -n "$search_query" ]]; then
                 $'\033') # Arrows
                     case "$next_chars" in
                         "[D"|"OD") [[ $prompt_pos -gt 0 ]] && prompt_pos=$((prompt_pos-1)) ;;
-                        "[C"|"OC") 
+                        "[C"|"OC")
                             local limit=$([[ "$ui_mode" == "SEARCH" ]] && echo ${#search_query} || echo ${#prompt_buffer})
-                            [[ $prompt_pos -lt $limit ]] && prompt_pos=$((prompt_pos+1)) 
+                            [[ $prompt_pos -lt $limit ]] && prompt_pos=$((prompt_pos+1))
                             ;;
                     esac ;;
 
@@ -5812,10 +5813,10 @@ if [[ -n "$search_query" ]]; then
                             # 2. FAST SURGICAL UPDATES
                             _get_prompt_msg
                             _refresh_prompt
-                            row=$(( $(_get_start_row) + 2)) 
+                            row=$(( $(_get_start_row) + 2))
                             if [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]];then
-                                row=$(( $(_get_start_row) + 3)) 
-                            fi                            
+                                row=$(( $(_get_start_row) + 3))
+                            fi
                             list_top=$row
 
                             local max_vh=$(( MAX_HEIGHT - row - _fh ))
@@ -5849,12 +5850,12 @@ if [[ -n "$search_query" ]]; then
                             _get_prompt_msg       # Update the header string
                             _refresh_prompt       # Draw the black bar immediately
                             # --- THE FIX ---
-                            # Capture the current row, move it up 2 lines, 
+                            # Capture the current row, move it up 2 lines,
                             # and sync list_top so the sidebar redraws higher.
-                            row=$(( $(_get_start_row) + 2)) 
+                            row=$(( $(_get_start_row) + 2))
                             if [[ "$TUI_MODE" == "fullscreen" && -n "$BACKTITLE" ]];then
-                                row=$(( $(_get_start_row) + 3)) 
-                            fi                            
+                                row=$(( $(_get_start_row) + 3))
+                            fi
                             list_top=$row
 
                             # This prevents the sidebar from breaking out of the box
@@ -5881,20 +5882,20 @@ if [[ -n "$search_query" ]]; then
             # --- SURGICAL REDRAW ---
             if [[ "$ui_mode" != "NAV" ]]; then
                 _refresh_prompt
-                
+
                 if [[ "$ui_mode" == "SEARCH" ]]; then
-                    # We only want to rebuild the list if the user hasn't typed 
+                    # We only want to rebuild the list if the user hasn't typed
                     # in the last few milliseconds, OR we do a shallow filter
-                    # To keep it 100% lag-free, let's just refresh the prompt 
-                    # and only filter the sidebar every 2nd or 3rd keystroke, 
+                    # To keep it 100% lag-free, let's just refresh the prompt
+                    # and only filter the sidebar every 2nd or 3rd keystroke,
                     # or simply accept a slightly slower filter for a faster cursor.
-                    
-                    row=$(( $(_get_start_row) + 2)) 
+
+                    row=$(( $(_get_start_row) + 2))
                     list_top=$row
                     # For Bash 3.2, the best balance is:
                     _refresh_sidebar_only # A function that only draws the filenames
                 fi
-                
+
                 [[ "$ui_mode" != "SEARCH" ]] && continue
             fi
         fi
@@ -5916,7 +5917,7 @@ if [[ -n "$search_query" ]]; then
                 local path="${node%%|*}"
                 local label="${node#*|}"
                 label="${label%|*}"
-                
+
                 if [[ "$label" != ".." ]]; then
                     local found=-1
                     local si=0; while [ "$si" -lt "$sel_path_count" ]; do
@@ -5962,7 +5963,7 @@ if [[ -n "$search_query" ]]; then
             "!") _saved_cur=$cur; _saved_top=$top
                  ui_mode="SUDO_CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
-                  
+
             ":") _saved_cur=$cur; _saved_top=$top
                  ui_mode="CMD"; prompt_buffer=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
@@ -5978,7 +5979,7 @@ if [[ -n "$search_query" ]]; then
             "F") _saved_cur=$cur; _saved_top=$top
                  ui_mode="NEW_D"; search_query=""; prompt_pos=0; rebuild=0; show_help=0
                  _refresh_prompt; continue ;;
-            
+
             "r") # Rename
                  _saved_cur=$cur; _saved_top=$top
                  ui_mode="RENAME"
@@ -5986,7 +5987,7 @@ if [[ -n "$search_query" ]]; then
                  local n="${node#*|}"
                  prompt_buffer="${n%|*}"
                  prompt_pos=${#prompt_buffer}
-                 
+
                  # NEW: Don't wait for the loop to redraw
                  rebuild=0
                  show_help=0
@@ -5995,7 +5996,7 @@ if [[ -n "$search_query" ]]; then
 
             "x"|"c") # Toggle Cut/Copy
                 local op=$([[ "$KEY" == "x" ]] && echo "CUT" || echo "COPY")
-                
+
                 # Process tags or focus
                 if [[ $sel_path_count -gt 0 ]]; then
                     local si=0; while [ "$si" -lt "$sel_path_count" ]; do
@@ -6101,7 +6102,7 @@ if [[ -n "$search_query" ]]; then
 
             "i") # Toggle Ignored Files
                 show_ignored=$(( 1 - show_ignored ))
-                last_dir="FORCE_REFRESH" 
+                last_dir="FORCE_REFRESH"
                 rebuild=1
                 ;;
 
@@ -6209,7 +6210,7 @@ kanban() {
     local num_cols=$kanban_cols_count
     local usable_w=$CONTENT_WIDTH_WIDE
 
-    local pad_w=$(( col_w - 3 )) 
+    local pad_w=$(( col_w - 3 ))
     local sel_c=$((${4:-1} - 1)) sel_r=$((${5:-1} - 1))
     [ "$sel_c" -lt 0 ] && sel_c=0
     [ "$sel_r" -lt 0 ] && sel_r=0
@@ -6306,7 +6307,7 @@ kanban() {
                     eval "files_${c}_${idx}=\"\$fname\""
                     eval "titles_${c}_${idx}=\"\$f_title\""
                     eval "count_$c=$((idx + 1))"
-                    
+
                     if [[ -n "$target_filename" && "$fname" == "$target_filename" ]]; then
                         sel_c=$c; sel_r=$idx; target_filename=""
                     fi
@@ -6325,7 +6326,7 @@ kanban() {
         [[ $PADDING_TOP -eq 0 && -n "$BACKTITLE" ]] && row=3
         _draw_header "$title" "$msg"
         local list_top=$row
-        
+
         local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
         local view_h=$(( MAX_HEIGHT - list_top - 1 - _fh ))
         [[ $view_h -lt $MIN_CONTENT_HEIGHT ]] && view_h=$MIN_CONTENT_HEIGHT
@@ -6334,7 +6335,7 @@ kanban() {
         local num_cols=$kanban_cols_count
         local total_gap_space=$(( num_cols - 1 ))
         local usable_w=$(( CONTENT_WIDTH_WIDE - total_gap_space ))
-        
+
         local base_col_w=$(( usable_w / num_cols ))
         local remainder=$(( usable_w % num_cols ))
 
@@ -6345,11 +6346,11 @@ kanban() {
 
             local x=2
             [[ "$TUI_MODE" == "fullscreen" ]] && x=3
-            local prev=0; while [ "$prev" -lt "$c" ]; do 
+            local prev=0; while [ "$prev" -lt "$c" ]; do
                 x=$((x + base_col_w + 1))
                 prev=$((prev+1))
             done
-            
+
             eval "c_len=\$count_$c"
             eval "col_top=\$col_top_$c"
             local top=$col_top
@@ -6357,27 +6358,27 @@ kanban() {
             # 1. STICKY HEADER
             local h_style="${BG_TABLE_HEADER_ESC}"
             [[ $sel_c -eq $c ]] && h_style="${BG_TABLE_HEADER_ESC}${SB}${BOLD}"
-            
+
             eval "kc=\$kanban_cols_$c"
             _draw_at "$list_top" "$x"
             printf "${h_style}%-${item_w}.${item_w}s${RESET}${BG_MAIN_ESC}" " $kc" >&2
-            
+
             # 2. SCROLLABLE VIEWPORT
             i=0; while [ "$i" -lt "$view_h" ]; do
                 local r=$((list_top + i + 1))
                 local idx=$((top + i))
                 _draw_at "$r" "$x"
-                
+
                 if [[ $idx -lt $c_len ]]; then
                     local style=$([[ $sel_c -eq $c && $sel_r -eq $idx ]] && echo "${HL_WHITE_BOLD}" || echo "${BG_WID_ESC}${FG_TEXT_ESC}")
-                    
+
                     eval "d_name=\$titles_${c}_${idx}"
                     [[ -z "$d_name" ]] && eval "d_name=\$files_${c}_${idx}"
 
                     if [[ ${#d_name} -gt $item_w ]]; then
                         d_name="${d_name:0:$((item_w - 3))}..."
                     fi
-                    
+
                     printf "${style}%-${item_w}.${item_w}s${RESET}${BG_MAIN_ESC}" " $d_name" >&2
                 else
                     printf "${BG_MAIN_ESC}%-${item_w}s" "" >&2
@@ -6467,12 +6468,12 @@ kanban() {
         case "$KEY" in
             "q") TUI_RESULT=''; cleanup; return 1 ;;
 
-            "/") 
-                 local NOW_FULL=$(date +%Y-%m-%d-%H:%M:%S)
+            "/")
+                local NOW_FULL=$(date +%Y-%m-%d-%H:%M:%S)
 
                 local filter_csv="/tmp/pm_filter_$$.csv"
                 local old_ifs="$IFS"; IFS=$'\n'
-                
+
                 local rev_flag=""; [[ "$sort_rev" == "true" ]] && rev_flag="r"
                 local sorted_files=$(for f in "$dir"/*.md; do
                     [[ ! -f "$f" ]] && continue
@@ -6482,7 +6483,7 @@ kanban() {
                     else
                         val=$(_get_fm "$f" "$sort_mode")
                     fi
-                    
+
                     if [[ "$sort_mode" == "rank" ]]; then
                         printf "%03d|%s\n" "${val:-100}" "${f##*/}"
                     else
@@ -6491,12 +6492,12 @@ kanban() {
                 done | sort -t '|' -k1${rev_flag})
 
                 echo "Title,Tags,Author,Created,Modified,Due,Command" > "$filter_csv"
-                
+
                 for entry in $sorted_files; do
                     local fname="${entry#*|}"
                     local f="$dir/$fname"
-                    
-local r_title=$(_get_fm "$f" "title")
+
+                    local r_title=$(_get_fm "$f" "title")
                     local r_tags=$(_get_fm "$f" "tags")
                     local r_auth=$(_get_fm "$f" "author")
                     local r_cre=$(_get_fm "$f" "created")
@@ -6523,17 +6524,17 @@ local r_title=$(_get_fm "$f" "title")
                         ${EDITOR:-vi} "$chosen_file"
                     fi
                 fi
-                
+
                 _init_tui
                 ;;
 
-            "k"|"w") 
+            "k"|"w")
                 if [[ $sel_r -gt 0 ]]; then
                     sel_r=$((sel_r-1))
                     eval "col_top=\$col_top_$sel_c"
                     [[ $sel_r -lt $col_top ]] && eval "col_top_$sel_c=$sel_r"
                 fi ;;
-            "j"|"s") 
+            "j"|"s")
                 eval "c_len=\$count_$sel_c"
                 if [[ $sel_r -lt $((c_len - 1)) ]]; then
                     sel_r=$((sel_r+1))
@@ -6541,7 +6542,7 @@ local r_title=$(_get_fm "$f" "title")
                     [[ $sel_r -ge $((col_top + view_h)) ]] && eval "col_top_$sel_c=$((sel_r - view_h + 1))"
                 fi ;;
 
-            "h"|"a") 
+            "h"|"a")
                 local prev_c=$((sel_c - 1))
                 while [[ $prev_c -ge 0 ]]; do
                     eval "c_len=\$count_$prev_c"
@@ -6558,7 +6559,7 @@ local r_title=$(_get_fm "$f" "title")
                     prev_c=$((prev_c-1))
                 done ;;
 
-            "l"|"d") 
+            "l"|"d")
                 local next_c=$((sel_c + 1))
                 while [[ $next_c -lt $num_cols ]]; do
                     eval "c_len=\$count_$next_c"
@@ -6574,8 +6575,8 @@ local r_title=$(_get_fm "$f" "title")
                     fi
                     next_c=$((next_c+1))
                 done ;;
-            
-            "L"|"D") 
+
+            "L"|"D")
                 if [[ $sel_c -lt $((num_cols-1)) && -n "$cur_file" ]]; then
                     _save_undo; local moving_file="$cur_file"
                     local target_col=$((sel_c + 1))
@@ -6693,7 +6694,7 @@ local r_title=$(_get_fm "$f" "title")
             "o") case "$sort_mode" in "rank") sort_mode="modified" ;; "modified") sort_mode="created" ;; "created") sort_mode="completed" ;; "completed") sort_mode="due" ;; *) sort_mode="rank" ;; esac ;;
             "O") [[ "$sort_rev" == "true" ]] && sort_rev="false" || sort_rev="true" ;;
             "e"|"") [[ -n "$cur_file" ]] && { ${EDITOR:-vi} "$target"; _init_tui; } ;;
-            "n") 
+            "n")
                 name=$(inputbox "New Note" "Filename (no extension):")
                 name="${name//\//-}"
                 if [[ -n "$name" ]]; then
@@ -6702,20 +6703,20 @@ local r_title=$(_get_fm "$f" "title")
                     eval "kc=\$kanban_cols_$sel_c"
                     printf "title: %s\ncreated: %s\ncompleted: \ndue: \nstatus: %s\nrank: 0\ntags: \nauthor: %s\nowner: %s\n" \
                            "$name" "$d" "$kc" "$USER" "$USER" > "$dir/${name}.md"
-                fi 
-                _init_tui 
+                fi
+                _init_tui
                 ;;
             "t") [[ -n "$cur_file" ]] && { tag=$(inputbox "Tag" "Add tag:"); _set_fm "$target" "tags" "$(_get_fm "$target" "tags") $tag"; } ;;
             "z") _save_redo; cp "$undo_dir"/*.md "$dir/" 2>/dev/null ;;
             "Z") cp "$redo_dir"/*.md "$dir/" 2>/dev/null ;;
-            "?") 
+            "?")
                 _help_popup kanban ;;
         esac
 
         eval "max_r=\$count_$sel_c"
-        if [ "$max_r" = "0" ] || [ -z "$max_r" ]; then 
+        if [ "$max_r" = "0" ] || [ -z "$max_r" ]; then
             sel_r=0
-        elif [ "$sel_r" -ge "$max_r" ]; then 
+        elif [ "$sel_r" -ge "$max_r" ]; then
             sel_r=$((max_r - 1))
         fi
         [ "$sel_r" -lt 0 ] 2>/dev/null && sel_r=0 || true
@@ -7022,7 +7023,7 @@ _ta_find_next() {
         while true; do
             local rest="${line:$idx}"
             case "$rest" in
-                "$_ta_search_term"*) 
+                "$_ta_search_term"*)
                     _ta_sel_row=$r; _ta_sel_col=$idx
                     _ta_cur_row=$r; _ta_cur_col=$((idx + slen))
                     _ta_search_row=$r; _ta_search_col=$((idx + slen))
@@ -7061,7 +7062,7 @@ _ta_find_replace() {
         local newline="" rest="$line" found=0
         while true; do
             case "$rest" in
-                *"$_term"*) 
+                *"$_term"*)
                     local before="${rest%%"$_term"*}"
                     newline="${newline}${before}${_repl}"
                     rest="${rest#*"$_term"}"
