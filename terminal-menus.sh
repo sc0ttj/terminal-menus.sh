@@ -6980,6 +6980,7 @@ _ta_find() {
     local _term=$(modal "inputbox '' 'Search:' '$_ta_search_term'")
     TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
     _init_tui
+    stty -isig -ixon 2>/dev/null
     _term="${_term%%$'\n'}"
     [ -z "$_term" ] && return
     _ta_search_term="$_term"
@@ -7028,6 +7029,7 @@ _ta_find_replace() {
     TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
     TUI_HIDE_FOOTER="$_saved_hf"
     _init_tui
+    stty -isig -ixon 2>/dev/null
     [ -z "$_result" ] && return
     eval "$_result" 2>/dev/null
     local _term="$find"
@@ -7145,6 +7147,7 @@ _ta_open_file() {
     TUI_MODE="$_saved_mode"; TUI_WIDTH="$_saved_w"; TUI_HEIGHT="$_saved_h"
     TUI_HIDE_FOOTER="$_saved_hf"
     _init_tui
+    stty -isig -ixon 2>/dev/null
     [ -z "$_new_file" ] && return
     [ -f "$_new_file" ] && file="$_new_file" || return
     _ta_lines=0
