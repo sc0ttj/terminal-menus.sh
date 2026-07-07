@@ -707,8 +707,10 @@ ${SB}q${SR}           Quit" ;;
         *)
             return 1 ;;
     esac
+    local _saved_bg_modal="${BG_MODAL:-}"
     [ "$TUI_MODE" != "fullscreen" ] && BG_MODAL=$BG_MAIN
     modal "infobox 'Controls' \"$ctxt\""
+    [ -n "$_saved_bg_modal" ] && BG_MODAL="$_saved_bg_modal"
     _init_tui
 }
 
@@ -882,6 +884,32 @@ _draw_form_field() {
     fi
 }
 
+# --- Common SGR mouse handler for list-based widgets ---
+# Handles hover (btn=32), scroll (btn=64/65), release (btn=0, press=0)
+# On click (btn=0, press=1), callers must handle widget-specific actions
+# MOUSE_ROW  -2  = scroll up
+# MOUSE_ROW  -3  = scroll down
+# MOUSE_ROW >=0  = row index in visible viewport
+# Returns 0 if event handled (caller should continue)
+_handle_mouse_list() {
+    local list_row=$1 view_top=$2 count=$3
+    MOUSE_ROW=-1
+    [ "$MOUSE_BTN" -lt 0 ] && return 1
+
+    if [ "$MOUSE_BTN" -eq 32 ]; then
+        MOUSE_ROW=$(( MOUSE_Y - PADDING_TOP - list_row + view_top ))
+        [ "$MOUSE_ROW" -ge 0 ] && [ "$MOUSE_ROW" -lt "$count" ] || MOUSE_ROW=-1
+        return 0
+    elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
+        return 0
+    elif [ "$MOUSE_BTN" -eq 64 ]; then
+        MOUSE_ROW=-2; return 0
+    elif [ "$MOUSE_BTN" -eq 65 ]; then
+        MOUSE_ROW=-3; return 0
+    fi
+    return 1
+}
+
 _draw_list() {
     _apply_layout
     local type=$1 title=$2 msg=$3 def_idx=$4; shift 4
@@ -943,19 +971,17 @@ _draw_list() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+        if _handle_mouse_list "$list_top" "$top" "$count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -gt 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1))
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
+            fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ "$cur" -gt 0 ] && cur=$((cur-1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+        fi
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
             local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
             if [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ]; then
                 cur=$_mi
@@ -968,8 +994,8 @@ _draw_list() {
                 KEY=" "
                 ESC_SEQ=" "
             fi
+            continue
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -1586,9 +1612,7 @@ form() {
                 fi
                 joined="${joined}${cleaned},"
                 idx=$((idx+1))
-done <<_EOF_
-$_kb_manifest
-_EOF_
+            done
             joined="${joined%,}"
             eval "fields_$i='{ }'"
             eval "values_$i='CLOSED|$default_idx||$joined'"
@@ -2197,7 +2221,7 @@ Supported Expressions in cells:
     # 1. Setup Stacks and Clipboard
     local clipboard_val=""
     local undo_idx=0 redo_idx=0
-    rm -f /tmp/tui_undo_* /tmp/tui_redo_*
+    for f in /tmp/tui_undo_* /tmp/tui_redo_*; do [ -f "$f" ] && rm -f "$f"; done
 
     # 2. Setup Initial Data
     [[ -f "$src" ]] && cp "$src" "$tmp_csv" || echo "10,20,30" > "$tmp_csv"
@@ -2207,7 +2231,7 @@ Supported Expressions in cells:
         undo_idx=$((undo_idx+1))
         cp "$tmp_csv" "/tmp/tui_undo_${undo_idx}.csv"
         # New actions invalidate redo history
-        rm -f /tmp/tui_redo_*
+        for f in /tmp/tui_redo_*; do [ -f "$f" ] && rm -f "$f"; done
         redo_idx=0
     }
 
@@ -2601,7 +2625,7 @@ Supported Expressions in cells:
     done
     TUI_RESULT="$(cat "$tmp_csv")"
     cat "$tmp_csv"
-    rm -f "$tmp_csv" /tmp/tui_undo_* /tmp/tui_redo_*
+    rm -f "$tmp_csv"; for f in /tmp/tui_undo_* /tmp/tui_redo_*; do [ -f "$f" ] && rm -f "$f"; done
     return 0
 }
 
@@ -2652,17 +2676,27 @@ filtermenu() {
         filter_query="${cursor_prefix}${cursor_suffix}"
 
         if [ "$filter_query" != "$last_query" ]; then
-            local f_idx=0 _fm_i=0
-            local lq=$(_tolower "$filter_query")
-            while [ $_fm_i -lt $_fm_n ]; do
-                eval "lo=\$_fm_l_$_fm_i"
-                if [ -z "$filter_query" ] || _match "$lo" "*${lq}*"; then
-                    eval "filtered_$f_idx=\$_fm_o_$_fm_i"
+            scroll_offset=0
+            if [ -z "$filter_query" ]; then
+                local f_idx=0
+                while [ $f_idx -lt $_fm_n ]; do
+                    eval "filtered_$f_idx=\$_fm_o_$f_idx"
                     f_idx=$((f_idx+1))
-                fi
-                _fm_i=$((_fm_i+1))
-            done
-            count=$f_idx
+                done
+                count=$_fm_n
+            else
+                local f_idx=0 _fm_i=0
+                local lq=$(_tolower "$filter_query")
+                while [ $_fm_i -lt $_fm_n ]; do
+                    eval "lo=\$_fm_l_$_fm_i"
+                    if _match "$lo" "*${lq}*"; then
+                        eval "filtered_$f_idx=\$_fm_o_$_fm_i"
+                        f_idx=$((f_idx+1))
+                    fi
+                    _fm_i=$((_fm_i+1))
+                done
+                count=$f_idx
+            fi
             last_query="$filter_query"
         fi
 
@@ -2736,33 +2770,28 @@ filtermenu() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + scroll_offset ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ "$cur" -ge 0 ] && cur=$((cur - 1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
-                cur=0
-            elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
-                cur=$((cur+1))
+        if _handle_mouse_list "$list_top" "$scroll_offset" "$count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -ge 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                    cur=0
+                elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
+                    cur=$((cur+1))
+                fi
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
             fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+        fi
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
             local _fm_fb_row=$(( list_top + PADDING_TOP - 2 ))
             if [ "$MOUSE_Y" -eq "$_fm_fb_row" ]; then
                 cur=-1
             else
                 local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + scroll_offset ))
-                if [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ]; then
-                    cur=$_mi
-                fi
+                [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
             fi
-            # Press = same as Enter
             if [ "$cur" -eq -1 ]; then
                 [ "$count" -gt 0 ] && cur=0
             else
@@ -2770,8 +2799,8 @@ filtermenu() {
                 eval "echo \"\$filtered_$cur\""
                 return 0
             fi
+            continue
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -2874,7 +2903,6 @@ filepicker() {
     
     local dir_col="\e[1;34m"
     local exe_col="\e[1;32m"
-    local hid_col="\e[2m"
     local show_hidden=0
     local sel_path_count=0
 
@@ -2987,7 +3015,7 @@ filepicker() {
                     elif [ "$is_dir" = "true" ]; then
                         color="$dir_col"
                     elif [ "${label#.}" != "$label" ]; then
-                        color="$hid_col"
+                        color="$FG_HINT_ESC"
                     elif [ -x "$path" ]; then
                         color="$exe_col"
                     else
@@ -3062,24 +3090,22 @@ filepicker() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+        if _handle_mouse_list "$list_top" "$top" "$count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -gt 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1))
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
+            fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ $cur -gt 0 ] && cur=$((cur-1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            [ $cur -lt $((count - 1)) ] && cur=$((cur+1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+        fi
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
             local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
             [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
             _handle_selection; [ $? -eq 2 ] && return 0
+            continue
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         # ESC sequences
         if [ -n "$ESC_SEQ" ]; then
@@ -3450,23 +3476,21 @@ _tree_core() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - view_top + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$v_count" ] && cur=$_mi
+        if _handle_mouse_list "$view_top" "$top" "$v_count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -gt 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                [ "$cur" -lt "$((v_count-1))" ] && cur=$((cur+1))
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
+            fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ $cur -gt 0 ] && cur=$((cur-1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            [ $cur -lt $((v_count - 1)) ] && cur=$((cur+1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - view_top + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$v_count" ] && cur=$_mi
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _mi=$(( MOUSE_Y - PADDING_TOP - view_top + top ))
+            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$v_count" ] && cur=$_mi
+            continue
+        fi
 
         # --- STEP 2: FILTER INPUT (Focus at -1) ---
         if [ "$ENABLE_FILTER" = "true" ] && [ $cur -eq -1 ]; then
@@ -3851,29 +3875,23 @@ table() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - data_start_row + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ "$cur" -gt 0 ] && cur=$((cur-1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            [ "$cur" -lt "$((count - 1))" ] && cur=$((cur+1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
-            local _t_id=$(( MOUSE_Y - PADDING_TOP - data_start_row + top ))
-            if [ "$_t_id" -ge 0 ] && [ "$_t_id" -lt "$count" ]; then
-                cur=$_t_id
+        if _handle_mouse_list "$data_start_row" "$top" "$count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -gt 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                [ "$cur" -lt "$((count-1))" ] && cur=$((cur+1))
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
             fi
-            # Press = same as Enter
+            continue
+        fi
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+            local _t_id=$(( MOUSE_Y - PADDING_TOP - data_start_row + top ))
+            [ "$_t_id" -ge 0 ] && [ "$_t_id" -lt "$count" ] && cur=$_t_id
             eval "TUI_RESULT=\"\$cmd_$cur\""
             eval "echo \"\$cmd_$cur\""
             return 0
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -4054,28 +4072,24 @@ filtertable() {
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events
-        if [ "$MOUSE_BTN" -eq 32 ]; then
+        if _handle_mouse_list "$data_top" "$top" "$count"; then
             local _ft_fb_row=$(( data_top + PADDING_TOP - 3 ))
-            if [ "$MOUSE_Y" -eq "$_ft_fb_row" ]; then
+            if [ "$MOUSE_BTN" -eq 32 ] && [ "$MOUSE_Y" -eq "$_ft_fb_row" ]; then
                 cur=-1
-            else
-                local _mi=$(( MOUSE_Y - PADDING_TOP - data_top + top ))
-                [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$count" ] && cur=$_mi
+            elif [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -ge 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
+                    cur=0
+                elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
+                    cur=$((cur+1))
+                fi
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
             fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [ "$cur" -ge 0 ] && cur=$((cur-1))
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            if [ "$cur" -eq -1 ] && [ "$count" -gt 0 ]; then
-                cur=0
-            elif [ "$cur" -ge 0 ] && [ "$cur" -lt "$((count-1))" ]; then
-                cur=$((cur+1))
-            fi
-            continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
+        fi
+        if [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
             local _ft_fb_row=$(( data_top + PADDING_TOP - 3 ))
             if [ "$MOUSE_Y" -eq "$_ft_fb_row" ]; then
                 cur=-1
@@ -4088,8 +4102,8 @@ filtertable() {
                 eval "echo \"\$filtered_cmd_$cur\""
                 return 0
             fi
+            continue
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         if [ -n "$ESC_SEQ" ]; then
             case "$ESC_SEQ" in
@@ -4186,6 +4200,8 @@ modal() {
     local _saved_bg_main="$BG_MAIN"
     local old_mode="$TUI_MODE"
     local old_modal="$TUI_MODAL"
+    local _saved_last_frame="$LAST_FRAME"
+    LAST_FRAME=""
     
     local _user_set_bg_modal="${BG_MODAL:+1}"
 
@@ -4211,6 +4227,7 @@ modal() {
 
     TUI_MODE="$old_mode"
     TUI_MODAL="$old_modal"
+    LAST_FRAME="$_saved_last_frame"
     
     BACKTITLE="$_saved_backtitle"
     BG_MAIN="$_saved_bg_main"
@@ -4224,6 +4241,7 @@ mainmenu() {
     local initial_table_idx=$5
     local cur_table=-1
     local focus=0
+    local _saved_tui_mode="$TUI_MODE"
 
     if [[ -n "$initial_table_idx" ]]; then
         cur_table=$((initial_table_idx - 1))
@@ -4554,7 +4572,7 @@ EOF
                 ;;
             "?")
                 _help_popup mainmenu ;;
-            "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; return 1; fi ;;
+            "q") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; else TUI_RESULT=''; TUI_MODE="$_saved_tui_mode"; return 1; fi ;;
             "j"|"s") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((cur_side+1)); else [[ $cur_table -lt $((f_count-1)) ]] && cur_table=$((cur_table+1)); fi ;;
             "k"|"w") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -gt 0 ]] && cur_side=$((cur_side-1)); else [[ $cur_table -gt -1 ]] && cur_table=$((cur_table-1)); fi ;;
             "J") if [[ $focus -eq 1 && $cur_table -eq -1 ]]; then cursor_prefix="${cursor_prefix}${KEY}"; filter_query="${cursor_prefix}${cursor_suffix}"; elif [[ $focus -eq 0 ]]; then [[ $cur_side -lt $((side_count-1)) ]] && cur_side=$((side_count-1)); elif [[ $cur_table -lt $((f_count-1)) ]]; then local pg=$((cur_table + data_h)); [[ $pg -ge $f_count ]] && pg=$((f_count - 1)); cur_table=$pg; fi ;;
@@ -4579,6 +4597,7 @@ EOF
                     *)
                         TUI_RESULT="$cmd"
                         echo "$TUI_RESULT"
+                        TUI_MODE="$_saved_tui_mode"
                         return 0 ;;
                     esac
                 fi ;;
@@ -4879,7 +4898,7 @@ _refresh_sidebar_only() {
             elif [[ -x "$path" ]]; then
                 color="\e[1;32m"
             elif [[ "${label:0:1}" == "." ]]; then
-                        color="${FG_TEXT_ESC}\e[2m"
+                        color="$FG_HINT_ESC"
             fi
 
             printf "${style}${color} %-${menu_w}s ${RESET}${BG_MAIN_ESC}" "${label:0:$menu_w}" >&2
@@ -5081,7 +5100,7 @@ EOF
     local sel_path_count=0
     local _saved_cur=0 _saved_top=0
     
-    local dir_col="\e[1;34m" hid_col="\e[2m" exe_col="\e[1;32m"
+    local dir_col="\e[1;34m" exe_col="\e[1;32m"
     root_dir=$(cd "$root_dir" && pwd)
 
     while true; do
@@ -5565,24 +5584,22 @@ if [[ -n "$search_query" ]]; then
         _handle_extra_keys "$KEY" && continue
 
         # SGR mouse events (NAV mode only)
-        if [ "$MOUSE_BTN" -eq 32 ] && [[ "$ui_mode" == "NAV" ]]; then
-            local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
-            [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$raw_count" ] && cur=$_mi
+        if [[ "$ui_mode" == "NAV" ]] && _handle_mouse_list "$list_top" "$top" "$raw_count"; then
+            if [ "$MOUSE_ROW" -eq -2 ]; then
+                [ "$cur" -gt 0 ] && cur=$((cur-1))
+            elif [ "$MOUSE_ROW" -eq -3 ]; then
+                [ "$cur" -lt "$((raw_count-1))" ] && cur=$((cur+1))
+            elif [ "$MOUSE_ROW" -ge 0 ]; then
+                cur=$MOUSE_ROW
+            fi
             continue
-        elif [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 0 ]; then
-            continue
-        elif [ "$MOUSE_BTN" -eq 64 ]; then
-            [[ "$ui_mode" == "NAV" ]] && { [[ $cur -gt 0 ]] && cur=$((cur-1)); }
-            continue
-        elif [ "$MOUSE_BTN" -eq 65 ]; then
-            [[ "$ui_mode" == "NAV" ]] && { [[ $cur -lt $((raw_count-1)) ]] && cur=$((cur+1)); }
-            continue
-        elif [[ "$MOUSE_BTN" -eq 0 ]] && [ "$MOUSE_PRESS" -eq 1 ] && [[ "$ui_mode" == "NAV" ]]; then
+        fi
+        if [[ "$ui_mode" == "NAV" ]] && [ "$MOUSE_BTN" -eq 0 ] && [ "$MOUSE_PRESS" -eq 1 ]; then
             local _mi=$(( MOUSE_Y - PADDING_TOP - list_top + top ))
             [ "$_mi" -ge 0 ] && [ "$_mi" -lt "$raw_count" ] && cur=$_mi
             _handle_selection; [[ $? -eq 2 ]] && return 0
+            continue
         fi
-        [ "$MOUSE_BTN" -ge 0 ] && continue
 
         # --- A. Escape Sequence Handler (Arrows / ESC) ---
         if [ -n "$ESC_SEQ" ]; then
@@ -6868,7 +6885,10 @@ _ta_pop_undo() {
     done
     _ta_lines=0
     local _ta_restore_row=0 _ta_restore_col=0 _ta_cursor_line
-    exec 5< "$tmp"
+    # Pre-process remaining lines with single sed (avoids per-line fork)
+    local _ta_rest_tmp=$(mktemp /tmp/tui_ta_rest.XXXXXX)
+    sed "s/'/'\\\\''/g" "$tmp" > "$_ta_rest_tmp"
+    exec 5< "$_ta_rest_tmp"
     IFS= read -r _ta_cursor_line <&5
     case "$_ta_cursor_line" in
         CURSOR:*)
@@ -6878,11 +6898,11 @@ _ta_pop_undo() {
             ;;
     esac
     while IFS= read -r _ta_line <&5; do
-        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
-        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        eval "_ta_l_$_ta_lines='$_ta_line'"
         _ta_lines=$((_ta_lines+1))
     done
     exec 5<&-
+    rm -f "$_ta_rest_tmp"
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
     _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
     _ta_undo_idx=$((_ta_undo_idx-1))
@@ -6909,7 +6929,10 @@ _ta_pop_redo() {
     _ta_push_undo
     _ta_lines=0
     local _ta_restore_row=0 _ta_restore_col=0 _ta_cursor_line
-    exec 5< "$_ta_redo_copy"
+    # Pre-process remaining lines with single sed (avoids per-line fork)
+    local _ta_rest_tmp=$(mktemp /tmp/tui_ta_rest.XXXXXX)
+    sed "s/'/'\\\\''/g" "$_ta_redo_copy" > "$_ta_rest_tmp"
+    exec 5< "$_ta_rest_tmp"
     IFS= read -r _ta_cursor_line <&5
     case "$_ta_cursor_line" in
         CURSOR:*)
@@ -6919,12 +6942,11 @@ _ta_pop_redo() {
             ;;
     esac
     while IFS= read -r _ta_line <&5; do
-        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
-        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        eval "_ta_l_$_ta_lines='$_ta_line'"
         _ta_lines=$((_ta_lines+1))
     done
     exec 5<&-
-    rm -f "$_ta_redo_copy"
+    rm -f "$_ta_rest_tmp" "$_ta_redo_copy"
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
     _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
     _ta_redo_idx=$((_ta_redo_idx-1))
@@ -7151,11 +7173,13 @@ _ta_open_file() {
     [ -z "$_new_file" ] && return
     [ -f "$_new_file" ] && file="$_new_file" || return
     _ta_lines=0
+    local _ta_stmp=$(mktemp /tmp/tui_ta_stmp.XXXXXX)
+    sed "s/'/'\\\\''/g" "$file" > "$_ta_stmp"
     while IFS= read -r _ta_line; do
-        local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
-        eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+        eval "_ta_l_$_ta_lines='$_ta_line'"
         _ta_lines=$((_ta_lines+1))
-    done < "$file"
+    done < "$_ta_stmp"
+    rm -f "$_ta_stmp"
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
     _ta_cur_row=0; _ta_cur_col=0; _ta_mod=0; _ta_top=0; _ta_sel_row=-1
     BACKTITLE="$file"
@@ -7199,12 +7223,13 @@ texteditor() {
     rm -f /tmp/tui_ta_*_$$.txt
 
     if [ -f "$file" ]; then
-        rm -f /tmp/__tui_ta_load_$$.txt
+        local _ta_stmp=$(mktemp /tmp/tui_ta_stmp.XXXXXX)
+        sed "s/'/'\\\\''/g" "$file" > "$_ta_stmp"
         while IFS= read -r _ta_line; do
-            local _ta_line_sq; _ta_line_sq=$(printf '%s' "$_ta_line" | sed "s/'/'\\\\''/g")
-            eval "_ta_l_$_ta_lines='$_ta_line_sq'"
+            eval "_ta_l_$_ta_lines='$_ta_line'"
             _ta_lines=$((_ta_lines+1))
-        done < "$file"
+        done < "$_ta_stmp"
+        rm -f "$_ta_stmp"
     fi
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
 
