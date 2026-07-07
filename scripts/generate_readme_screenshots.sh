@@ -44,12 +44,13 @@ WIDGETS=(
     "spreadsheet spreadsheet spreadsheet"
     "kanban kanban kanban"
     "mainmenu mainmenu mainmenu"
+    "texteditor texteditor texteditor"
 )
 
 RESULTS=()
 
 echo "============================================"
-echo "  Generating README Screenshots (23 widgets)"
+echo "  Generating README Screenshots (24 widgets)"
 echo "============================================"
 echo "Terminal: $TERMINAL_CMD"
 echo "Geometry: $TERM_GEOMETRY"

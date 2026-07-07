@@ -670,6 +670,8 @@ mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 
 ### 24. Texteditor (`texteditor`)
 
+![texteditor](screenshots/texteditor.png)
+
 A full-featured terminal text editor with selection, clipboard, undo/redo, search & replace, horizontal scroll, auto-indent, and more.
 
 **Environment Variables:**
