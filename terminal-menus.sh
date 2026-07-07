@@ -7003,7 +7003,7 @@ _ta_find_next() {
             case "$rest" in
                 "$_ta_search_term"*) 
                     _ta_sel_row=$r; _ta_sel_col=$idx
-                    _ta_cur_row=$r; _ta_cur_col=$idx
+                    _ta_cur_row=$r; _ta_cur_col=$((idx + slen))
                     _ta_search_row=$r; _ta_search_col=$((idx + slen))
                     _ta_mod=$_ta_mod
                     return ;;
