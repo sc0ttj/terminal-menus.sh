@@ -2207,9 +2207,9 @@ spreadsheet() {
  ${SB}Right${SR}/${SB}Left${SR}      Move cursor in edit mode
  ${SB}q${SR}               Quit
  ${SB}?${SR}               Toggle this help
-
+ 
 Supported Expressions in cells:
-
+ 
  =A1+B2          Basic math: +, -, *, /
  =SUM(A1:B10)    Range functions: SUM, AVG, MIN, MAX, COUNT, COUNTA
  =ROUND(A1,2)    Round to decimal places
