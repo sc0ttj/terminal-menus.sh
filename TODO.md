@@ -33,38 +33,6 @@ Make sure "dropdowns" have:
 - a max height of 6
 - scrollable items area, if items exceed 6
 
-
-------------------------------------------------------------------
-
-## New widget: `textarea`
-
-A simple, writable, multi-line textarea that has key bindings and UX features which mimics more moden editors, for easier multi-line editing in a terminal (better than readline etc).
-
-* up/down arrows move up/down 1 line
-* left/right arrows move 1 char left/right
-* Ctrl-a highlight all text
-* HOME key moves to start of current line
-* END key moves to start of current line
-* Shift+enter carriage return (move to new line)
-* has concept of "separators" (such as `"-","_"," ","+","." and ","`) so it can split words, lines, etc:
-  * shift+right highlights next letter
-  * shift+left highlights prev letter
-  * shift+up highlights backwards, from the char on line above (or end of line), to previous position 
-  * shift+down highlights forwards, from previous position up to the char under previous position (or end of line) on next line. 
-  * shift+right highlights next letter
-  * ctrl+left move to start of current word (press again to move to start of previous word) 
-  * ctrl+right move to end of current word (press again to move to end of next word)
-  * ctrl+shift+left highlight and move to start of current word (press again to highlight and move to start of previous word) 
-  * ctrl+shit+right highlight and move to end of current word (press again to highglight and move to end of next word)
-  * delete key and backspace key should delete all highlighted text
-  * cut, copy, paste should work (ctrl+x, ctrl+c, ctrl+v)
-  * ctrl+s save latest contents back to file
-  * ctrl+q key must be used quit the widget.
-
-The path and filename would be in the BACKTITLE, no need to put them in the widget UI.
-
-The overall goal would be a text-editor like widget, that returns the final file contents to stdout and saves it in $TUI_RESULT too. If any unsaved changes, it should ask to save latest contents back to the file on exit, using a modal popup yesno dialog.
-
 ------------------------------------------------------------------
 
 ## New widget: `chat`
