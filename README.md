@@ -51,11 +51,11 @@ The included demo script (`terminal-menus-demo.sh`) exercises every widget. Thre
 
 ```bash
 ./terminal-menus-demo.sh                # Interactive widget picker menu
-./terminal-menus-demo.sh all            # Run all 23 demos sequentially
+./terminal-menus-demo.sh all            # Run all 24 demos sequentially
 ./terminal-menus-demo.sh filemanager    # Run one widget demo and exit
 ```
 
-Valid widget names: `infobox`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `table`, `filtertable`, `filemanager`, `spreadsheet`, `kanban`, `mainmenu`.
+Valid widget names: `infobox`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `table`, `filtertable`, `filemanager`, `spreadsheet`, `kanban`, `mainmenu`, `texteditor`.
 
 When run with no arguments, the script shows a `filtermenu` listing all widgets. Select "All widgets" to run everything in order, or pick individual widgets to run one at a time (returns to the picker after each).
 
@@ -668,6 +668,56 @@ A sidebar menu on the left, where each menu item loads a navigable table, which 
 mainmenu "Media Center" "Select category" "$MENU_CFG" 1
 ```
 
+### 24. Texteditor (`texteditor`)
+
+A full-featured terminal text editor with selection, clipboard, undo/redo, search & replace, horizontal scroll, auto-indent, and more.
+
+**Environment Variables:**
+- `BACKTITLE` — Background title text (shows file path)
+- `TUI_MODE` — Layout mode
+- `TA_SEPARATORS` — Characters that act as word separators for Ctrl+Left/Right navigation (default: `-/ _+.,:;!?()[]{}<>@#$%^&*~'\"|\\`)
+- `TUI_HIDE_FOOTER` — Set to `true` to hide the controls footer bar
+
+**Controls:**
+```
+Arrows               Move cursor
+Shift+Arrows         Select text
+Shift+Home/End       Select to line start/end
+Ctrl+Arrows          Word left/right
+Ctrl+Shift+Arrow     Select word
+Home/End             Line start/end
+Ctrl+Home/End        File top/bottom
+PgUp/PgDn            Page scroll
+Enter                New line (with auto-indent)
+Backspace/Del        Delete
+Ctrl+Del             Delete word right
+Ctrl+W               Delete word left
+Tab                  4-space indent
+Ctrl+A               Select all
+Ctrl+X/C/V           Cut/Copy/Paste
+Ctrl+Z/Y             Undo/Redo
+Ctrl+D               Duplicate line/selection
+Ctrl+K               Delete line
+Ctrl+L               Select line
+Alt+Up/Down          Move line up/down
+Ctrl+F               Find (search term input, highlights matches)
+Ctrl+G               Find next match (wraps around)
+Ctrl+R               Find & Replace (form with two fields)
+Ctrl+O               Open file via filepicker
+Ctrl+S               Save
+Ctrl+Q               Quit (prompts if unsaved)
+F1                   Help (scrollable modal with full controls list)
+```
+
+**Usage:**
+```bash
+# Open an existing file for editing
+texteditor "notes.txt"
+
+# Start with an empty buffer (returns content to stdout)
+RESULT=$(texteditor)
+```
+
 ---
 
 ## 🖼 Advanced Features
@@ -814,7 +864,7 @@ shift_u=modal \"msgbox 'Help' 'Navigate with arrows/j/k.\nTab to select.\nq to q
 filemanager "Browse" "$HOME"
 ```
 
-Works in all 16 interactive widgets: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`/`configtree`, `table`/`filtertable`, `mainmenu`, `filemanager`, `kanban`.
+Works in all 17 interactive widgets: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`/`configtree`, `table`/`filtertable`, `mainmenu`, `filemanager`, `kanban`, `texteditor`.
 
 ---
 
@@ -884,7 +934,7 @@ python3 -m unittest test.test_demo_widgets.TestMenu
 python3 -m unittest test.test_demo_widgets.TestForm.test_full_flow
 ```
 
-Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`, `modal`, `extra_keys`.
+Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`, `modal`, `extra_keys`, `texteditor`.
 
 ### 3. Pty-based functional test (no X required)
 
@@ -910,7 +960,7 @@ cd test && ash interactive_runner.sh wrappers/form_test.sh drivers/form_test.dri
 # Mainmenu visual test — Tab/Enter modal flow, types text, submits, quits (4 screenshots)
 cd test && ash interactive_runner.sh wrappers/mainmenu_test.sh drivers/mainmenu_test.driver
 
-# Full 23-widget demo — automates all widgets in terminal-menus-demo.sh (~24 screenshots)
+# Full 24-widget demo — automates all widgets in terminal-menus-demo.sh (~24 screenshots)
 cd test && ash interactive_runner.sh wrappers/full_demo_wrapper.sh test_full_demo.sh
 ```
 
@@ -931,7 +981,7 @@ syntax checks, form pty test, and all widget integration tests on every push/PR.
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
 | `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
 | `test/test_form_pty.sh` | Python pty-based form output test (supports `SHELL=ash` / `SHELL=bash`) |
-| `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
+| `test/test_full_demo.sh` | Keystroke driver for the full 24-widget demo |
 | `test/drivers/` | Keystroke command scripts sourced by the harness |
 
 ---
