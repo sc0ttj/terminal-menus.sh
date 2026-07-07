@@ -250,6 +250,7 @@ fi  # end PREVIEW_SCRIPT override check
 # --- Setup ---
 
 cleanup() {
+    rm -f /tmp/tui_*_$$.txt /tmp/tui_*_$$.csv 2>/dev/null
     # 1. Send ANSI Escape Sequences to the terminal
     # \e[?25h  -> Show Cursor: Reverses \e[?25l (which hides it during UI drawing)
     # \e[?1000l -> Disable Mouse: Stops the terminal from sending click/scroll events as text
@@ -715,8 +716,6 @@ ${SB}q${SR}           Quit" ;;
 }
 
 _draw_footer() {
-    # Instead of clearing the whole terminal, we just clear the 
-    # remaining lines inside the MAX_HEIGHT boundary.
     local current_row=$row
     while [ "$current_row" -lt "$MAX_HEIGHT" ]; do
         _draw_at "$current_row"
@@ -796,8 +795,7 @@ _draw_form_field() {
                 fi
             fi
         elif [ "$_is_pw" -eq 1 ]; then
-            local _pw_i=0 _pw_stars=""
-            while [ "$_pw_i" -lt "${#value}" ]; do _pw_stars="${_pw_stars}*"; _pw_i=$((_pw_i+1)); done
+            local _pw_stars=$(printf '%*s' "${#value}" '' | tr ' ' '*')
             display_val="$_pw_stars"
         fi
 
@@ -872,7 +870,7 @@ _draw_form_field() {
             header="${header}${opt_display} $arrow"
         fi
         # Pure shell padding
-        while [ "${#header}" -lt "$width" ]; do header="${header} "; done
+        header=$(printf "%-${width}s" "$header")
         
         if [ "$is_active" -eq 1 ]; then style="$FG_BLUE_BOLD"; else style="$FG_TEXT_ESC"; fi
         _draw_line "  ${style}${header}${RESET}${BG_MAIN_ESC}"
@@ -1385,7 +1383,7 @@ local _fh=$FOOTER_HEIGHT; [ "${TUI_HIDE_FOOTER:-false}" = "true" ] && _fh=0
             local height=$(( MAX_HEIGHT - view_top - _fh ))
             [ "$height" -lt $MIN_CONTENT_HEIGHT ] && height=$MIN_CONTENT_HEIGHT
 
-            sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
+            tail -n +$((top + 1)) "$src" | head -n $height > "$tmpf"
 
             i=0; while IFS= read -r rl && [ "$i" -lt "$height" ]; do
                 local current_view_row=$((view_top + i))
@@ -1483,7 +1481,7 @@ tailbox() {
         local top=$(( count - height ))
         [ "$top" -lt 0 ] && top=0
 
-        sed -n "$((top + 1)),$((top + height))p" "$src" > "$tmpf"
+        tail -n +$((top + 1)) "$src" | head -n $height > "$tmpf"
 
         i=0; while IFS= read -r _tail_line && [ "$i" -lt "$height" ]; do
             local current_view_row=$((view_top + i))
@@ -2465,7 +2463,7 @@ Supported Expressions in cells:
                 _push_undo
                 local row_count=$(wc -l < "$tmp_csv")
                 while [[ $row_count -lt $cur_r ]]; do
-                    local pad=""; i=1; while [ "$i" -lt "$MAX_COLS" ]; do pad="${pad},"; i=$((i+1)); done
+                    local pad=$(printf '%*s' $((MAX_COLS - 1)) '' | tr ' ' ',')
                     echo "$pad" >> "$tmp_csv"; row_count=$((row_count+1))
                 done
 
@@ -2515,7 +2513,7 @@ Supported Expressions in cells:
 
                     local row_count=$(wc -l < "$tmp_csv")
                     while [[ $row_count -lt $cur_r ]]; do
-                        local pad_line=""; i=1; while [ "$i" -lt "$MAX_COLS" ]; do pad_line="${pad_line},"; i=$((i+1)); done
+                        local pad_line=$(printf '%*s' $((MAX_COLS - 1)) '' | tr ' ' ',')
                         echo "$pad_line" >> "$tmp_csv"
                         row_count=$((row_count+1))
                     done
@@ -6224,8 +6222,8 @@ kanban() {
     local sort_mode="rank" sort_rev=false
     mkdir -p "$undo_dir" "$redo_dir"
 
-    _save_undo() { rm -rf "$undo_dir"/*; cp "$dir"/*.md "$undo_dir/" 2>/dev/null; }
-    _save_redo() { rm -rf "$redo_dir"/*; cp "$dir"/*.md "$redo_dir/" 2>/dev/null; }
+    _save_undo() { rm -rf "$undo_dir"/* && find "$dir" -maxdepth 1 -name '*.md' -exec cp {} "$undo_dir/" \; 2>/dev/null; }
+    _save_redo() { rm -rf "$redo_dir"/* && find "$dir" -maxdepth 1 -name '*.md' -exec cp {} "$redo_dir/" \; 2>/dev/null; }
 
     while true; do
         # --- 1. Map Files to Columns ---
