@@ -6885,7 +6885,6 @@ _ta_pop_undo() {
     exec 5<&-
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
     _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
-    _ta_top=$((_ta_cur_row - 5)); [ "$_ta_top" -lt 0 ] && _ta_top=0
     _ta_undo_idx=$((_ta_undo_idx-1))
 }
 
@@ -6905,11 +6904,12 @@ _ta_pop_redo() {
     [ "$_ta_redo_idx" -eq 0 ] && return
     local tmp="/tmp/tui_ta_redo_${_ta_redo_idx}_$$.txt"
     [ ! -f "$tmp" ] && return
+    local _ta_redo_copy=$(mktemp /tmp/tui_ta_redo_copy_$$.XXXXXX)
+    cp "$tmp" "$_ta_redo_copy"
     _ta_push_undo
-    _ta_undo_idx=$((_ta_undo_idx+1))
     _ta_lines=0
     local _ta_restore_row=0 _ta_restore_col=0 _ta_cursor_line
-    exec 5< "$tmp"
+    exec 5< "$_ta_redo_copy"
     IFS= read -r _ta_cursor_line <&5
     case "$_ta_cursor_line" in
         CURSOR:*)
@@ -6924,9 +6924,9 @@ _ta_pop_redo() {
         _ta_lines=$((_ta_lines+1))
     done
     exec 5<&-
+    rm -f "$_ta_redo_copy"
     [ "$_ta_lines" -eq 0 ] && { _ta_lines=1; eval "_ta_l_0=''"; }
     _ta_cur_row=$_ta_restore_row; _ta_cur_col=$_ta_restore_col
-    _ta_top=$((_ta_cur_row - 5)); [ "$_ta_top" -lt 0 ] && _ta_top=0
     _ta_redo_idx=$((_ta_redo_idx-1))
 }
 
