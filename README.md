@@ -1,6 +1,6 @@
 # terminal-menus.sh
 
-A high-performance, dependency-free TUI (Terminal User Interface) library, supports **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
+A high-performance, dependency-light TUI (Terminal User Interface) library, supports **Bash 3.2+** and **BusyBox Ash** (with `ASH_BASH_COMPAT` enabled), with `whiptail` and `dialog` style widgets, and more modern, fancier ones too.
 
 Inspired by the `dylanaraps` philosophy, `terminal-menus.sh` provides a modern alternative to `whiptail` and `dialog` with support for TrueColor and modular layouts.
 
@@ -23,10 +23,10 @@ The **`mainmenu`** in fullscreen mode:
 ## 🚀 Features
 
 - **Bash 3.2+ & BusyBox Ash**: Works on old, modern & embedded systems (Mac and Linux).
-- **Zero Dependencies**: No `dialog`, `ncurses`, or `python` required.
+- **Minimal Dependencies**: Requires only `ash`/`bash` and `busybox` (coreutils applets). `git` and `sudo` are optional and feature-gated.
 - **TrueColor (24-bit)**: Customisable RGB themes.
 - **Many Layouts**: Modal popups, full-screen UIs, toast notifications, and command palettes.
-- **High Performance**: Pre-computed lowercase caches, viewport file reading (no `sed` per row), `find`-based directory listing (no shell glob ARG_MAX), shell parameter expansion over `awk`/`cut`/`tr` forks, and `MAX_FILTER_ITEMS` safety cap.
+- **High Performance**: Pre-computed lowercase caches, viewport file reading (no `sed` per row), `find`-based directory listing (no shell glob ARG_MAX), shell parameter expansion over `awk`/`cut`/`tr` forks, and `MAX_FILTER_ITEMS` safety cap. BusyBox applets are auto-detected and preferred when available.
 
 > **Shell requirements**: The library requires `[[ ]]`, `read -n`, and `$'...'` support.  
 > Bash 3.2+ works natively. BusyBox Ash needs `ASH_BASH_COMPAT` enabled at build time.  

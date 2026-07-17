@@ -77,6 +77,27 @@ if [ "$a" != "A" ]; then
     exit 1
 fi
 
+# --- Prefer BusyBox applets when available for consistent behavior ---
+# Checks busybox --list for each applet; if present, wraps the command
+# to use the BusyBox version. Falls back to system PATH if not available.
+if command -v busybox >/dev/null 2>&1; then
+    _bb_list=$(busybox --list 2>/dev/null) || _bb_list=""
+    if [ -n "$_bb_list" ]; then
+        _bb() { command busybox "$@"; }
+        _bb_old_ifs="$IFS"; IFS=$'\n'
+        for _bb_applet in $_bb_list; do
+            IFS="$_bb_old_ifs"
+            case "$_bb_applet" in
+                sed|grep|awk|sort|find|head|tail|tr|cut|cat|wc|ls|date|cp|mv|rm|mkdir|touch|tee|mktemp)
+                    eval "$_bb_applet() { _bb $_bb_applet \"\$@\"; }" ;;
+            esac
+        done
+        IFS="$_bb_old_ifs"
+        unset _bb_applet _bb_old_ifs
+    fi
+    unset _bb_list
+fi
+
 # --- Key reading helpers (IFS-safe for ash compat) ---
 
 _read_key() {
@@ -270,7 +291,7 @@ cleanup() {
     # 3. Terminfo-based cursor restoration
     # cnorm    -> "Cursor Normal". A portable backup command to ensure the
     #             cursor is visible even on non-XTerm compatible terminals.
-    tput cnorm
+    printf "\e[?25h"
 }
 
 # trap         -> The Bash built-in command used to catch signals or events.
@@ -416,8 +437,9 @@ _init_tui() {
 
 _apply_layout() {
     # Use local variables for the current terminal state to support resizing
-    local term_w="${COLUMNS:-$(tput cols)}"
-    local term_h="${LINES:-$(tput lines)}"
+    local _stty_size; _stty_size=$(stty size < /dev/tty 2>/dev/null) || _stty_size="24 80"
+    local term_w="${COLUMNS:-${_stty_size##* }}"
+    local term_h="${LINES:-${_stty_size%% *}}"
     local mode="${TUI_MODE:-centered}"
 
     case "$mode" in
@@ -4743,6 +4765,10 @@ _execute_mode_action() {
             local out_tmp="/tmp/tui_out_$$.txt"
 
             if [[ "$ui_mode" == "SUDO_CMD" ]]; then
+                if ! command -v sudo >/dev/null 2>&1; then
+                    textbox "Error" "sudo is required for SUDO_CMD mode but not found on this system"
+                    continue
+                fi
                 # Run sudo and capture BOTH stdout and stderr to the temp file
                 # Use 'tee' so the user sees output in real-time
                 sudo sh -c "cd '$root_dir' && $final_cmd" 2>&1 | tee "$out_tmp"
