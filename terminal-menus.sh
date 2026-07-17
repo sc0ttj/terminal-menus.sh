@@ -2396,14 +2396,14 @@ Supported Expressions in cells:
             END {
                 row_num_w = 4;
                 # --- HEADER ---
-                printf "\033[%d;%dH%s  %*s", (pt + 4 + shift), (pl+1), bm, row_num_w, "";
+                printf "\033[%d;%dH%s  %" row_num_w "s", (pt + 4 + shift), (pl+1), bm, "";
                 used = 4 + row_num_w;
                 for(c=top_c; c<(top_c + v_c); c++) {
-                    printf "%s %-*.*s %s", bh, col_w, col_w, substr(abc,c,1), bm;
+                    printf "%s %-" col_w "." col_w "s %s", bh, substr(abc,c,1), bm;
                     used += (col_w + 2);
                 }
                 # Fill remaining gap to right edge exactly
-                if (w > used) printf "%*s", (w - used), "";
+                if (w > used) printf "%" (w - used) "s", "";
 
                 # --- ROWS ---
                 for(r=top_r; r<(top_r + h); r++) {
@@ -2414,11 +2414,11 @@ Supported Expressions in cells:
                         s=(r==cur_r && c==cur_c)?ba:bm; v=d[r,c];
                         if(v ~ /^=/) v=ev(v);
                         if(v == "") v=" ";
-                        printf "%s %-*.*s %s", s, col_w, col_w, v, bm;
+                        printf "%s %-" col_w "." col_w "s %s", s, v, bm;
                         used += (col_w + 2);
                     }
                     # Fill remaining gap to right edge exactly
-                    if (w > used) printf "%*s", (w - used), "";
+if (w > used) printf "%" (w - used) "s", "";
                 }
             }' "$tmp_csv")
 
