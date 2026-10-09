@@ -2976,7 +2976,7 @@ filepicker() {
             fi
 
             local _fp_tmpf=$(mktemp /tmp/tui_fp.XXXXXX)
-            find "$root_dir" -maxdepth 1 -mindepth 1 | sort > "$_fp_tmpf"
+            find -L "$root_dir" -maxdepth 1 -mindepth 1 2>/dev/null | sort > "$_fp_tmpf"
 
             # dirs first (visible, then hidden if show_hidden=1)
             while IFS= read -r _entry; do
@@ -5218,7 +5218,7 @@ EOF
             # --- PRO MOVE: Fetch all metadata in ONE fork ---
             if [[ $show_details -eq 1 ]]; then
                 local meta_tmp="/tmp/tui_meta_$$.txt"
-                find "$root_dir" -maxdepth 1 -mindepth 1 -exec ls -lAnhd {} + 2>/dev/null > "$meta_tmp"
+                find -L "$root_dir" -maxdepth 1 -mindepth 1 -exec ls -lAnhd {} + 2>/dev/null > "$meta_tmp"
                 while read -r v1 v2 v3 v4 v5 v6 v7 v8 name; do
                     [[ "$v1" == "total" || -z "$name" ]] && continue
                     [[ ${#v1} -eq 10 ]] && v1="${v1} "
@@ -5246,7 +5246,7 @@ EOF
 
             # 2. List all entries with one find call (avoids ARG_MAX from shell glob)
             local _fm_tmpf=$(mktemp /tmp/tui_fm.XXXXXX)
-            find "$root_dir" -maxdepth 1 -mindepth 1 | sort > "$_fm_tmpf"
+            find -L "$root_dir" -maxdepth 1 -mindepth 1 2>/dev/null | sort > "$_fm_tmpf"
 
             # Visible directories
             while IFS= read -r _entry; do
