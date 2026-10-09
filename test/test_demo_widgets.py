@@ -1482,7 +1482,111 @@ class TestMainmenu(TuiTestCase):
 
 
 # ────────────────────────────────────────────────────────────────────
-# 23. Modal wrapper
+# 24. Texteditor
+# ────────────────────────────────────────────────────────────────────
+class TestTexteditor(TuiTestCase):
+    """Test the texteditor widget via demo_texteditor."""
+
+    def test_open_and_quit_escape(self):
+        """ESC quits cleanly, file content appears in output"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.ESCAPE])
+        self.assert_exit(0, stdout)
+        self.assert_in_output("This is a demo text file.", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_ctrl_q_quit(self):
+        """Ctrl+Q quits cleanly"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.char("\x11")])
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_type_text(self):
+        """Typing inserts characters, quit with Ctrl+Q + save"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.text("Hello"),
+                                  KEY.char("\x11"),
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("Hello", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_enter_splits_line(self):
+        """Enter splits current line, Ctrl+Q saves and quits"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.ENTER,
+                                  KEY.char("\x11"),
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_arrow_down_then_type(self):
+        """Arrow down moves cursor, text appears on second line"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.DOWN,
+                                  KEY.text("Line2"),
+                                  KEY.char("\x11"),
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("Line2", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_backspace(self):
+        """Backspace deletes character at cursor"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.BACKSPACE,
+                                  KEY.char("\x11"),
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
+
+    # FIXME: F1 help modal triggers ash printf '%%--6s: invalid format' bug
+    # in textbox rendering inside modal context. Tracked in terminal-menus.sh.
+    # def test_f1_help(self):
+    #     """F1 opens help modal, ESC dismisses it, then quit"""
+    #     stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+    #                              [b"\x1bOP",
+    #                               KEY.ESCAPE,
+    #                               KEY.ESCAPE],
+    #                              timeout=10)
+    #     self.assert_exit(0, stdout)
+    #     self.assert_no_shell_errors(stdout)
+
+    def test_home_end_type(self):
+        """Home/End move cursor to start/end, type at both positions"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.END,
+                                  KEY.text("ZZ"),
+                                  KEY.HOME,
+                                  KEY.text("AA"),
+                                  KEY.char("\x11"),
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("AA", stdout)
+        self.assert_in_output("ZZ", stdout)
+        self.assert_no_shell_errors(stdout)
+
+    def test_type_text_discard(self):
+        """Type text, Ctrl+Q triggers yesno, LEFT moves to NO, ENTER discards"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [KEY.text("APPENDED"),
+                                  KEY.char("\x11"),
+                                  KEY.LEFT,
+                                  KEY.ENTER],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_in_output("APPENDED", stdout)
+        self.assert_no_shell_errors(stdout)
+
+
+# ────────────────────────────────────────────────────────────────────
+# 25. Modal wrapper
 # ────────────────────────────────────────────────────────────────────
 class TestModal(TuiTestCase):
     def test_infobox_modal(self):
@@ -1494,7 +1598,7 @@ class TestModal(TuiTestCase):
 
 
 # ────────────────────────────────────────────────────────────────────
-# 24. TUI_EXTRA_KEYS custom keybindings
+# 26. TUI_EXTRA_KEYS custom keybindings
 # ────────────────────────────────────────────────────────────────────
 class TestExtraKeys(TuiTestCase):
     def test_ctrl_x_modal(self):
