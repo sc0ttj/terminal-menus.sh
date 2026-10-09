@@ -222,9 +222,9 @@ TUI_RESULT=""
 LAST_FRAME=""
 
 # --- External script override ---
-# If PREVIEW_SCRIPT env var is set, source it to override the built-in preview() function
-if [ -n "$PREVIEW_SCRIPT" ] && [ -f "$PREVIEW_SCRIPT" ]; then
-    . "$PREVIEW_SCRIPT"
+# If TUI_PREVIEW_SCRIPT env var is set, source it to override the built-in preview() function
+if [ -n "$TUI_PREVIEW_SCRIPT" ] && [ -f "$TUI_PREVIEW_SCRIPT" ]; then
+    . "$TUI_PREVIEW_SCRIPT"
 else
 
 # --- Built-in preview function ---

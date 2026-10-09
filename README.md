@@ -885,6 +885,7 @@ update_config "theme='dark'"
 |----------|--------|---------|
 | `TUI_HIDE_FOOTER=true` | All scrollable widgets | Hide the controls footer bar and add 2 extra lines to the scrollable content area |
 | `TUI_PERSISTENT_FILTERS=true` | `mainmenu` | Keep filter text when switching sidebar items |
+| `TUI_PREVIEW_SCRIPT` | `filepicker`, `filemanager` | Path to an external script that defines `preview()`. Overrides the built-in plain-text preview with a custom one (e.g., `preview.sh` for MIME-type dispatch, image/PDF/code previews). Usage: `TUI_PREVIEW_SCRIPT=./preview.sh filemanager` |
 | `ENABLE_FILTER=true` | `tree`, `configtree` | Enable search/filter input |
 | `TREE_RETURN_VALUES=true` | `tree` | Return label paths instead of ID paths |
 | `TUI_CD_FILE` | `filepicker`, `filemanager` | Write `cd` commands to a file for shell integration |

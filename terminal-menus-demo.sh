@@ -452,7 +452,7 @@ EOF
 demo_filemanager() {
     BACKTITLE="terminal-menus.sh demo 20 of 23 - filemanager"
 
-    # Enable advanced previews: set PREVIEW_SCRIPT=./preview.sh
+    # Enable advanced previews: TUI_PREVIEW_SCRIPT=./preview.sh
 
     # Custom keybindings demonstrating modal popups via TUI_EXTRA_KEYS
     TUI_EXTRA_KEYS="
