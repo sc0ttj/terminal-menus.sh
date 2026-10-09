@@ -2958,6 +2958,7 @@ filepicker() {
 
     local dir_col="\e[1;34m"
     local exe_col="\e[1;32m"
+    local sym_col="\e[1;36m"
     local show_hidden=0
     local sel_path_count=0
 
@@ -2967,8 +2968,12 @@ filepicker() {
         if [ "$root_dir" != "$last_dir" ] || [ $rebuild -eq 1 ]; then
             raw_count=0
 
-            eval "raw_0='${root_dir%/*}|..|true'"
-            raw_count=1
+            if [ "$root_dir" != "/" ]; then
+                eval "raw_0='${root_dir%/*}|..|true'"
+                raw_count=1
+            else
+                raw_count=0
+            fi
 
             local _fp_tmpf=$(mktemp /tmp/tui_fp.XXXXXX)
             find "$root_dir" -maxdepth 1 -mindepth 1 | sort > "$_fp_tmpf"
@@ -2978,7 +2983,9 @@ filepicker() {
                 [ ! -d "$_entry" ] && continue
                 local _name="${_entry##*/}"
                 case "$_name" in .*) [ $show_hidden -eq 0 ] && continue ;; esac
-                eval "raw_$raw_count='$_entry|$_name|true'"
+                local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                local _safe_name; _safe_name=$(printf '%s' "$_name" | sed "s/'/'\\\\''/g")
+                eval "raw_$raw_count='$_safe_entry|$_safe_name|true'"
                 raw_count=$((raw_count+1))
             done < "$_fp_tmpf"
 
@@ -2987,7 +2994,21 @@ filepicker() {
                 [ ! -f "$_entry" ] && continue
                 local _name="${_entry##*/}"
                 case "$_name" in .*) [ $show_hidden -eq 0 ] && continue ;; esac
-                eval "raw_$raw_count='$_entry|$_name|false'"
+                local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                local _safe_name; _safe_name=$(printf '%s' "$_name" | sed "s/'/'\\\\''/g")
+                eval "raw_$raw_count='$_safe_entry|$_safe_name|false'"
+                raw_count=$((raw_count+1))
+            done < "$_fp_tmpf"
+
+            # then symlinks (broken/dangling)
+            while IFS= read -r _entry; do
+                [ ! -h "$_entry" ] && continue
+                [ -d "$_entry" ] || [ -f "$_entry" ] && continue
+                local _name="${_entry##*/}"
+                case "$_name" in .*) [ $show_hidden -eq 0 ] && continue ;; esac
+                local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                local _safe_name; _safe_name=$(printf '%s' "$_name" | sed "s/'/'\\\\''/g")
+                eval "raw_$raw_count='$_safe_entry|$_safe_name|false'"
                 raw_count=$((raw_count+1))
             done < "$_fp_tmpf"
 
@@ -3049,6 +3070,7 @@ filepicker() {
 
                 local display_name="$label"
                 [ "$is_dir" = "true" ] && [ "$label" != ".." ] && display_name="${label}/"
+                [ "$is_dir" != "true" ] && [ -h "$path" ] && display_name="${label}@"
 
                 local max_l=$(( menu_w - 2 ))
                 if [ ${#display_name} -gt $max_l ]; then
@@ -3073,6 +3095,8 @@ filepicker() {
                         color="$FG_HINT_ESC"
                     elif [ -x "$path" ]; then
                         color="$exe_col"
+                    elif [ -h "$path" ]; then
+                        color="$sym_col"
                     else
                         color="$FG_TEXT_ESC"
                     fi
@@ -5159,7 +5183,7 @@ EOF
     local sel_path_count=0
     local _saved_cur=0 _saved_top=0
 
-    local dir_col="\e[1;34m" exe_col="\e[1;32m"
+    local dir_col="\e[1;34m" exe_col="\e[1;32m" sym_col="\e[1;36m"
     root_dir=$(cd "$root_dir" && pwd)
 
     while true; do
@@ -5239,8 +5263,11 @@ if [[ -n "$search_query" ]]; then
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
 
-                    eval "raw_$raw_count='$_entry|$name|true'"
-                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
+                    local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                    local _safe_name; _safe_name=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+                    eval "raw_$raw_count='$_safe_entry|$_safe_name|true'"
+                    local _safe_lc; _safe_lc=$(printf '%s' "$(_tolower "$name")" | sed "s/'/'\\\\''/g")
+                    eval "raw_lc_$raw_count='$_safe_lc'"
                     raw_count=$((raw_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
@@ -5267,8 +5294,11 @@ if [[ -n "$search_query" ]]; then
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
 
-                    eval "raw_$raw_count='$_entry|$name|true'"
-                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
+                    local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                    local _safe_name; _safe_name=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+                    eval "raw_$raw_count='$_safe_entry|$_safe_name|true'"
+                    local _safe_lc; _safe_lc=$(printf '%s' "$(_tolower "$name")" | sed "s/'/'\\\\''/g")
+                    eval "raw_lc_$raw_count='$_safe_lc'"
                     raw_count=$((raw_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
@@ -5294,8 +5324,11 @@ if [[ -n "$search_query" ]]; then
                     case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                 fi
 
-                eval "raw_$raw_count='$_entry|$name|false'"
-                eval "raw_lc_$raw_count='$(_tolower "$name")'"
+                local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                local _safe_name; _safe_name=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+                eval "raw_$raw_count='$_safe_entry|$_safe_name|false'"
+                local _safe_lc; _safe_lc=$(printf '%s' "$(_tolower "$name")" | sed "s/'/'\\\\''/g")
+                eval "raw_lc_$raw_count='$_safe_lc'"
                 raw_count=$((raw_count+1))
 
                 if [[ $show_details -eq 1 ]]; then
@@ -5322,8 +5355,11 @@ if [[ -n "$search_query" ]]; then
                         case "$l_name" in *"$l_query"*) ;; *) continue ;; esac
                     fi
 
-                    eval "raw_$raw_count='$_entry|$name|false'"
-                    eval "raw_lc_$raw_count='$(_tolower "$name")'"
+                    local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                    local _safe_name; _safe_name=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+                    eval "raw_$raw_count='$_safe_entry|$_safe_name|false'"
+                    local _safe_lc; _safe_lc=$(printf '%s' "$(_tolower "$name")" | sed "s/'/'\\\\''/g")
+                    eval "raw_lc_$raw_count='$_safe_lc'"
                     raw_count=$((raw_count+1))
 
                     if [[ $show_details -eq 1 ]]; then
@@ -5333,6 +5369,26 @@ if [[ -n "$search_query" ]]; then
                     fi
                 done < "$_fm_tmpf"
             fi
+
+            # Symlinks (broken/dangling — not caught by dir or file loops)
+            while IFS= read -r _entry; do
+                [ ! -h "$_entry" ] && continue
+                [ -d "$_entry" ] || [ -f "$_entry" ] && continue
+                local name="${_entry##*/}"
+                [[ "$name" == "." || "$name" == ".." ]] && continue
+                case "$name" in .*) continue ;; esac
+
+                if [[ $show_ignored -eq 0 && ${#ignored_cache} -gt 1 ]]; then
+                    case "$ignored_cache" in *"|$name|"*) continue ;; esac
+                fi
+
+                local _safe_entry; _safe_entry=$(printf '%s' "$_entry" | sed "s/'/'\\\\''/g")
+                local _safe_name; _safe_name=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+                eval "raw_$raw_count='$_safe_entry|$_safe_name|false'"
+                local _safe_lc; _safe_lc=$(printf '%s' "$(_tolower "$name")" | sed "s/'/'\\\\''/g")
+                eval "raw_lc_$raw_count='$_safe_lc'"
+                raw_count=$((raw_count+1))
+            done < "$_fm_tmpf"
 
             rm -f "$_fm_tmpf"
 
@@ -5473,6 +5529,7 @@ if [[ -n "$search_query" ]]; then
                     else
                         local lbl="$label"
                         [[ "$is_dir" == "true" ]] && lbl="${label}/"
+                        [[ "$is_dir" != "true" && -h "$path" ]] && lbl="${label}@"
 
                         local short_name="${lbl:0:$active_name_w}"
                         eval "detail=\$detail_$v_idx"
@@ -5480,6 +5537,7 @@ if [[ -n "$search_query" ]]; then
                      fi
                 else
                     [[ "$is_dir" == "true" && "$label" != ".." ]] && display_name="${label}/"
+                    [[ "$is_dir" != "true" && -h "$path" ]] && display_name="${label}@"
                 fi
 
                 local visible_name="${display_name:0:$active_menu_w}"
@@ -5498,6 +5556,8 @@ if [[ -n "$search_query" ]]; then
                         color="\e[1;34m"
                     elif [[ -x "$path" ]]; then
                         color="\e[1;32m"
+                    elif [[ -h "$path" ]]; then
+                        color="$sym_col"
                     elif _match "$label" ".*"; then
                 color="${FG_TEXT_ESC}\e[2m"
                     else
