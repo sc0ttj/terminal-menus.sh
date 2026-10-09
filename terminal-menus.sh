@@ -245,14 +245,12 @@ preview() {
 
     [ ! -f "$file" ] && return
 
-    local line_count=0
-    local preview_content=""
+    # 2. Detect file type and generate preview content
+    local _pv_tmp=$(mktemp /tmp/tui_pv.XXXXXX)
+    _pv_preview "$file" "$offset" "$height" "$width" > "$_pv_tmp"
 
-    # 2. Optimized Reading & ANSI Stripping (Portable)
-    # Stage 1: Strip ANSI (sed)
-    # Stage 2: Slice lines (sed -n 'start,endp')
-    local _preview_tmp=$(mktemp /tmp/tui_preview.XXXXXX)
-    sed $'s/\e[[][^A-Za-z]*[A-Za-z]//g' "$file" | sed -n "$((offset + 1)),$((offset + height))p" > "$_preview_tmp"
+    # 3. Render lines
+    local line_count=0 preview_content=""
     while IFS= read -r line; do
         line="${line//$'\t'/    }"
         line="${line:0:width}"
@@ -260,10 +258,44 @@ preview() {
         row_str=$(printf "\e[$((row_start + line_count + PADDING_TOP));${absolute_col}H${FG_HINT_ESC}%-*s${RESET}${BG_MAIN_ESC}" "$width" "$line")
         preview_content="${preview_content}${row_str}"
         line_count=$((line_count+1))
-    done < "$_preview_tmp"
-    rm -f "$_preview_tmp"
+    done < "$_pv_tmp"
+    rm -f "$_pv_tmp"
 
     printf "%b" "$preview_content" >&2
+}
+
+_pv_preview() {
+    local file=$1 offset=$2 height=$3 width=$4
+    local _mime=""
+    command -v file >/dev/null 2>&1 && _mime=$(file --mime-type -b "$file" 2>/dev/null)
+    [ -z "$_mime" ] && _mime="text/plain"
+
+    case "$_mime" in
+        text/*|inode/x-empty|inode/directory)
+            sed $'s/\033[[][^A-Za-z]*[A-Za-z]//g' "$file" \
+              | sed -n "$((offset + 1)),$((offset + height))p"
+            ;;
+        application/zip)
+            {
+                printf '%-*s\n\n' "$width" "$(file -b "$file" 2>/dev/null | head -1)"
+                timeout 5 unzip -l "$file" 2>/dev/null | tail -n +4 | head -n -1
+            } | head -n "$height"
+            ;;
+        application/gzip|application/x-bzip2|application/x-xz)
+            {
+                printf '%-*s\n\n' "$width" "$(file -b "$file" 2>/dev/null | head -1)"
+                timeout 5 tar -tf "$file" 2>/dev/null
+            } | head -n "$height"
+            ;;
+        *)
+            {
+                printf '%-*s\n' "$width" "Type: $(file -b "$file" 2>/dev/null | head -1)"
+                printf 'Size: %s bytes\n' "$(wc -c < "$file")"
+                printf '%*s\n' "$width" ""
+                timeout 2 strings -n 4 "$file" 2>/dev/null
+            } | sed -n "$((offset + 1)),$((offset + height))p"
+            ;;
+    esac
 }
 
 fi  # end PREVIEW_SCRIPT override check
