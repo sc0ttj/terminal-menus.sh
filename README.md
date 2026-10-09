@@ -51,7 +51,7 @@ The included demo script (`terminal-menus-demo.sh`) exercises every widget. Thre
 
 ```bash
 ./terminal-menus-demo.sh                # Interactive widget picker menu
-./terminal-menus-demo.sh all            # Run all 24 demos sequentially
+./terminal-menus-demo.sh all            # Run all 23 demos sequentially
 ./terminal-menus-demo.sh filemanager    # Run one widget demo and exit
 ```
 
@@ -923,7 +923,7 @@ cd test && SHELL=ash  python3 -m unittest test_demo_widgets
 
 ### 2. Widget integration tests (no X required)
 
-Run all 181 tests across 24 widgets:
+Run all 181 tests across 23 widgets:
 
 ```bash
 cd test && python3 -m unittest test_demo_widgets -v
@@ -936,7 +936,8 @@ python3 -m unittest test.test_demo_widgets.TestMenu
 python3 -m unittest test.test_demo_widgets.TestForm.test_full_flow
 ```
 
-Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`, `modal`, `extra_keys`, `texteditor`.
+Widgets covered: `menu`, `checklist`, `radiolist`, `msgbox`, `yesno`, `inputbox`, `passwordbox`, `textbox`, `tailbox`, `form`, `infobox`, `gauge`, `spreadsheet`, `filtermenu`, `filepicker`, `tree`, `configtree`, `table`, `filtertable`, `filemanager`, `mainmenu`, `kanban`.  
+Also tested: `modal` overlays and `extra_keys` keybindings.
 
 ### 3. Pty-based functional test (no X required)
 
@@ -962,7 +963,7 @@ cd test && ash interactive_runner.sh wrappers/form_test.sh drivers/form_test.dri
 # Mainmenu visual test — Tab/Enter modal flow, types text, submits, quits (4 screenshots)
 cd test && ash interactive_runner.sh wrappers/mainmenu_test.sh drivers/mainmenu_test.driver
 
-# Full 24-widget demo — automates all widgets in terminal-menus-demo.sh (~24 screenshots)
+# Full 23-widget demo — automates all widgets in terminal-menus-demo.sh (~23 screenshots)
 cd test && ash interactive_runner.sh wrappers/full_demo_wrapper.sh test_full_demo.sh
 ```
 
@@ -978,12 +979,12 @@ syntax checks, form pty test, and all widget integration tests on every push/PR.
 | Path | Purpose |
 |------|---------|
 | `test/testlib.py` | `PtyRunner`, `TuiTestCase`, `KEY` constants — shared PTY test framework |
-| `test/test_demo_widgets.py` | Python integration test module covering all 24 widgets (181 tests) |
+| `test/test_demo_widgets.py` | Python integration test module covering all 23 widgets (181 tests) |
 | `test/wrappers/` | Shell wrappers that source the library and invoke each widget |
 | `test/interactive_runner.sh` | Harness: starts Xvfb, launches xterm, sources driver, sends keystrokes |
 | `test/test_shell_compat.sh` | Shell compatibility test runner — ash + bash syntax and pty functional |
 | `test/test_form_pty.sh` | Python pty-based form output test (supports `SHELL=ash` / `SHELL=bash`) |
-| `test/test_full_demo.sh` | Keystroke driver for the full 24-widget demo |
+| `test/test_full_demo.sh` | Keystroke driver for the full 23-widget demo |
 | `test/drivers/` | Keystroke command scripts sourced by the harness |
 
 ---

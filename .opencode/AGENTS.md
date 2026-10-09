@@ -1,6 +1,6 @@
 # AGENTS.md — terminal-menus.sh
 
-Single-file Pure Bash 3.2+ TUI library (~5,881 lines). Zero dependencies. MIT license.
+Single-file Pure Bash 3.2+ TUI library (~7,616 lines). Zero dependencies. MIT license.
 
 ## Setup
 
@@ -19,7 +19,7 @@ source ./terminal-menus.sh     # or . ./terminal-menus.sh
 Valid widget names: all, infobox, msgbox, yesno, inputbox, passwordbox,
 menu, checklist, radiolist, filtermenu, gauge, textbox, tailbox, tree,
 configtree, form, filepicker, table, filtertable, filemanager, spreadsheet,
-kanban, mainmenu
+kanban, mainmenu, texteditor
 ```
 
 ## Usage patterns
@@ -35,7 +35,7 @@ yesno "Title" "Go?" && echo "yes"
 
 ## Available widgets
 
-`msgbox`, `infobox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `filemanager`, `table`, `filtertable`, `spreadsheet`, `kanban`, `mainmenu`.
+`msgbox`, `infobox`, `yesno`, `inputbox`, `passwordbox`, `menu`, `checklist`, `radiolist`, `filtermenu`, `gauge`, `textbox`, `tailbox`, `tree`, `configtree`, `form`, `filepicker`, `filemanager`, `table`, `filtertable`, `spreadsheet`, `kanban`, `mainmenu`, `texteditor`.
 
 ## Layout (set via `TUI_MODE` env var)
 
@@ -59,7 +59,7 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 
 ## Testing / verification
 
-All **92 tests pass** in ~25s (using bundled PTY sessions per widget class).
+All **181 tests pass** in ~34s (using bundled PTY sessions per widget class).
 
 ```bash
 # Run the full demo (interactive picker, or run all sequentially):
@@ -91,9 +91,9 @@ python3 -m unittest discover -s test -p "test_demo_widgets*" -v
 
 ### Test architecture
 
-- **1 file** (`test/test_demo_widgets.py`), **92 tests** total.
+- **1 file** (`test/test_demo_widgets.py`), **181 tests** total.
 - Each class tests one widget via PTY-driven integration tests.
-- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 92→22, cutting runtime by 60%.
+- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 181→24, cutting runtime by 60%.
 - Legacy fallback: the `PtyRunner` class (uses `script`) kicks in if `pty.fork()` is unavailable.
 - Wrappers: 11 `test/wrappers/*.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
 - The CI pipeline (`.github/workflows/test.yml`) runs the full suite; **ShellCheck** is aspirational (manual, not enforced in CI).
