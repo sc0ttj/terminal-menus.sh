@@ -83,15 +83,34 @@ _pv_text() {
 
 _pv_image() {
     local file=$1 height=$2 width=$3
-    if command -v catimg >/dev/null 2>&1; then
-        timeout 5 catimg -w "$((width * 2 / 3))" "$file" 2>/dev/null
-    elif command -v timg >/dev/null 2>&1; then
-        timeout 5 timg -g "${width}x${height}" "$file" 2>/dev/null
-    elif command -v exiv2 >/dev/null 2>&1; then
-        timeout 5 exiv2 "$file" 2>/dev/null
-    else
-        file "$file" | head -n 1
-    fi
+    local _pv_ext; _pv_ext=$(printf '%s' "${file##*.}" | tr '[:upper:]' '[:lower:]')
+    case "$_pv_ext" in
+        svg|svgz)
+            local _png=$(mktemp /tmp/tui_pv_svg.XXXXXX.png)
+            if command -v rsvg-convert >/dev/null 2>&1; then
+                timeout 5 rsvg-convert "$file" -o "$_png" 2>/dev/null
+                [ -f "$_png" ] && timeout 5 catimg -w "$(( (width * 2 + 2) / 3 ))" "$_png" 2>/dev/null
+                rm -f "$_png"
+            elif command -v convert >/dev/null 2>&1; then
+                timeout 5 convert "$file" "$_png" 2>/dev/null
+                [ -f "$_png" ] && timeout 5 catimg -w "$(( (width * 2 + 2) / 3 ))" "$_png" 2>/dev/null
+                rm -f "$_png"
+            else
+                file "$file" | head -n 1
+            fi
+            ;;
+        *)
+            if command -v catimg >/dev/null 2>&1; then
+                timeout 5 catimg -w "$(( (width * 2 + 2) / 3 ))" "$file" 2>/dev/null
+            elif command -v timg >/dev/null 2>&1; then
+                timeout 5 timg -g "${width}x${height}" "$file" 2>/dev/null
+            elif command -v exiv2 >/dev/null 2>&1; then
+                timeout 5 exiv2 "$file" 2>/dev/null
+            else
+                file "$file" | head -n 1
+            fi
+            ;;
+    esac
 }
 
 _pv_pdf() {
