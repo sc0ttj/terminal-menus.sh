@@ -506,12 +506,13 @@ _apply_layout() {
     esac
 
     # Safety Clamping (Ensures UI never draws off-screen)
-    [ "$MAX_WIDTH" -gt "$term_w" ] && MAX_WIDTH=$term_w && PADDING_LEFT=0
-    [ "$MAX_HEIGHT" -gt "$term_h" ] && MAX_HEIGHT=$term_h && PADDING_TOP=0
+    [ "$term_w" -gt 0 ] && [ "$MAX_WIDTH" -gt "$term_w" ] && MAX_WIDTH=$term_w && PADDING_LEFT=0
+    [ "$term_h" -gt 0 ] && [ "$MAX_HEIGHT" -gt "$term_h" ] && MAX_HEIGHT=$term_h && PADDING_TOP=0
 
     # Derived layout constants (recomputed on resize)
     INDENT="  "
     CONTENT_WIDTH=$(( MAX_WIDTH - 6 ))
+    [ "$CONTENT_WIDTH" -lt 1 ] && CONTENT_WIDTH=1
     CONTENT_WIDTH_WIDE=$(( MAX_WIDTH - 4 ))
     CONTROLS_ROW=$(( MAX_HEIGHT - 1 ))
     FOOTER_HEIGHT=2
@@ -770,6 +771,7 @@ _draw_item() {
 
     [ "$is_cur" -eq 1 ] && style="${HL_WHITE_BOLD}" || style="${BG_WID_ESC}${FG_TEXT_ESC}"
 
+    [ "$width" -lt 1 ] && width=1
     printf "${style} %-${width}s ${RESET}${BG_MAIN_ESC}" "${px}${content}" >&2
 
 }

@@ -1545,17 +1545,15 @@ class TestTexteditor(TuiTestCase):
         self.assert_exit(0, stdout)
         self.assert_no_shell_errors(stdout)
 
-    # FIXME: F1 help modal triggers ash printf '%%--6s: invalid format' bug
-    # in textbox rendering inside modal context. Tracked in terminal-menus.sh.
-    # def test_f1_help(self):
-    #     """F1 opens help modal, ESC dismisses it, then quit"""
-    #     stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
-    #                              [b"\x1bOP",
-    #                               KEY.ESCAPE,
-    #                               KEY.ESCAPE],
-    #                              timeout=10)
-    #     self.assert_exit(0, stdout)
-    #     self.assert_no_shell_errors(stdout)
+    def test_f1_help(self):
+        """F1 opens help modal, 'q' dismisses it, then ESC quits editor"""
+        stdout, rc = self.runner("wrappers/texteditor_wrapper.sh",
+                                 [b"\x1bOP",
+                                  KEY.char("q"),
+                                  KEY.ESCAPE],
+                                 timeout=10)
+        self.assert_exit(0, stdout)
+        self.assert_no_shell_errors(stdout)
 
     def test_home_end_type(self):
         """Home/End move cursor to start/end, type at both positions"""
