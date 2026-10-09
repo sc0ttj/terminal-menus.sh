@@ -59,7 +59,7 @@ Used inside table/mainmenu CSV command columns to layer dialogs on fullscreen wi
 
 ## Testing / verification
 
-All **181 tests pass** in ~34s (using bundled PTY sessions per widget class).
+All **190 tests pass** in ~37s (using bundled PTY sessions per widget class).
 
 ```bash
 # Run the full demo (interactive picker, or run all sequentially):
@@ -91,9 +91,9 @@ python3 -m unittest discover -s test -p "test_demo_widgets*" -v
 
 ### Test architecture
 
-- **1 file** (`test/test_demo_widgets.py`), **181 tests** total.
+- **1 file** (`test/test_demo_widgets.py`), **190 tests** total.
 - Each class tests one widget via PTY-driven integration tests.
-- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 181→24, cutting runtime by 60%.
+- A **persistent ash session** (`PtySession` in `test/testlib.py`) is shared across all test methods in a class via `setUpClass` / `tearDownClass`. Each wrapper runs in a subshell that saves/restores `stty`, keeping terminal state clean between tests. This reduced PTY spawns from 190→24, cutting runtime by 60%.
 - Legacy fallback: the `PtyRunner` class (uses `script`) kicks in if `pty.fork()` is unavailable.
 - Wrappers: 11 `test/wrappers/*.sh` scripts set up the widget and echo `EXIT=` / `RESULT=` markers on stdout.
 - The CI pipeline (`.github/workflows/test.yml`) runs the full suite; **ShellCheck** is aspirational (manual, not enforced in CI).
@@ -153,6 +153,8 @@ This project targets BusyBox Ash. Critical incompatibilities with Bash:
 | Heredocs `<<_EOF_` inside widget functions | Consume from stdin instead of script body in TUI/PTY context | Use temp-file redirection: `while read < "$tmpf"` then `rm -f "$tmpf"` |
 | Substring `${var: -3}` (space before minus) | Works in ash but the space before `-3` is required — `: -3` not `:-3` | Always write `${var: -3}` with the space |
 | `[[ "$key" == $'\r' ]]` | Prints stderr garbage when `!`, `(`, `=` pressed | Pre-define `cr=$(printf '\r')` and use `[ "$key" = "$cr" ]` |
+| `local var=$(cmd) \|\| default` | `local` swallows subshell exit code — `\|\|` never fires when `$(cmd)` fails, variable stays empty | Split: `local var; var=$(cmd); [ -z "$var" ] && var=default` |
+| `printf "%-${width}s"` with `width` < 1 | Width `-6` produces `%--6s` format specifier which ash rejects, printing error to stderr | Guard: `[ "$width" -lt 1 ] && width=1` before the printf |
 
 ### 3. System Tool Capabilities (Puppy Linux / current dev environment)
 
@@ -307,6 +309,10 @@ class KEY:
 ```
 
 **After code changes:** Always run `bash -n terminal-menus.sh && ash -n terminal-menus.sh` for syntax, then `./test/run_changed.sh` for targeted testing before a full suite run.
+
+**PTY stty size:** `PtySession` in `test/testlib.py` does not set `TIOCSWINSZ`, so `stty size < /dev/tty` may return `0 0` depending on parent terminal context. The `local || fallback` pattern in `_apply_layout` (see §2b pitfall) fails to catch this, causing `term_w=0`, `MAX_WIDTH=0`, and `CONTENT_WIDTH=-6`. Two guards fix this: `[ "$term_w" -gt 0 ]` before the clamp on line 509, and `[ "$CONTENT_WIDTH" -lt 1 ] && CONTENT_WIDTH=1` on line 514.
+
+**`_read_key_esc` continuation byte consumption:** When `_read_key_esc` reads `\x1b` (ESC), it reads up to 2 more bytes with a short timeout. In batch PTY keystrokes (all bytes sent at once), subsequent ESC bytes arrive within the timeout and are consumed as escape-sequence continuation bytes — they never reach the widget's own key handler. This means sending `[ESC, ESC, ESC]` from a test only delivers 1 ESC to the widget (the first is the KEY, the second is consumed as continuation, the third is the actual next read). To dismiss a textbox modal in tests, use `q` (single byte, no escape ambiguity) instead of ESC.
 
 ### 10. Operational Instructions
 - Before writing code, verify if a "Pure Bash" alternative exists for every command you intend to use.
